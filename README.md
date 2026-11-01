@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/nizho-wordmark-text-dark.svg"/>
-    <img src="assets/branding/nizho-wordmark-text.svg" width="220" alt="Nizho"/>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/nizho-wordmark-dark.svg"/>
+    <img src="assets/branding/nizho-wordmark.svg" width="300" alt="Nizho"/>
   </picture>
 </p>
 
@@ -11,11 +11,11 @@
 
 <p align="center">Version 0.1.0-dp1 · Developer Preview · GPL-3.0</p>
 
-> **This repository is the Nizho rename of ArkaOS.** ArkaOS was created by Thulasiram K
-> ([thulasiramk-2310](https://github.com/thulasiramk-2310/Arka)); it is not related to other software called ArKaos
-> or to Arka Linux. Every test result in this README and in [docs/TEST-LOG.md](docs/TEST-LOG.md) was recorded on
-> ArkaOS builds, before the rename. No Nizho image has been built or tested yet, and publishing and signing images
-> from this repository is not set up yet.
+> **Nizho is a separate project that began as a copy of [ArkaOS](https://github.com/thulasiramk-2310/Arka).** Both were
+> created by Thulasiram K ([thulasiramk-2310](https://github.com/thulasiramk-2310)); ArkaOS continues on its own and is not
+> related to other software called ArKaos or to Arka Linux. Every test result in this README and in
+> [docs/TEST-LOG.md](docs/TEST-LOG.md) was recorded on ArkaOS builds. The first Nizho image was built and booted on
+> 2026-11-01 (splash, setup, login and desktop all came up), and has not been tested beyond that.
 
 <p align="center">
   <img src="assets/branding/hero.svg" width="100%" alt="Nizho layers from top to bottom: you, the desktop, nizhod (the privacy daemon), the immutable image, the Linux kernel, hardware"/>

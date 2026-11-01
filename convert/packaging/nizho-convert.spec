@@ -76,5 +76,5 @@ install -Dm644 convert/packaging/org.nizho.Wheel.service %{buildroot}%{_datadir}
 %{_datadir}/dbus-1/services/org.nizho.Wheel.service
 
 %changelog
-* Sun Oct 25 2026 Thulasi Ram K <thulasiramk.git@gmail.com> - 0.1.0-1
+* Sun Oct 25 2026 Thulasiram K <thulasiramk.git@gmail.com> - 0.1.0-1
 - First package
