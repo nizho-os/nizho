@@ -88,6 +88,18 @@ says exactly what was and was not tested. The full list is in [docs/FEATURES.md]
 Still a developer preview: the installer is new and VM-tested only, we have one
 hardware data point, and the known rough edges are in the release validation notes and the field notes.
 
+### Known gaps
+
+What a daily-use desktop needs that Nizho does not do yet, or that nobody has tested:
+
+- **Video and audio formats:** only Fedora's free codecs are installed, so some files (for example H.265 video or AAC audio) may not play. Not tested; VLC from Install Apps may cover it.
+- **NVIDIA graphics cards:** there is no proprietary NVIDIA driver, so those cards use the open driver. Not tested.
+- **Backing up your files:** rollback protects the system, not your documents. There is no backup tool yet.
+- **Language and keyboard:** setup now asks for both. It has unit tests and a preview render, but has not yet been run in a booted image. How much of the desktop is translated depends on the language.
+- **Never tried:** printing, scanning, webcam, suspend and hibernate, several monitors, Bluetooth pairing, and any hardware beyond the one laptop.
+
+VPN is not a gap: OpenVPN is installed and NetworkManager has WireGuard built in, though neither has been tested here.
+
 ---
 
 ## Architecture
