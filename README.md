@@ -8,9 +8,11 @@
 
 <p align="center">Version 0.1.0-dp1 · Developer Preview · GPL-3.0</p>
 
-> **This repository is the Nizho rename of ArkaOS.** Every test result in this README and in
-> [docs/TEST-LOG.md](docs/TEST-LOG.md) was recorded on ArkaOS builds, before the rename. No Nizho image has been built
-> or tested yet, and publishing and signing images from this repository is not set up yet.
+> **This repository is the Nizho rename of ArkaOS.** ArkaOS was created by Thulasiram K
+> ([thulasiramk-2310](https://github.com/thulasiramk-2310/Arka)); it is not related to other software called ArKaos
+> or to Arka Linux. Every test result in this README and in [docs/TEST-LOG.md](docs/TEST-LOG.md) was recorded on
+> ArkaOS builds, before the rename. No Nizho image has been built or tested yet, and publishing and signing images
+> from this repository is not set up yet.
 
 <p align="center">
   <img src="assets/branding/hero.svg" width="100%" alt="Nizho layers from top to bottom: you, the desktop, nizhod (the privacy daemon), the immutable image, the Linux kernel, hardware"/>
