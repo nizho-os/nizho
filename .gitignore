@@ -24,3 +24,7 @@ nizho-shell/target/
 tokens
 .nizho_pat
 *.pat
+
+# image signing: the private key lives outside the repository
+cosign.key
+*.key
