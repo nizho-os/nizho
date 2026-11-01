@@ -1,11 +1,11 @@
-# ArkaOS — public website
+# Nizho — public website
 
-`index.html` is the public landing page for ArkaOS: a single, self-contained
+`index.html` is the public landing page for Nizho: a single, self-contained
 file (no build step, no requests to other sites: no web fonts, scripts or images
 from elsewhere). Screenshots live in `img/` and come from tested images. Open it directly
 or host it anywhere static.
 
-**One job:** explain ArkaOS to a first-time visitor, honestly. The copy is held
+**One job:** explain Nizho to a first-time visitor, honestly. The copy is held
 to the same bar as the rest of the project — *honesty over marketing*. It claims
 only what a booted image actually does, and labels the dashboard as a UI mockup,
 not a security score.
@@ -23,7 +23,7 @@ which publishes the `website/` folder on every push to `master`.
 That's it. After the next push the site goes live at:
 
 ```
-https://thulasiramk-2310.github.io/Arka/
+https://nizho-os.github.io/nizho/
 ```
 
 Re-run manually any time from the **Actions** tab → *Deploy website to GitHub
@@ -44,7 +44,7 @@ Pages* → *Run workflow*.
 
 - **Light theme by default**, dark on a toggle (☾ / ☀) — the choice is
   remembered in `localStorage`; with no stored choice the page follows the OS.
-- Accent is a warm amber "ray" — *arka* is Sanskrit for *ray of light*.
+- Accent is a warm amber "ray" — *nizho* is Sanskrit for *ray of light*.
 - Type: **Fraunces** (display) + **IBM Plex Sans / Mono** (body / technical).
 
 ---
@@ -53,7 +53,7 @@ Pages* → *Run workflow*.
 
 For GitHub repo settings — **Settings → General** (bio) and the **⚙ Topics**
 control on the repo home. Kept accurate: no `go`, `d-bus`, or `flatpak` tags,
-because those aren't what ArkaOS is built from.
+because those aren't what Nizho is built from.
 
 ### Bio (< 160 characters)
 

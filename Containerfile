@@ -1,34 +1,34 @@
 ARG FEDORA_VERSION=44
-# Stage 1: build arkad as a static musl binary
+# Stage 1: build nizhod as a static musl binary
 FROM docker.io/rust:alpine AS builder
 RUN apk add --no-cache musl-dev
-COPY arkad/ /build/
-COPY arka-shell/arka-shell-common/ /arka-shell/arka-shell-common/
+COPY nizhod/ /build/
+COPY nizho-shell/nizho-shell-common/ /nizho-shell/nizho-shell-common/
 WORKDIR /build
 RUN cargo build --locked --release --target x86_64-unknown-linux-musl
 
-# arka-pulsed: the reliability daemon, also a static musl binary (its D-Bus
-# surface uses the same zbus stack as arkad). Built after arkad so a change to
+# nizho-pulsed: the reliability daemon, also a static musl binary (its D-Bus
+# surface uses the same zbus stack as nizhod). Built after nizhod so a change to
 # one does not invalidate the other's layer. --features dbus turns on the
 # optional daemon; the core stays zero-dep without it.
-COPY arka-pulse/ /arka-pulse/
+COPY nizho-pulse/ /nizho-pulse/
 RUN cargo build --locked --release --target x86_64-unknown-linux-musl \
-      --features dbus --manifest-path /arka-pulse/Cargo.toml
+      --features dbus --manifest-path /nizho-pulse/Cargo.toml
 
-# Stage 2: build the arka-shell GTK4 apps (glibc required, not musl)
+# Stage 2: build the nizho-shell GTK4 apps (glibc required, not musl)
 FROM docker.io/fedora:${FEDORA_VERSION} AS shell-builder
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q gtk4-devel gtk4-layer-shell-devel libadwaita-devel rust cargo gcc pkgconf-pkg-config
-COPY arka-shell/ /build/
+COPY nizho-shell/ /build/
 WORKDIR /build
 RUN cargo build --locked --release
 
 # Stage 2b: the dock. Fedora's crystal-dock source package rebuilt with
-# crystal-dock/arkaos-look.patch (blurred background, label bubble, divider
-# before Trash) and arkaos-per-user.patch (one dock per account, not per
+# crystal-dock/nizho-look.patch (blurred background, label bubble, divider
+# before Trash) and nizho-per-user.patch (one dock per account, not per
 # computer).
 FROM docker.io/fedora:${FEDORA_VERSION} AS dock-builder
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q rpm-build 'dnf-command(builddep)' 'dnf-command(download)'
-COPY crystal-dock/arkaos-look.patch crystal-dock/arkaos-per-user.patch crystal-dock/build-rpm.sh /build/
+COPY crystal-dock/nizho-look.patch crystal-dock/nizho-per-user.patch crystal-dock/build-rpm.sh /build/
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked sh /build/build-rpm.sh
 
 # Stage 2c: the format wheel (convert/wheel), a small Qt Quick program that
@@ -60,78 +60,78 @@ RUN git clone --quiet --depth 1 --branch "$VARA_TAG" https://github.com/thulasir
 # final stage takes each tree in ONE step instead of ~35. COPY into an empty
 # stage is near-instant.
 FROM scratch AS files
-COPY firewalld/arkaos.xml /usr/lib/firewalld/zones/arkaos.xml
-COPY kernel/10-arkaos-hardening.toml /usr/lib/bootc/kargs.d/10-arkaos-hardening.toml
-COPY kernel/60-arkaos-hardening.conf /usr/lib/sysctl.d/60-arkaos-hardening.conf
-COPY kernel/20-arkaos-recovery.toml /usr/lib/bootc/kargs.d/20-arkaos-recovery.toml
-COPY arka-arm-boot-counter /usr/libexec/arka-arm-boot-counter
-COPY arka-stale-trigger-check /usr/libexec/arka-stale-trigger-check
-COPY autostart/arka-privacy-dots.desktop /etc/xdg/autostart/arka-privacy-dots.desktop
-COPY crystal-dock/arkaos-dock.desktop /etc/xdg/autostart/arkaos-dock.desktop
-COPY crystal-dock/arka-dock-start /usr/libexec/arka-dock-start
+COPY firewalld/nizho.xml /usr/lib/firewalld/zones/nizho.xml
+COPY kernel/10-nizho-hardening.toml /usr/lib/bootc/kargs.d/10-nizho-hardening.toml
+COPY kernel/60-nizho-hardening.conf /usr/lib/sysctl.d/60-nizho-hardening.conf
+COPY kernel/20-nizho-recovery.toml /usr/lib/bootc/kargs.d/20-nizho-recovery.toml
+COPY nizho-arm-boot-counter /usr/libexec/nizho-arm-boot-counter
+COPY nizho-stale-trigger-check /usr/libexec/nizho-stale-trigger-check
+COPY autostart/nizho-privacy-dots.desktop /etc/xdg/autostart/nizho-privacy-dots.desktop
+COPY crystal-dock/nizho-dock.desktop /etc/xdg/autostart/nizho-dock.desktop
+COPY crystal-dock/nizho-dock-start /usr/libexec/nizho-dock-start
 COPY crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/KDE/panel_1.conf
 COPY crystal-dock/appearance.conf /etc/skel/.config/crystal-dock/KDE/appearance.conf
 COPY crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/generic/panel_1.conf
 COPY crystal-dock/appearance.conf /etc/skel/.config/crystal-dock/generic/appearance.conf
-COPY arka-rtc-mode /usr/libexec/arka-rtc-mode
-COPY systemd/arka-rtc-mode.service /usr/lib/systemd/system/arka-rtc-mode.service
-COPY arka-dns-after-clock /usr/libexec/arka-dns-after-clock
-COPY systemd/arka-dns-after-clock.service /usr/lib/systemd/system/arka-dns-after-clock.service
-COPY tmpfiles/arkaos-arkasetup.conf /usr/lib/tmpfiles.d/arkaos-arkasetup.conf
-COPY systemd/greenboot-healthcheck.service.d/10-arkaos-stale-trigger.conf /usr/lib/systemd/system/greenboot-healthcheck.service.d/10-arkaos-stale-trigger.conf
-COPY systemd/greenboot-set-rollback-trigger.service.d/10-arkaos-stop-at-shutdown.conf /usr/lib/systemd/system/greenboot-set-rollback-trigger.service.d/10-arkaos-stop-at-shutdown.conf
-COPY arka-apply-look /usr/libexec/arka-apply-look
-COPY convert/arka-convert /usr/bin/arka-convert
-COPY apps/arka-install /usr/bin/arka
-COPY apps/apps.json /usr/share/arkaos/apps.json
-COPY convert/arka-convert-image.desktop /usr/share/kio/servicemenus/arka-convert-image.desktop
-COPY convert/arka-convert-pdf.desktop /usr/share/kio/servicemenus/arka-convert-pdf.desktop
-COPY convert/arka-convert-office.desktop /usr/share/kio/servicemenus/arka-convert-office.desktop
-COPY convert/arka-smaller.desktop /usr/share/kio/servicemenus/arka-smaller.desktop
-COPY convert/arka-convert-audio.desktop /usr/share/kio/servicemenus/arka-convert-audio.desktop
-COPY convert/arka-convert-video.desktop /usr/share/kio/servicemenus/arka-convert-video.desktop
-COPY convert/arka-wheel-servicemenu.desktop /usr/share/kio/servicemenus/arka-wheel.desktop
-COPY convert/arka-clean.desktop /usr/share/kio/servicemenus/arka-clean.desktop
-COPY convert/arka-edit-image.desktop /usr/share/kio/servicemenus/arka-edit-image.desktop
-COPY convert/arka-edit-pdf.desktop /usr/share/kio/servicemenus/arka-edit-pdf.desktop
-COPY convert/arka-edit-pdf-merge.desktop /usr/share/kio/servicemenus/arka-edit-pdf-merge.desktop
-COPY convert/arka-edit-media.desktop /usr/share/kio/servicemenus/arka-edit-media.desktop
-COPY convert/org.arkaos.edit.desktop /usr/share/applications/org.arkaos.edit.desktop
-COPY convert/org.arkaos.wheel.desktop /usr/share/applications/org.arkaos.wheel.desktop
-COPY convert/arka-wheel-autostart.desktop /etc/xdg/autostart/arka-wheel.desktop
+COPY nizho-rtc-mode /usr/libexec/nizho-rtc-mode
+COPY systemd/nizho-rtc-mode.service /usr/lib/systemd/system/nizho-rtc-mode.service
+COPY nizho-dns-after-clock /usr/libexec/nizho-dns-after-clock
+COPY systemd/nizho-dns-after-clock.service /usr/lib/systemd/system/nizho-dns-after-clock.service
+COPY tmpfiles/nizho-nizhosetup.conf /usr/lib/tmpfiles.d/nizho-nizhosetup.conf
+COPY systemd/greenboot-healthcheck.service.d/10-nizho-stale-trigger.conf /usr/lib/systemd/system/greenboot-healthcheck.service.d/10-nizho-stale-trigger.conf
+COPY systemd/greenboot-set-rollback-trigger.service.d/10-nizho-stop-at-shutdown.conf /usr/lib/systemd/system/greenboot-set-rollback-trigger.service.d/10-nizho-stop-at-shutdown.conf
+COPY nizho-apply-look /usr/libexec/nizho-apply-look
+COPY convert/nizho-convert /usr/bin/nizho-convert
+COPY apps/nizho-install /usr/bin/nizho
+COPY apps/apps.json /usr/share/nizho/apps.json
+COPY convert/nizho-convert-image.desktop /usr/share/kio/servicemenus/nizho-convert-image.desktop
+COPY convert/nizho-convert-pdf.desktop /usr/share/kio/servicemenus/nizho-convert-pdf.desktop
+COPY convert/nizho-convert-office.desktop /usr/share/kio/servicemenus/nizho-convert-office.desktop
+COPY convert/nizho-smaller.desktop /usr/share/kio/servicemenus/nizho-smaller.desktop
+COPY convert/nizho-convert-audio.desktop /usr/share/kio/servicemenus/nizho-convert-audio.desktop
+COPY convert/nizho-convert-video.desktop /usr/share/kio/servicemenus/nizho-convert-video.desktop
+COPY convert/nizho-wheel-servicemenu.desktop /usr/share/kio/servicemenus/nizho-wheel.desktop
+COPY convert/nizho-clean.desktop /usr/share/kio/servicemenus/nizho-clean.desktop
+COPY convert/nizho-edit-image.desktop /usr/share/kio/servicemenus/nizho-edit-image.desktop
+COPY convert/nizho-edit-pdf.desktop /usr/share/kio/servicemenus/nizho-edit-pdf.desktop
+COPY convert/nizho-edit-pdf-merge.desktop /usr/share/kio/servicemenus/nizho-edit-pdf-merge.desktop
+COPY convert/nizho-edit-media.desktop /usr/share/kio/servicemenus/nizho-edit-media.desktop
+COPY convert/org.nizho.edit.desktop /usr/share/applications/org.nizho.edit.desktop
+COPY convert/org.nizho.wheel.desktop /usr/share/applications/org.nizho.wheel.desktop
+COPY convert/nizho-wheel-autostart.desktop /etc/xdg/autostart/nizho-wheel.desktop
 COPY systemd/vara-hub.service /usr/lib/systemd/user/vara-hub.service
-COPY plasma-style/panel /usr/share/plasma/desktoptheme/arkaos-dark
-COPY plasma-style/panel /usr/share/plasma/desktoptheme/arkaos-light
-COPY arkad/org.arka.arkad.policy /usr/share/polkit-1/actions/org.arka.arkad.policy
-COPY arkaos-firefox /usr/bin/firefox-sandbox
-COPY arkad/arkad.service /usr/lib/systemd/system/arkad.service
-COPY arkad/arkad.toml /etc/arkad/arkad.toml
-COPY arkad/org.arka.arkad.conf /etc/dbus-1/system.d/org.arka.arkad.conf
-COPY arkad/org.arka.arkad.service /usr/share/dbus-1/system-services/org.arka.arkad.service
-COPY arka-pulse/arka-pulsed.service /usr/lib/systemd/system/arka-pulsed.service
-COPY arka-pulse/org.arka.pulse.conf /etc/dbus-1/system.d/org.arka.pulse.conf
-COPY arka-pulse/org.arka.pulse.service /usr/share/dbus-1/system-services/org.arka.pulse.service
-COPY docs/RELIABILITY-ARKA-PULSE.md /usr/share/doc/arkaos/RELIABILITY-ARKA-PULSE.md
+COPY plasma-style/panel /usr/share/plasma/desktoptheme/nizho-dark
+COPY plasma-style/panel /usr/share/plasma/desktoptheme/nizho-light
+COPY nizhod/org.nizho.nizhod.policy /usr/share/polkit-1/actions/org.nizho.nizhod.policy
+COPY nizho-firefox /usr/bin/firefox-sandbox
+COPY nizhod/nizhod.service /usr/lib/systemd/system/nizhod.service
+COPY nizhod/nizhod.toml /etc/nizhod/nizhod.toml
+COPY nizhod/org.nizho.nizhod.conf /etc/dbus-1/system.d/org.nizho.nizhod.conf
+COPY nizhod/org.nizho.nizhod.service /usr/share/dbus-1/system-services/org.nizho.nizhod.service
+COPY nizho-pulse/nizho-pulsed.service /usr/lib/systemd/system/nizho-pulsed.service
+COPY nizho-pulse/org.nizho.pulse.conf /etc/dbus-1/system.d/org.nizho.pulse.conf
+COPY nizho-pulse/org.nizho.pulse.service /usr/share/dbus-1/system-services/org.nizho.pulse.service
+COPY docs/RELIABILITY-NIZHO-PULSE.md /usr/share/doc/nizho/RELIABILITY-NIZHO-PULSE.md
 COPY firefox-policies.json /usr/lib64/firefox/distribution/policies.json
 
 FROM scratch AS bins
-COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/arkad /usr/bin/arkad
-COPY --from=builder /arka-pulse/target/x86_64-unknown-linux-musl/release/arka-pulsed /usr/bin/arka-pulsed
-COPY --from=shell-builder /build/target/release/arka-dashboard /usr/bin/arka-dashboard
-COPY --from=shell-builder /build/target/release/arka-wifi      /usr/bin/arka-wifi
-COPY --from=shell-builder /build/target/release/arka-update    /usr/bin/arka-update
-COPY --from=shell-builder /build/target/release/arka-hotkeys   /usr/bin/arka-hotkeys
-COPY --from=shell-builder /build/target/release/arka-capsule   /usr/bin/arka-capsule
-COPY --from=shell-builder /build/target/release/arka-perms    /usr/bin/arka-perms
-COPY --from=shell-builder /build/target/release/arka-settings /usr/bin/arka-settings-gtk
-COPY --from=shell-builder /build/target/release/arka-welcome  /usr/bin/arka-welcome
-COPY --from=shell-builder /build/target/release/arka-sound      /usr/bin/arka-sound
-COPY --from=shell-builder /build/target/release/arka-bluetooth  /usr/bin/arka-bluetooth
-COPY --from=shell-builder /build/target/release/arka-privacy-tray /usr/bin/arka-privacy-tray
-COPY --from=shell-builder /build/target/release/arka-oobe /usr/bin/arka-oobe
-COPY --from=shell-builder /build/target/release/arka-privacy-dots /usr/bin/arka-privacy-dots
-COPY --from=wheel-builder /build/out/arka-wheel /usr/bin/arka-wheel
-COPY --from=wheel-builder /build-edit/out/arka-edit /usr/bin/arka-edit
+COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/nizhod /usr/bin/nizhod
+COPY --from=builder /nizho-pulse/target/x86_64-unknown-linux-musl/release/nizho-pulsed /usr/bin/nizho-pulsed
+COPY --from=shell-builder /build/target/release/nizho-dashboard /usr/bin/nizho-dashboard
+COPY --from=shell-builder /build/target/release/nizho-wifi      /usr/bin/nizho-wifi
+COPY --from=shell-builder /build/target/release/nizho-update    /usr/bin/nizho-update
+COPY --from=shell-builder /build/target/release/nizho-hotkeys   /usr/bin/nizho-hotkeys
+COPY --from=shell-builder /build/target/release/nizho-capsule   /usr/bin/nizho-capsule
+COPY --from=shell-builder /build/target/release/nizho-perms    /usr/bin/nizho-perms
+COPY --from=shell-builder /build/target/release/nizho-settings /usr/bin/nizho-settings-gtk
+COPY --from=shell-builder /build/target/release/nizho-welcome  /usr/bin/nizho-welcome
+COPY --from=shell-builder /build/target/release/nizho-sound      /usr/bin/nizho-sound
+COPY --from=shell-builder /build/target/release/nizho-bluetooth  /usr/bin/nizho-bluetooth
+COPY --from=shell-builder /build/target/release/nizho-privacy-tray /usr/bin/nizho-privacy-tray
+COPY --from=shell-builder /build/target/release/nizho-oobe /usr/bin/nizho-oobe
+COPY --from=shell-builder /build/target/release/nizho-privacy-dots /usr/bin/nizho-privacy-dots
+COPY --from=wheel-builder /build/out/nizho-wheel /usr/bin/nizho-wheel
+COPY --from=wheel-builder /build-edit/out/nizho-edit /usr/bin/nizho-edit
 COPY --from=vara-builder /out/vara /usr/bin/vara
 COPY --from=vara-builder /out/hub /usr/share/vara/hub
 
@@ -140,7 +140,7 @@ FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 
 RUN mkdir -p /etc/NetworkManager/conf.d && \
     printf '[device]\nwifi.scan-rand-mac-address=yes\n\n[connection]\nwifi.cloned-mac-address=random\nethernet.cloned-mac-address=random\n' \
-      > /etc/NetworkManager/conf.d/00-arkaos-mac-random.conf
+      > /etc/NetworkManager/conf.d/00-nizho-mac-random.conf
 
 RUN mkdir -p /usr/lib/bootc/install && \
     printf '[install.filesystem.root]\ntype = "xfs"\n' \
@@ -157,7 +157,7 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
 
 # Graphical session: full KDE Plasma spin + SDDM login manager.
 # Plasma provides the panel, launcher, settings, file manager, window
-# management and login — replacing the custom Hyprland shell. The ArkaOS
+# management and login — replacing the custom Hyprland shell. The Nizho
 # privacy apps (dashboard, capsule, settings) run as regular Plasma apps.
 # rootfiles is excluded: it ships /root dotfiles that already exist in the
 # bootc base, so its cpio unpack fails the whole transaction. It's cosmetic.
@@ -173,7 +173,7 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
 # Enable SDDM (started once firstboot flips the default to graphical.target).
 # Default to the Plasma Wayland session.
 # Fedora 44's KDE install makes Plasma Login Manager (plasmalogin) the display
-# manager. ArkaOS keeps SDDM for now (its login theme is an SDDM theme), so
+# manager. Nizho keeps SDDM for now (its login theme is an SDDM theme), so
 # --force repoints display-manager.service at sddm.
 RUN systemctl enable --force sddm.service && \
     mkdir -p /etc/sddm.conf.d && \
@@ -205,17 +205,17 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
 # Silence console: kernel printk level=1 (EMERG+ALERT only) + no systemd status lines
 RUN mkdir -p /etc/sysctl.d /etc/systemd/system.conf.d && \
     printf 'kernel.printk = 1 4 1 7\n' \
-      > /etc/sysctl.d/00-arkaos-quiet.conf && \
+      > /etc/sysctl.d/00-nizho-quiet.conf && \
     printf '[Manager]\nShowStatus=no\n' \
-      > /etc/systemd/system.conf.d/00-arkaos-quiet.conf
+      > /etc/systemd/system.conf.d/00-nizho-quiet.conf
 
 # First-boot setup wizard + settings utility
-COPY arkaos-firstboot         /usr/libexec/arkaos-firstboot
-COPY arkaos-firstboot.service /usr/lib/systemd/system/arkaos-firstboot.service
-COPY arkaos-settings          /usr/bin/arkaos-settings
-RUN chmod 755 /usr/libexec/arkaos-firstboot /usr/bin/arkaos-settings && \
-    echo '%wheel ALL=(ALL) NOPASSWD: /usr/bin/arkaos-settings' \
-      > /etc/sudoers.d/99-arkaos-settings
+COPY nizho-firstboot         /usr/libexec/nizho-firstboot
+COPY nizho-firstboot.service /usr/lib/systemd/system/nizho-firstboot.service
+COPY nizho-settings          /usr/bin/nizho-settings
+RUN chmod 755 /usr/libexec/nizho-firstboot /usr/bin/nizho-settings && \
+    echo '%wheel ALL=(ALL) NOPASSWD: /usr/bin/nizho-settings' \
+      > /etc/sudoers.d/99-nizho-settings
 
 # First boot must land on the CONSOLE (multi-user.target) so the first-run flow
 # runs and creates the account BEFORE any display manager. The wizard then flips
@@ -226,83 +226,83 @@ RUN systemctl set-default multi-user.target
 # ── Graphical first-run wizard (OOBE) ────────────────────────────────────────
 # A Wayland compositor cannot get a seat as a pre-login *system* service, so the
 # wizard runs inside a real logind LOGIN SESSION — exactly how DP1's sway worked.
-# A dedicated `arkasetup` user auto-logs in on tty1 (first boot only), logind
-# grants it seat0 (DRM+input), and its login shell launches cage + the arka-oobe
-# GTK wizard. arka-oobe runs unprivileged and creates the account only through a
+# A dedicated `nizhosetup` user auto-logs in on tty1 (first boot only), logind
+# grants it seat0 (DRM+input), and its login shell launches cage + the nizho-oobe
+# GTK wizard. nizho-oobe runs unprivileged and creates the account only through a
 # tight NOPASSWD sudo helper. If cage can't start, it falls back to the TUI.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y --setopt=retries=25 cage
-RUN useradd -m -s /bin/bash arkasetup && passwd -l arkasetup && \
-    printf 'arkasetup ALL=(root) NOPASSWD: /usr/libexec/arkaos-oobe-apply, /usr/libexec/arkaos-firstboot\n' \
-      > /etc/sudoers.d/95-arkaos-oobe && \
+RUN useradd -m -s /bin/bash nizhosetup && passwd -l nizhosetup && \
+    printf 'nizhosetup ALL=(root) NOPASSWD: /usr/libexec/nizho-oobe-apply, /usr/libexec/nizho-firstboot\n' \
+      > /etc/sudoers.d/95-nizho-oobe && \
     mkdir -p /etc/systemd/system/getty@tty1.service.d && \
-    printf '[Unit]\nConditionPathExists=!/var/lib/arkaos-firstboot-done\n[Service]\nExecStart=\nExecStart=-/sbin/agetty --autologin arkasetup --skip-login --noissue --nohostname --nohints --noclear %%I $TERM\n' \
-      > /etc/systemd/system/getty@tty1.service.d/arkasetup-autologin.conf && \
-    printf 'if [ "$(tty)" = /dev/tty1 ] && [ ! -e /var/lib/arkaos-firstboot-done ]; then\n  printf "\\033[2J\\033[H\\033[?25l"\n  export GSK_RENDERER=cairo GDK_BACKEND=wayland\n  cage -- /usr/bin/arka-oobe >"$HOME/arka-oobe.log" 2>&1 || { printf "\\033[?25h"; sudo -n /usr/libexec/arkaos-firstboot; }\nfi\n' \
-      > /home/arkasetup/.bash_profile && \
-    touch /home/arkasetup/.hushlogin && \
-    chown arkasetup:arkasetup /home/arkasetup/.bash_profile /home/arkasetup/.hushlogin
+    printf '[Unit]\nConditionPathExists=!/var/lib/nizho-firstboot-done\n[Service]\nExecStart=\nExecStart=-/sbin/agetty --autologin nizhosetup --skip-login --noissue --nohostname --nohints --noclear %%I $TERM\n' \
+      > /etc/systemd/system/getty@tty1.service.d/nizhosetup-autologin.conf && \
+    printf 'if [ "$(tty)" = /dev/tty1 ] && [ ! -e /var/lib/nizho-firstboot-done ]; then\n  printf "\\033[2J\\033[H\\033[?25l"\n  export GSK_RENDERER=cairo GDK_BACKEND=wayland\n  cage -- /usr/bin/nizho-oobe >"$HOME/nizho-oobe.log" 2>&1 || { printf "\\033[?25h"; sudo -n /usr/libexec/nizho-firstboot; }\nfi\n' \
+      > /home/nizhosetup/.bash_profile && \
+    touch /home/nizhosetup/.hushlogin && \
+    chown nizhosetup:nizhosetup /home/nizhosetup/.bash_profile /home/nizhosetup/.hushlogin
 
-# ArkaOS default wallpapers, one per look: the Arka triangle as hairlines on a
+# Nizho default wallpapers, one per look: the Nizho triangle as hairlines on a
 # quiet field, no text, rendered at 4K so HiDPI panels stay sharp. default.png
 # (the dark one) backs the login and lock screens. Users can change them.
 COPY wallpapers/make-default.sh /tmp/make-default.sh
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q ImageMagick && \
-    mkdir -p /usr/share/arka/wallpapers && \
-    sh /tmp/make-default.sh /usr/share/arka/wallpapers/default-light.png 3840 2160 light && \
-    sh /tmp/make-default.sh /usr/share/arka/wallpapers/default-dark.png 3840 2160 dark && \
-    sh /tmp/make-default.sh /usr/share/arka/wallpapers/default-light-blue.png 3840 2160 light blue && \
-    sh /tmp/make-default.sh /usr/share/arka/wallpapers/default-dark-blue.png 3840 2160 dark blue && \
-    cp /usr/share/arka/wallpapers/default-dark.png /usr/share/arka/wallpapers/default.png && \
+    mkdir -p /usr/share/nizho/wallpapers && \
+    sh /tmp/make-default.sh /usr/share/nizho/wallpapers/default-light.png 3840 2160 light && \
+    sh /tmp/make-default.sh /usr/share/nizho/wallpapers/default-dark.png 3840 2160 dark && \
+    sh /tmp/make-default.sh /usr/share/nizho/wallpapers/default-light-blue.png 3840 2160 light blue && \
+    sh /tmp/make-default.sh /usr/share/nizho/wallpapers/default-dark-blue.png 3840 2160 dark blue && \
+    cp /usr/share/nizho/wallpapers/default-dark.png /usr/share/nizho/wallpapers/default.png && \
     rm /tmp/make-default.sh && \
     dnf remove -y -q ImageMagick
 
-# arka-tools .desktop files for launcher search
+# nizho-tools .desktop files for launcher search
 COPY desktop-files/ /usr/share/applications/
 
-# ── ArkaWM: brand KDE Plasma as ArkaOS ──────────────────────────────────────
-# Inter typeface (ArkaOS design system) + the ArkaOS Plasma color scheme.
+# ── NizhoWM: brand KDE Plasma as Nizho ──────────────────────────────────────
+# Inter typeface (Nizho design system) + the Nizho Plasma color scheme.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y rsms-inter-fonts
-COPY ArkaOS.colors /usr/share/color-schemes/ArkaOS.colors
-COPY ArkaOSLight.colors /usr/share/color-schemes/ArkaOSLight.colors
-COPY ArkaOSBlue.colors /usr/share/color-schemes/ArkaOSBlue.colors
-COPY ArkaOSLightBlue.colors /usr/share/color-schemes/ArkaOSLightBlue.colors
+COPY Nizho.colors /usr/share/color-schemes/Nizho.colors
+COPY NizhoLight.colors /usr/share/color-schemes/NizhoLight.colors
+COPY NizhoBlue.colors /usr/share/color-schemes/NizhoBlue.colors
+COPY NizhoLightBlue.colors /usr/share/color-schemes/NizhoLightBlue.colors
 
 # Design-system defaults for every new user (read from /etc/skel on account
-# creation): ArkaOS color scheme, green #16C784 accent, Inter font — applied
+# creation): Nizho color scheme, green #16C784 accent, Inter font — applied
 # from the first frame.
 RUN mkdir -p /etc/skel/.config && \
-    printf '[General]\nColorScheme=ArkaOS\nAccentColor=22,199,132\naccentColorFromWallpaper=false\nfont=Inter,10,-1,5,50,0,0,0,0,0\nfixed=JetBrains Mono,10,-1,5,50,0,0,0,0,0\nmenuFont=Inter,10,-1,5,50,0,0,0,0,0\nsmallestReadableFont=Inter,8,-1,5,50,0,0,0,0,0\ntoolBarFont=Inter,10,-1,5,50,0,0,0,0,0\n\n[KDE]\nwidgetStyle=Breeze\nLookAndFeelPackage=org.kde.breezedark.desktop\n\n[Icons]\nTheme=Arka\n\n[Sounds]\nTheme=Arka\n\n[WM]\nactiveFont=Inter,10,-1,5,75,0,0,0,0,0\n' \
+    printf '[General]\nColorScheme=Nizho\nAccentColor=22,199,132\naccentColorFromWallpaper=false\nfont=Inter,10,-1,5,50,0,0,0,0,0\nfixed=JetBrains Mono,10,-1,5,50,0,0,0,0,0\nmenuFont=Inter,10,-1,5,50,0,0,0,0,0\nsmallestReadableFont=Inter,8,-1,5,50,0,0,0,0,0\ntoolBarFont=Inter,10,-1,5,50,0,0,0,0,0\n\n[KDE]\nwidgetStyle=Breeze\nLookAndFeelPackage=org.kde.breezedark.desktop\n\n[Icons]\nTheme=Nizho\n\n[Sounds]\nTheme=Nizho\n\n[WM]\nactiveFont=Inter,10,-1,5,75,0,0,0,0,0\n' \
       > /etc/skel/.config/kdeglobals
 
-# First-login one-shot: apply the ArkaOS wallpaper + accent via the official
+# First-login one-shot: apply the Nizho wallpaper + accent via the official
 # Plasma CLI tools (reliable across versions), then disable itself.
-# (arka-plasma-firstrun and arka-layout.js are installed in the late block.)
-RUN mkdir -p /etc/skel/.config/autostart /usr/share/arka && \
-    printf '[Desktop Entry]\nType=Application\nName=ArkaOS Branding\nExec=/usr/libexec/arka-plasma-firstrun\nX-KDE-autostart-phase=2\nOnlyShowIn=KDE\nNoDisplay=true\n' \
-      > /etc/skel/.config/autostart/arka-plasma-firstrun.desktop
+# (nizho-plasma-firstrun and nizho-layout.js are installed in the late block.)
+RUN mkdir -p /etc/skel/.config/autostart /usr/share/nizho && \
+    printf '[Desktop Entry]\nType=Application\nName=Nizho Branding\nExec=/usr/libexec/nizho-plasma-firstrun\nX-KDE-autostart-phase=2\nOnlyShowIn=KDE\nNoDisplay=true\n' \
+      > /etc/skel/.config/autostart/nizho-plasma-firstrun.desktop
 
-# Privacy Activity tray (item 1) — StatusNotifierItem that makes arkad's
-# enforcement visible. Read-only; reads arkad D-Bus + /var/log/arkaos/privacy.jsonl.
-RUN printf '[Desktop Entry]\nType=Application\nName=ArkaOS Privacy Activity\nExec=/usr/bin/arka-privacy-tray\nX-KDE-autostart-phase=2\nOnlyShowIn=KDE\nNoDisplay=true\n' \
-      > /etc/skel/.config/autostart/arka-privacy-tray.desktop
+# Privacy Activity tray (item 1) — StatusNotifierItem that makes nizhod's
+# enforcement visible. Read-only; reads nizhod D-Bus + /var/log/nizho/privacy.jsonl.
+RUN printf '[Desktop Entry]\nType=Application\nName=Nizho Privacy Activity\nExec=/usr/bin/nizho-privacy-tray\nX-KDE-autostart-phase=2\nOnlyShowIn=KDE\nNoDisplay=true\n' \
+      > /etc/skel/.config/autostart/nizho-privacy-tray.desktop
 
-# Custom ArkaOS SDDM login theme (dark, green accent, fade-in animation).
-COPY sddm-theme-arkaos/ /usr/share/sddm/themes/arkaos/
-RUN printf '[Theme]\nCurrent=arkaos\n' > /etc/sddm.conf.d/30-arka-theme.conf && \
-    printf '[Users]\nHideUsers=arkasetup\n' > /etc/sddm.conf.d/31-arka-hide-setup.conf
+# Custom Nizho SDDM login theme (dark, green accent, fade-in animation).
+COPY sddm-theme-nizho/ /usr/share/sddm/themes/nizho/
+RUN printf '[Theme]\nCurrent=nizho\n' > /etc/sddm.conf.d/30-nizho-theme.conf && \
+    printf '[Users]\nHideUsers=nizhosetup\n' > /etc/sddm.conf.d/31-nizho-hide-setup.conf
 # The login theme follows the desktop accent (theme.conf accent=auto), read
-# from the sddm user's colour scheme. Seed it with the ArkaOS scheme so a fresh
+# from the sddm user's colour scheme. Seed it with the Nizho scheme so a fresh
 # install matches the desktop default. "C" copies only when the file is
 # missing, so "Apply Plasma Settings" (which rewrites it) always wins.
-RUN printf 'd /var/lib/sddm/.config 0755 sddm sddm -\nC /var/lib/sddm/.config/kdeglobals - - - - /usr/share/color-schemes/ArkaOS.colors\nz /var/lib/sddm/.config/kdeglobals 0644 sddm sddm -\n' \
-      > /usr/lib/tmpfiles.d/arka-sddm-accent.conf
+RUN printf 'd /var/lib/sddm/.config 0755 sddm sddm -\nC /var/lib/sddm/.config/kdeglobals - - - - /usr/share/color-schemes/Nizho.colors\nz /var/lib/sddm/.config/kdeglobals 0644 sddm sddm -\n' \
+      > /usr/lib/tmpfiles.d/nizho-sddm-accent.conf
 
-# Lock screen: ArkaOS wallpaper behind the (already dark+green) Plasma locker.
-RUN printf '[Greeter][Wallpaper][org.kde.image][General]\nImage=/usr/share/arka/wallpapers/default.png\n' \
+# Lock screen: Nizho wallpaper behind the (already dark+green) Plasma locker.
+RUN printf '[Greeter][Wallpaper][org.kde.image][General]\nImage=/usr/share/nizho/wallpapers/default.png\n' \
       > /etc/skel/.config/kscreenlockerrc
 
-# (The desktop wallpaper and panel layout now come from the ArkaOS global
-# themes built in the late block, so the first frame is already ArkaOS.)
+# (The desktop wallpaper and panel layout now come from the Nizho global
+# themes built in the late block, so the first frame is already Nizho.)
 
 # Keep expensive optional effects off by default on modest graphics hardware.
 # Users can enable them through Plasma Desktop Effects.
@@ -314,23 +314,23 @@ RUN printf '[Basic Settings]\nIndexing-Enabled=false\n' > /etc/skel/.config/balo
 
 # Brand the session name shown in SDDM.
 RUN if [ -f /usr/share/wayland-sessions/plasma.desktop ]; then \
-      sed -i 's/^Name=.*/Name=ArkaOS Desktop/' /usr/share/wayland-sessions/plasma.desktop; \
+      sed -i 's/^Name=.*/Name=Nizho Desktop/' /usr/share/wayland-sessions/plasma.desktop; \
     fi
 
-# ── Arka brand identity: icons, cursor, sounds, boot splash ─────────────────
+# ── Nizho brand identity: icons, cursor, sounds, boot splash ─────────────────
 
-# OS identity: About screens, neofetch, bug reports all say ArkaOS + version.
+# OS identity: About screens, neofetch, bug reports all say Nizho + version.
 # ID stays "fedora" — tools key repo/firmware behavior off it.
 RUN sed -i \
-      -e 's/^NAME=.*/NAME="ArkaOS"/' \
-      -e 's/^PRETTY_NAME=.*/PRETTY_NAME="ArkaOS 0.1.0-dp1 (Developer Preview 1)"/' \
+      -e 's/^NAME=.*/NAME="Nizho"/' \
+      -e 's/^PRETTY_NAME=.*/PRETTY_NAME="Nizho 0.1.0-dp1 (Developer Preview 1)"/' \
       -e 's/^VERSION=.*/VERSION="0.1.0-dp1"/' \
-      -e 's|^HOME_URL=.*|HOME_URL="https://github.com/thulasiramk-2310/Arka"|' \
-      -e 's|^BUG_REPORT_URL=.*|BUG_REPORT_URL="https://github.com/thulasiramk-2310/Arka/issues"|' \
+      -e 's|^HOME_URL=.*|HOME_URL="https://github.com/nizho-os/nizho"|' \
+      -e 's|^BUG_REPORT_URL=.*|BUG_REPORT_URL="https://github.com/nizho-os/nizho/issues"|' \
       /usr/lib/os-release && \
-    echo "0.1.0-dp1" > /usr/lib/arkaos-release
+    echo "0.1.0-dp1" > /usr/lib/nizho-release
 
-# ArkaOS has its own welcome; KDE's Konqi tour would fight the identity.
+# Nizho has its own welcome; KDE's Konqi tour would fight the identity.
 # kded6's kded_plasma_welcome module launches it whenever plasma-welcomerc
 # lacks [General] LastSeenVersion (verified via strings on the .so), so remove
 # the package (rpm -e --test confirms no reverse deps) AND seed the config
@@ -346,21 +346,21 @@ RUN rpm -e plasma-welcome && \
     printf '[Unit]\nConditionVirtualization=false\n' \
       > /etc/systemd/system/mcelog.service.d/10-hardware-only.conf
 
-# Arka icon theme (dark plates, green line glyphs; inherits breeze-dark).
-COPY arka-icons/ /usr/share/icons/Arka/
+# Nizho icon theme (dark plates, green line glyphs; inherits breeze-dark).
+COPY nizho-icons/ /usr/share/icons/Nizho/
 
 # The KDE spin already ships power profiles (tuned-ppd — same D-Bus API as
 # power-profiles-daemon, which CONFLICTS with it) plus kio-extras and
 # ffmpegthumbs for file previews. Only the plymouth script engine is missing.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y --setopt=retries=25 plymouth-plugin-script
 
-# ArkaCursor: white pointer with green outline, generated at build; every
-# other shape inherits from breeze_cursors. ArkaSound: soft sine-based event
+# NizhoCursor: white pointer with green outline, generated at build; every
+# other shape inherits from breeze_cursors. NizhoSound: soft sine-based event
 # sounds. Plymouth splash images. All need ImageMagick/xcursorgen/sox once.
-COPY plymouth-theme-arkaos/ /usr/share/plymouth/themes/arkaos/
+COPY plymouth-theme-nizho/ /usr/share/plymouth/themes/nizho/
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q ImageMagick xcursorgen sox liberation-sans-fonts && \
     # -- cursor ---------------------------------------------------------------
-    mkdir -p /tmp/cur /usr/share/icons/ArkaCursor/cursors && \
+    mkdir -p /tmp/cur /usr/share/icons/NizhoCursor/cursors && \
     cd /tmp/cur && \
     magick -size 96x96 xc:none \
       -fill "#f5f7fa" -stroke "#16c784" -strokewidth 6 \
@@ -369,7 +369,7 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
       magick ptr96.png -resize ${s}x${s} ptr_${s}.png; \
     done && \
     printf '24 3 2 ptr_24.png\n32 4 3 ptr_32.png\n48 6 4 ptr_48.png\n' > ptr.cfg && \
-    xcursorgen ptr.cfg /usr/share/icons/ArkaCursor/cursors/left_ptr && \
+    xcursorgen ptr.cfg /usr/share/icons/NizhoCursor/cursors/left_ptr && \
     magick -size 96x96 xc:none \
       -stroke "#f5f7fa" -strokewidth 6 -fill none \
       -draw "line 48,14 48,82 line 36,14 60,14 line 36,82 60,82" ibeam96.png && \
@@ -377,14 +377,14 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
       magick ibeam96.png -resize ${s}x${s} ibeam_${s}.png; \
     done && \
     printf '24 12 12 ibeam_24.png\n32 16 16 ibeam_32.png\n48 24 24 ibeam_48.png\n' > txt.cfg && \
-    xcursorgen txt.cfg /usr/share/icons/ArkaCursor/cursors/text && \
-    cd /usr/share/icons/ArkaCursor/cursors && \
+    xcursorgen txt.cfg /usr/share/icons/NizhoCursor/cursors/text && \
+    cd /usr/share/icons/NizhoCursor/cursors && \
     for a in default arrow top_left_arrow left_arrow; do ln -sf left_ptr $a; done && \
     for a in xterm ibeam; do ln -sf text $a; done && \
-    printf '[Icon Theme]\nName=ArkaCursor\nComment=ArkaOS cursor theme\nInherits=breeze_cursors\n' \
-      > /usr/share/icons/ArkaCursor/index.theme && \
+    printf '[Icon Theme]\nName=NizhoCursor\nComment=Nizho cursor theme\nInherits=breeze_cursors\n' \
+      > /usr/share/icons/NizhoCursor/index.theme && \
     # -- sounds ---------------------------------------------------------------
-    mkdir -p /usr/share/sounds/Arka/stereo && cd /usr/share/sounds/Arka/stereo && \
+    mkdir -p /usr/share/sounds/Nizho/stereo && cd /usr/share/sounds/Nizho/stereo && \
     sox -n -r 44100 desktop-login.wav        synth 0.35 sine 523:784  fade t 0.02 0.35 0.15 vol 0.30 && \
     sox -n -r 44100 message-new-instant.wav  synth 0.18 sine 880      fade t 0.01 0.18 0.09 vol 0.25 && \
     sox -n -r 44100 dialog-error.wav         synth 0.25 sine 185      fade t 0.01 0.25 0.10 vol 0.30 && \
@@ -394,35 +394,35 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
     sox -n -r 44100 battery-low.wav          synth 0.30 sine 330:262  fade t 0.01 0.30 0.12 vol 0.30 && \
     sox -n -r 44100 audio-volume-change.wav  synth 0.08 sine 660      fade t 0.005 0.08 0.04 vol 0.20 && \
     cp message-new-instant.wav bell.wav && \
-    printf '[Sound Theme]\nName=Arka\nComment=ArkaOS sound theme\nInherits=freedesktop\nDirectories=stereo\n\n[stereo]\nOutputProfile=stereo\n' \
-      > /usr/share/sounds/Arka/index.theme && \
+    printf '[Sound Theme]\nName=Nizho\nComment=Nizho sound theme\nInherits=freedesktop\nDirectories=stereo\n\n[stereo]\nOutputProfile=stereo\n' \
+      > /usr/share/sounds/Nizho/index.theme && \
     # -- plymouth splash images ------------------------------------------------
-    cd /usr/share/plymouth/themes/arkaos && \
+    cd /usr/share/plymouth/themes/nizho && \
     sh make-assets.sh && \
     rm make-assets.sh && \
     rm -rf /tmp/cur && \
     dnf remove -y -q ImageMagick xcursorgen sox
 
 # Default cursor theme for new users.
-RUN printf '[Mouse]\ncursorTheme=ArkaCursor\n' > /etc/skel/.config/kcminputrc
+RUN printf '[Mouse]\ncursorTheme=NizhoCursor\n' > /etc/skel/.config/kcminputrc
 
 # Activate the boot splash: set the theme, rebuild the initramfs so plymouth
 # carries it, and add rhgb+quiet kargs so the splash actually shows. Disk
 # images get console=ttyS0 from bootc-image-builder, and plymouth falls back to
 # text ("details") whenever a serial console is present, so tell it to leave
 # serial consoles alone: splash on screen, boot log still on the serial port.
-RUN plymouth-set-default-theme arkaos && \
+RUN plymouth-set-default-theme nizho && \
     KVER=$(ls /usr/lib/modules | head -1) && \
     dracut --force --no-hostonly /usr/lib/modules/$KVER/initramfs.img $KVER && \
     mkdir -p /usr/lib/bootc/kargs.d && \
-    printf 'kargs = ["rhgb", "quiet", "plymouth.ignore-serial-consoles"]\n' > /usr/lib/bootc/kargs.d/10-arkaos-splash.toml
+    printf 'kargs = ["rhgb", "quiet", "plymouth.ignore-serial-consoles"]\n' > /usr/lib/bootc/kargs.d/10-nizho-splash.toml
 
 # Keep the boot screen clean from power-on to setup: hide the GRUB menu (it
 # still waits 1s; hold Esc to show it; bootupd's menu_show_once still forces
 # it when set) and keep kernel/udev chatter off the screen.
 RUN printf 'set timeout_style=hidden\nset timeout=1\n' \
-      > /usr/lib/bootupd/grub2-static/configs.d/12_arka_menu_hidden.cfg && \
-    printf 'kargs = ["loglevel=3", "rd.udev.log_level=3"]\n' > /usr/lib/bootc/kargs.d/11-arkaos-quiet.toml
+      > /usr/lib/bootupd/grub2-static/configs.d/12_nizho_menu_hidden.cfg && \
+    printf 'kargs = ["loglevel=3", "rd.udev.log_level=3"]\n' > /usr/lib/bootc/kargs.d/11-nizho-quiet.toml
 
 # Build the UKI only after the final initramfs and OS identity are ready.
 # Build UKI from the final installed kernel+initramfs — no embedded cmdline
@@ -437,8 +437,8 @@ RUN set -e; \
     echo "UKI built: $(ls -lh /usr/lib/modules/${KVER}/${KVER}.efi)"
 
 # Fedora 44's KDE enables its own first-run wizard (plasma-setup) on top of
-# ArkaOS's OOBE, so new users were asked to set up the machine twice. Mask it:
-# ArkaOS's wizard creates the account. (Placed here, not by the SDDM step, so
+# Nizho's OOBE, so new users were asked to set up the machine twice. Mask it:
+# Nizho's wizard creates the account. (Placed here, not by the SDDM step, so
 # an existing build cache is not invalidated.)
 RUN systemctl mask plasma-setup.service
 
@@ -446,109 +446,109 @@ RUN systemctl mask plasma-setup.service
 # setup screen types its "hello world" in.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y jetbrains-mono-fonts
 
-# Arka Light icons: the same Arka app icons, falling back to Breeze's
+# Nizho Light icons: the same Nizho app icons, falling back to Breeze's
 # light-background set instead of breeze-dark, so tray and launcher glyphs stay
-# visible on the light look. arka-plasma-firstrun switches to it for Light.
-RUN cp -a /usr/share/icons/Arka /usr/share/icons/Arka-Light && \
-    sed -i -e 's/^Name=.*/Name=Arka Light/' -e 's/^Inherits=.*/Inherits=breeze/' \
-           -e 's/^Comment=.*/Comment=ArkaOS icon theme for the light look/' \
-           /usr/share/icons/Arka-Light/index.theme && \
-    gtk-update-icon-cache -q -f /usr/share/icons/Arka-Light 2>/dev/null || true
+# visible on the light look. nizho-plasma-firstrun switches to it for Light.
+RUN cp -a /usr/share/icons/Nizho /usr/share/icons/Nizho-Light && \
+    sed -i -e 's/^Name=.*/Name=Nizho Light/' -e 's/^Inherits=.*/Inherits=breeze/' \
+           -e 's/^Comment=.*/Comment=Nizho icon theme for the light look/' \
+           /usr/share/icons/Nizho-Light/index.theme && \
+    gtk-update-icon-cache -q -f /usr/share/icons/Nizho-Light 2>/dev/null || true
 
 # Update status for unprivileged apps (bootc status needs root): written to
-# /run/arkaos/bootc-status.json at boot, every 10 min, and when deployments change.
-COPY systemd/arka-bootc-status.service systemd/arka-bootc-status.timer systemd/arka-bootc-status.path /usr/lib/systemd/system/
-RUN systemctl enable arka-bootc-status.timer arka-bootc-status.path
+# /run/nizho/bootc-status.json at boot, every 10 min, and when deployments change.
+COPY systemd/nizho-bootc-status.service systemd/nizho-bootc-status.timer systemd/nizho-bootc-status.path /usr/lib/systemd/system/
+RUN systemctl enable nizho-bootc-status.timer nizho-bootc-status.path
 
-# ArkaOS wallpapers as real KDE wallpaper packages, and the system default
+# Nizho wallpapers as real KDE wallpaper packages, and the system default
 # (plasmarc [Wallpapers] defaultWallpaperTheme): the very first frame of a new
-# desktop is ArkaOS's, instead of KDE's "Next" until a login script swaps it.
+# desktop is Nizho's, instead of KDE's "Next" until a login script swaps it.
 RUN for look in Dark Light; do for acc in "" -Blue; do \
-      l=$(echo $look | tr A-Z a-z); s=$(echo "$acc" | tr A-Z a-z); d=/usr/share/wallpapers/ArkaOS-$look$acc; \
+      l=$(echo $look | tr A-Z a-z); s=$(echo "$acc" | tr A-Z a-z); d=/usr/share/wallpapers/Nizho-$look$acc; \
       mkdir -p $d/contents/images && \
-      ln -sf /usr/share/arka/wallpapers/default-$l$s.png $d/contents/images/3840x2160.png && \
-      printf '{"KPlugin":{"Id":"ArkaOS-%s%s","Name":"ArkaOS %s%s","License":"GPL-3.0-or-later","Authors":[{"Name":"ArkaOS"}]}}\n' "$look" "$acc" "$look" "$(echo "$acc" | tr - ' ')" > $d/metadata.json; \
+      ln -sf /usr/share/nizho/wallpapers/default-$l$s.png $d/contents/images/3840x2160.png && \
+      printf '{"KPlugin":{"Id":"Nizho-%s%s","Name":"Nizho %s%s","License":"GPL-3.0-or-later","Authors":[{"Name":"Nizho"}]}}\n' "$look" "$acc" "$look" "$(echo "$acc" | tr - ' ')" > $d/metadata.json; \
     done; done && \
-    printf '[Wallpapers]\ndefaultWallpaperTheme=ArkaOS-Dark\ndefaultFileSuffix=.png\ndefaultWidth=3840\ndefaultHeight=2160\n' > /etc/xdg/plasmarc
+    printf '[Wallpapers]\ndefaultWallpaperTheme=Nizho-Dark\ndefaultFileSuffix=.png\ndefaultWidth=3840\ndefaultHeight=2160\n' > /etc/xdg/plasmarc
 
 # Setup helper and first-login script (here so editing them is a cheap rebuild).
-COPY arkaos-oobe-apply /usr/libexec/arkaos-oobe-apply
-COPY arka-plasma-firstrun /usr/libexec/arka-plasma-firstrun
-COPY arka-layout.js /usr/share/arka/arka-layout.js
-COPY plasma-launcher /usr/share/plasma/plasmoids/org.arkaos.launcher
-COPY plasma-brand /usr/share/plasma/plasmoids/org.arkaos.brand
-COPY plasma-search /usr/share/plasma/plasmoids/org.arkaos.search
-COPY plasma-statuspill /usr/share/plasma/plasmoids/org.arkaos.statuspill
-COPY plasma-spaces /usr/share/plasma/plasmoids/org.arkaos.spaces
+COPY nizho-oobe-apply /usr/libexec/nizho-oobe-apply
+COPY nizho-plasma-firstrun /usr/libexec/nizho-plasma-firstrun
+COPY nizho-layout.js /usr/share/nizho/nizho-layout.js
+COPY plasma-launcher /usr/share/plasma/plasmoids/org.nizho.launcher
+COPY plasma-brand /usr/share/plasma/plasmoids/org.nizho.brand
+COPY plasma-search /usr/share/plasma/plasmoids/org.nizho.search
+COPY plasma-statuspill /usr/share/plasma/plasmoids/org.nizho.statuspill
+COPY plasma-spaces /usr/share/plasma/plasmoids/org.nizho.spaces
 # Apps pinned in the launcher for a new account. Fedora's kde-settings pins
 # Kontact and KWrite through its own kicker-extra-favoritesrc; /etc/xdg comes
 # first in XDG_CONFIG_DIRS, so this list is the one Plasma reads.
 RUN printf '[General]\nPrepend=%s\nIgnoreDefaults=true\n' \
-      'org.mozilla.firefox.desktop;org.kde.dolphin.desktop;org.kde.konsole.desktop;org.kde.discover.desktop;org.arka.settings.desktop;org.arka.dashboard.desktop;libreoffice-writer.desktop;libreoffice-calc.desktop;org.kde.kcalc.desktop;org.kde.okular.desktop;org.kde.gwenview.desktop;org.kde.plasma-systemmonitor.desktop' \
+      'org.mozilla.firefox.desktop;org.kde.dolphin.desktop;org.kde.konsole.desktop;org.kde.discover.desktop;org.nizho.settings.desktop;org.nizho.dashboard.desktop;libreoffice-writer.desktop;libreoffice-calc.desktop;org.kde.kcalc.desktop;org.kde.okular.desktop;org.kde.gwenview.desktop;org.kde.plasma-systemmonitor.desktop' \
       > /etc/xdg/kicker-extra-favoritesrc
 
 # A top bar on every screen, including one connected later (panels/).
-COPY panels/arka-panels /usr/libexec/arka-panels
-COPY panels/arka-panels.service /usr/lib/systemd/user/arka-panels.service
-COPY panels/kwin /usr/share/kwin/scripts/arka-panels
-RUN chmod 755 /usr/libexec/arka-panels && systemctl --global enable arka-panels.service
+COPY panels/nizho-panels /usr/libexec/nizho-panels
+COPY panels/nizho-panels.service /usr/lib/systemd/user/nizho-panels.service
+COPY panels/kwin /usr/share/kwin/scripts/nizho-panels
+RUN chmod 755 /usr/libexec/nizho-panels && systemctl --global enable nizho-panels.service
 
 # KDE Connect is off by default: while it runs, it makes the computer visible
 # to phones and computers on the same network. Opening the KDE Connect app
 # still starts it. Its login autostart is hidden, its tray widget is taken out
 # once per account (plasma-updates/), and Dolphin's send-to-device entry, which
 # started it on every right-click, is off (Dolphin's settings can turn it on).
-COPY plasma-updates/arkaos-kdeconnect-off.js /usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/arkaos-kdeconnect-off.js
+COPY plasma-updates/nizho-kdeconnect-off.js /usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/nizho-kdeconnect-off.js
 RUN test -f /etc/xdg/autostart/org.kde.kdeconnect.daemon.desktop && \
     echo 'Hidden=true' >> /etc/xdg/autostart/org.kde.kdeconnect.daemon.desktop && \
     printf '[Show]\nkdeconnectfileitemaction=false\n' > /etc/xdg/kservicemenurc
 
-# Updates come from ghcr.io/thulasiramk-2310/arka, built and signed by the
-# Image workflow. Only images signed with the ArkaOS key are accepted from
+# Updates come from ghcr.io/nizho-os/nizho, built and signed by the
+# Image workflow. Only images signed with the Nizho key are accepted from
 # there; a pull of an unsigned or differently signed image fails before
 # anything is installed. Other registries keep Fedora's default policy.
-COPY cosign.pub /etc/pki/containers/arka.pub
-COPY containers/arka.yaml /etc/containers/registries.d/arka.yaml
+COPY cosign.pub /etc/pki/containers/nizho.pub
+COPY containers/nizho.yaml /etc/containers/registries.d/nizho.yaml
 RUN python3 -c 'import json; p="/etc/containers/policy.json"; c=json.load(open(p)); \
-c.setdefault("transports", {}).setdefault("docker", {})["ghcr.io/thulasiramk-2310/arka"] = \
-[{"type": "sigstoreSigned", "keyPath": "/etc/pki/containers/arka.pub", "signedIdentity": {"type": "matchRepository"}}]; \
+c.setdefault("transports", {}).setdefault("docker", {})["ghcr.io/nizho-os/nizho"] = \
+[{"type": "sigstoreSigned", "keyPath": "/etc/pki/containers/nizho.pub", "signedIdentity": {"type": "matchRepository"}}]; \
 json.dump(c, open(p, "w"), indent=4)'
-RUN chmod 755 /usr/libexec/arkaos-oobe-apply /usr/libexec/arka-plasma-firstrun
+RUN chmod 755 /usr/libexec/nizho-oobe-apply /usr/libexec/nizho-plasma-firstrun
 
 # Touchpads scroll the content with the fingers ("natural" scrolling), as on
 # macOS, Windows and GNOME; KDE's own default is the opposite. KWin reads this
 # default at login for every touchpad; System Settings can still turn it off.
 RUN printf '[Libinput][Defaults][Touchpad]\nNaturalScroll=true\n' > /etc/xdg/kcminputrc
 
-# ArkaOS global themes ("look-and-feel"), built from Breeze's. Plasma reads a
+# Nizho global themes ("look-and-feel"), built from Breeze's. Plasma reads a
 # new desktop's wallpaper and panel layout from the global theme, so these
-# make the very first frame ArkaOS: colours, Plasma style, icons, cursor,
+# make the very first frame Nizho: colours, Plasma style, icons, cursor,
 # wallpaper, top bar + dock. No splash between login and desktop. Every part
 # stays changeable in System Settings.
 RUN for v in dark light; do \
-      if [ $v = dark ]; then base=org.kde.breezedark.desktop; scheme=ArkaOS; style=arkaos-dark; icons=Arka; wall=ArkaOS-Dark; \
-      else base=org.kde.breeze.desktop; scheme=ArkaOSLight; style=arkaos-light; icons=Arka-Light; wall=ArkaOS-Light; fi; \
-      d=/usr/share/plasma/look-and-feel/org.arkaos.$v.desktop; \
+      if [ $v = dark ]; then base=org.kde.breezedark.desktop; scheme=Nizho; style=nizho-dark; icons=Nizho; wall=Nizho-Dark; \
+      else base=org.kde.breeze.desktop; scheme=NizhoLight; style=nizho-light; icons=Nizho-Light; wall=Nizho-Light; fi; \
+      d=/usr/share/plasma/look-and-feel/org.nizho.$v.desktop; \
       cp -a /usr/share/plasma/look-and-feel/$base $d && \
       python3 -c 'import json,sys; p=sys.argv[1]; m=json.load(open(p)); k=m["KPlugin"]; v=sys.argv[2]; \
-k.update(Id="org.arkaos."+v+".desktop", Name="ArkaOS "+v.title(), Description="The ArkaOS "+v+" look"); \
+k.update(Id="org.nizho."+v+".desktop", Name="Nizho "+v.title(), Description="The Nizho "+v+" look"); \
 [k.pop(x) for x in list(k) if x.startswith(("Name[","Description["))]; json.dump(m,open(p,"w"),indent=1)' $d/metadata.json $v && \
       f=$d/contents/defaults && \
       kwriteconfig6 --file $f --group kdeglobals --group General --key ColorScheme $scheme && \
       kwriteconfig6 --file $f --group kdeglobals --group Icons --key Theme $icons && \
       kwriteconfig6 --file $f --group plasmarc --group Theme --key name $style && \
       kwriteconfig6 --file $f --group Wallpaper --key Image $wall && \
-      kwriteconfig6 --file $f --group kcminputrc --group Mouse --key cursorTheme ArkaCursor && \
+      kwriteconfig6 --file $f --group kcminputrc --group Mouse --key cursorTheme NizhoCursor && \
       kwriteconfig6 --file $f --group ksplashrc --group KSplash --key Theme None && \
       kwriteconfig6 --file $f --group ksplashrc --group KSplash --key Engine none && \
-      cp /usr/share/arka/arka-layout.js $d/contents/layouts/org.kde.plasma.desktop-layout.js || exit 1; \
+      cp /usr/share/nizho/nizho-layout.js $d/contents/layouts/org.kde.plasma.desktop-layout.js || exit 1; \
     done && \
-    kwriteconfig6 --file /etc/skel/.config/kdeglobals --group KDE --key LookAndFeelPackage org.arkaos.dark.desktop && \
-    kwriteconfig6 --file /etc/xdg/kdeglobals --group KDE --key LookAndFeelPackage org.arkaos.dark.desktop && \
+    kwriteconfig6 --file /etc/skel/.config/kdeglobals --group KDE --key LookAndFeelPackage org.nizho.dark.desktop && \
+    kwriteconfig6 --file /etc/xdg/kdeglobals --group KDE --key LookAndFeelPackage org.nizho.dark.desktop && \
     printf '[KSplash]\nEngine=none\nTheme=None\n' > /etc/skel/.config/ksplashrc
 
-# Firewall on by default: the ArkaOS zone rejects unsolicited incoming
-# connections (Fedora KDE's default zone allows ports 1025-65535). arkad
+# Firewall on by default: the Nizho zone rejects unsolicited incoming
+# connections (Fedora KDE's default zone allows ports 1025-65535). nizhod
 # checks it and the Privacy dashboard shows it.
 # greenboot: health checks after each boot. If a new version fails them, the
 # computer restarts to retry (3 boots) and then goes back to the previous
@@ -567,8 +567,8 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
 # Small files and binaries: one COPY each from the staging stages above.
 # Keep each file's purpose next to its line in the "files" stage; what the
 # RUN below does with them:
-#  - firewall: ArkaOS zone (rejects unsolicited incoming connections; Fedora
-#    KDE's default zone allows ports 1025-65535) made the default. arkad checks
+#  - firewall: Nizho zone (rejects unsolicited incoming connections; Fedora
+#    KDE's default zone allows ports 1025-65535) made the default. nizhod checks
 #    it and the Privacy dashboard shows it.
 #  - kernel hardening: boot options via bootc kargs.d, runtime via sysctl.d.
 #  - updates download in the background but never restart the computer on
@@ -576,30 +576,30 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
 #    --apply`, which reboots. Keep the timer, drop --apply; the Updates app
 #    shows "Restart needed" and the user picks the moment.
 #  - light login screen: the same SDDM theme with look=light and the light
-#    wallpaper; arkaos-oobe-apply selects it when the user picks Light.
+#    wallpaper; nizho-oobe-apply selects it when the user picks Light.
 #  - Firefox runs through the bubblewrap sandbox wrapper.
-#  - arkad and arka-pulsed (read-only org.arka.pulse, mirrors arkad) enabled.
+#  - nizhod and nizho-pulsed (read-only org.nizho.pulse, mirrors nizhod) enabled.
 #  - time and names after a wrong clock: chrony also asks four time servers by address
-#    (so it works without DNS) and arka-dns-after-clock restarts systemd-resolved once
+#    (so it works without DNS) and nizho-dns-after-clock restarts systemd-resolved once
 #    when the clock jumps. Fixes "Server not found" on a dead-battery laptop (Nokia).
-#  - arka-rtc-mode (first boot): when the firmware lists Windows Boot Manager, read
-#    the hardware clock as local time like Windows; otherwise ArkaOS shows a time
+#  - nizho-rtc-mode (first boot): when the firmware lists Windows Boot Manager, read
+#    the hardware clock as local time like Windows; otherwise Nizho shows a time
 #    5 h 30 min off. Changes how Linux reads the clock only, never Windows.
-#  - ArkaOS Plasma styles (arkaos-dark/-light): Breeze's colours with ArkaOS
+#  - Nizho Plasma styles (nizho-dark/-light): Breeze's colours with Nizho
 #    panels (24px corners, 1px border, soft shadow) and popups (corners cut at
 #    45 degrees; plasma-style/). Plasma takes every other element from its
 #    default style.
 # Runtime library for the privacy dots overlay, and the dock (Crystal Dock with
-# the ArkaOS patch, its own layer-shell window, so icons can grow above it;
+# the Nizho patch, its own layer-shell window, so icons can grow above it;
 # see crystal-dock/).
 # A late layer: the big package layers above stay cached.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked --mount=type=bind,from=dock-builder,source=/build/out,target=/tmp/dock \
     dnf install --setopt=keepcache=True -y -q gtk4-layer-shell /tmp/dock/crystal-dock-*.rpm
-# "Convert to" in the Dolphin right-click menu (convert/arka-convert): ffmpeg for
+# "Convert to" in the Dolphin right-click menu (convert/nizho-convert): ffmpeg for
 # sound and video (Fedora's build includes MP3, AAC and H.264 through OpenH264),
 # Pillow for pictures, poppler for PDF pages, mat2 for "Remove hidden details".
 # The tool runs them with no network.
-# The format wheel (arka-wheel) needs Qt Quick, KGlobalAccel, KWindowSystem and
+# The format wheel (nizho-wheel) needs Qt Quick, KGlobalAccel, KWindowSystem and
 # LayerShellQt, which Plasma already brings; listed so they stay.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q ffmpeg-free python3-pillow poppler-utils mat2 \
@@ -608,53 +608,53 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q git-core
 COPY --from=files / /
-RUN sed -i 's/^DefaultZone=.*/DefaultZone=arkaos/' /etc/firewalld/firewalld.conf && \
-    grep -q '^DefaultZone=arkaos' /etc/firewalld/firewalld.conf && \
-    chmod 755 /usr/libexec/arka-apply-look /usr/libexec/arka-arm-boot-counter /usr/libexec/arka-stale-trigger-check /usr/libexec/arka-rtc-mode /usr/libexec/arka-dns-after-clock /usr/bin/firefox-sandbox /usr/bin/arka-convert /usr/bin/arka && \
+RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf && \
+    grep -q '^DefaultZone=nizho' /etc/firewalld/firewalld.conf && \
+    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-dns-after-clock /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
     mkdir -p /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d && \
     printf '[Service]\nExecStart=\nExecStart=/usr/bin/bootc upgrade --quiet\n' \
-      > /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d/10-arkaos-no-auto-reboot.conf && \
-    cp -a /usr/share/sddm/themes/arkaos /usr/share/sddm/themes/arkaos-light && \
+      > /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d/10-nizho-no-auto-reboot.conf && \
+    cp -a /usr/share/sddm/themes/nizho /usr/share/sddm/themes/nizho-light && \
     sed -i -e 's/^look=.*/look=light/' \
-           -e 's|^background=.*|background=/usr/share/arka/wallpapers/default-light.png|' \
-           /usr/share/sddm/themes/arkaos-light/theme.conf && \
-    sed -i -e 's/^Name=.*/Name=ArkaOS Light/' -e 's/^Theme-Id=.*/Theme-Id=arkaos-light/' \
-           /usr/share/sddm/themes/arkaos-light/metadata.desktop && \
-    for t in arkaos:dark arkaos-light:light; do \
+           -e 's|^background=.*|background=/usr/share/nizho/wallpapers/default-light.png|' \
+           /usr/share/sddm/themes/nizho-light/theme.conf && \
+    sed -i -e 's/^Name=.*/Name=Nizho Light/' -e 's/^Theme-Id=.*/Theme-Id=nizho-light/' \
+           /usr/share/sddm/themes/nizho-light/metadata.desktop && \
+    for t in nizho:dark nizho-light:light; do \
       base=${t%%:*}; look=${t##*:}; blue=$base-blue; \
-      if [ $base = arkaos-light ]; then blue=arkaos-light-blue; fi; \
+      if [ $base = nizho-light ]; then blue=nizho-light-blue; fi; \
       cp -a /usr/share/sddm/themes/$base /usr/share/sddm/themes/$blue && \
       sed -i -e 's/^accent=.*/accent=#4f86ff/' \
-             -e "s|^background=.*|background=/usr/share/arka/wallpapers/default-$look-blue.png|" \
+             -e "s|^background=.*|background=/usr/share/nizho/wallpapers/default-$look-blue.png|" \
              /usr/share/sddm/themes/$blue/theme.conf && \
       grep -q '^accent=#4f86ff' /usr/share/sddm/themes/$blue/theme.conf && \
-      sed -i -e "s/^Name=.*/Name=ArkaOS $look blue/" -e "s/^Theme-Id=.*/Theme-Id=$blue/" \
+      sed -i -e "s/^Name=.*/Name=Nizho $look blue/" -e "s/^Theme-Id=.*/Theme-Id=$blue/" \
              /usr/share/sddm/themes/$blue/metadata.desktop || exit 1; \
     done && \
     mv /usr/bin/firefox /usr/bin/firefox-unwrapped && \
     ln -sf firefox-sandbox /usr/bin/firefox && \
     for v in dark light; do \
-      d=/usr/share/plasma/desktoptheme/arkaos-$v && \
+      d=/usr/share/plasma/desktoptheme/nizho-$v && \
       if [ $v = dark ]; then n=Dark; else n=Light; fi && \
       cp /usr/share/plasma/desktoptheme/breeze-$v/colors /usr/share/plasma/desktoptheme/breeze-$v/plasmarc $d/ && \
-      printf '{"KPlugin": {"Id": "arkaos-%s", "Name": "ArkaOS %s", "Description": "Breeze %s with ArkaOS panels and popups", "License": "LGPL-2.1-or-later"}, "X-Plasma-API": "5.0"}\n' \
+      printf '{"KPlugin": {"Id": "nizho-%s", "Name": "Nizho %s", "Description": "Breeze %s with Nizho panels and popups", "License": "LGPL-2.1-or-later"}, "X-Plasma-API": "5.0"}\n' \
         $v $n $n > $d/metadata.json || exit 1; \
     done && \
-    printf '\n# ArkaOS: also ask these time servers by address. With a dead clock battery the date\n# starts wrong, DNS then rejects every answer, and a time service that needs DNS\n# can never fix the date. Cloudflare and Google answer on fixed addresses.\nserver 162.159.200.1 iburst\nserver 162.159.200.123 iburst\nserver 216.239.35.0 iburst\nserver 216.239.35.4 iburst\n' >> /etc/chrony.conf && \
-    mkdir -p /usr/share/arkaos/arkasetup && \
-    cp -a /var/home/arkasetup/.bash_profile /var/home/arkasetup/.hushlogin /usr/share/arkaos/arkasetup/ && \
-    systemctl enable arkad.service arka-pulsed.service arka-rtc-mode.service arka-dns-after-clock.service
+    printf '\n# Nizho: also ask these time servers by address. With a dead clock battery the date\n# starts wrong, DNS then rejects every answer, and a time service that needs DNS\n# can never fix the date. Cloudflare and Google answer on fixed addresses.\nserver 162.159.200.1 iburst\nserver 162.159.200.123 iburst\nserver 216.239.35.0 iburst\nserver 216.239.35.4 iburst\n' >> /etc/chrony.conf && \
+    mkdir -p /usr/share/nizho/nizhosetup && \
+    cp -a /var/home/nizhosetup/.bash_profile /var/home/nizhosetup/.hushlogin /usr/share/nizho/nizhosetup/ && \
+    systemctl enable nizhod.service nizho-pulsed.service nizho-rtc-mode.service nizho-dns-after-clock.service
 
 # Built binaries go in LAST: they change on every Rust edit, and anything after
 # a changed layer rebuilds. Units and configs that reference them are installed
-# (and enabled) above; nothing in between executes them. arka-bar / arka-dock /
-# arka-launcher are not shipped: Plasma's panel, Crystal Dock and the
-# org.arkaos.launcher widget replace them (the old ones are in git history,
+# (and enabled) above; nothing in between executes them. nizho-bar / nizho-dock /
+# nizho-launcher are not shipped: Plasma's panel, Crystal Dock and the
+# org.nizho.launcher widget replace them (the old ones are in git history,
 # before 0d707ca).
 COPY --from=bins / /
-RUN chmod 755 /usr/bin/arkad /usr/bin/arka-pulsed /usr/bin/arka-oobe \
-      /usr/bin/arka-dashboard /usr/bin/arka-wifi /usr/bin/arka-update \
-      /usr/bin/arka-hotkeys /usr/bin/arka-capsule /usr/bin/arka-perms \
-      /usr/bin/arka-settings-gtk /usr/bin/arka-welcome /usr/bin/arka-sound \
-      /usr/bin/arka-bluetooth /usr/bin/arka-privacy-tray /usr/bin/arka-privacy-dots && \
+RUN chmod 755 /usr/bin/nizhod /usr/bin/nizho-pulsed /usr/bin/nizho-oobe \
+      /usr/bin/nizho-dashboard /usr/bin/nizho-wifi /usr/bin/nizho-update \
+      /usr/bin/nizho-hotkeys /usr/bin/nizho-capsule /usr/bin/nizho-perms \
+      /usr/bin/nizho-settings-gtk /usr/bin/nizho-welcome /usr/bin/nizho-sound \
+      /usr/bin/nizho-bluetooth /usr/bin/nizho-privacy-tray /usr/bin/nizho-privacy-dots && \
     bootc container lint

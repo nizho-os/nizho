@@ -3,7 +3,7 @@
       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
   <kcfgfile name=""/>
   <group name="General">
-    <!-- Which bus arkad is on. Only changed for testing. -->
+    <!-- Which bus nizhod is on. Only changed for testing. -->
     <entry name="busFlag" type="String"><default>--system</default></entry>
   </group>
 </kcfg>

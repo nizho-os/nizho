@@ -1,0 +1,25 @@
+[package]
+name = "nizhod"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "nizhod"
+path = "src/main.rs"
+
+[dependencies]
+nizho-shell-common = { path = "../nizho-shell/nizho-shell-common" }
+async-trait = "0.1"
+sd-notify = "0.4"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+zbus = { version = "4", features = ["tokio"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

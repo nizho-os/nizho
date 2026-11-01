@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Nizho Format Wheel
+Exec=nizho-wheel
+Icon=document-export
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2

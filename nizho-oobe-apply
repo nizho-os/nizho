@@ -1,0 +1,228 @@
+#!/bin/bash
+# Shell snippets passed to runuser expand their positional arguments in the child.
+# shellcheck disable=SC2016
+# nizho-oobe-apply — privileged tail of the graphical first-run wizard.
+#
+# Runs as root via a tight NOPASSWD sudo rule (see Containerfile), invoked by
+# nizho-oobe which itself runs UNPRIVILEGED inside the nizhosetup login session.
+# This is the only privileged step: create the account the user just entered,
+# set autologin, switch to the graphical target, and mark first-boot done.
+#
+#   usage: nizho-oobe-apply <username> <autologin:0|1> [light|dark
+#                            [<computer-name> [<tools> <commit-name> <commit-email>
+#                            [<time-zone> [<accent>]]]]]
+#          (password on stdin; look defaults to dark, the image default;
+#           the computer name defaults to nizho, the privacy default;
+#           the time zone is a tz database name such as Europe/Berlin, and when
+#           it is left out the image's own zone stays; callers that pick a time
+#           zone but no version control pass three empty strings before it;
+#           the accent is green or blue, green when left out, and a caller that
+#           picks one but no time zone passes an empty string for the zone)
+#
+# tools is the optional version control from setup's Advanced options: a comma
+# list of vara and git, each set up with the name and email for commits.
+set -euo pipefail
+
+if [ "$#" -lt 2 ] || [ "$#" -gt 9 ] || [ "$#" -eq 5 ] || [ "$#" -eq 6 ]; then
+    echo "nizho-oobe-apply: expected username, autologin flag, optional look, computer name, version control, time zone and accent" >&2
+    exit 2
+fi
+user="$1"
+autologin="$2"
+look="${3:-dark}"
+host="${4:-nizho}"
+tools="${5:-}"
+commit_name="${6:-}"
+commit_email="${7:-}"
+zone="${8:-}"
+accent="${9:-green}"
+
+# Serialize account creation, including retries from the graphical and TUI paths.
+exec 9>/run/nizho-oobe.lock
+flock -n 9 || { echo "nizho-oobe-apply: setup is already running" >&2; exit 1; }
+if [ -e /var/lib/nizho-firstboot-done ]; then
+    echo "nizho-oobe-apply: setup is already complete" >&2
+    exit 1
+fi
+
+# Validate the username here too — never trust the caller alone.
+if [[ ! "$user" =~ ^[a-z][a-z0-9_-]{0,30}$ ]]; then
+    echo "nizho-oobe-apply: invalid username" >&2
+    exit 2
+fi
+
+if [[ "$autologin" != "0" && "$autologin" != "1" ]]; then
+    echo "nizho-oobe-apply: invalid autologin flag" >&2
+    exit 2
+fi
+
+if [[ "$look" != "light" && "$look" != "dark" ]]; then
+    echo "nizho-oobe-apply: invalid look" >&2
+    exit 2
+fi
+
+# A computer name is letters, digits and hyphens, starting with a letter (RFC 1123 label).
+if [[ ! "$host" =~ ^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$ ]]; then
+    echo "nizho-oobe-apply: invalid computer name" >&2
+    exit 2
+fi
+
+if [[ "$accent" != "green" && "$accent" != "blue" ]]; then
+    echo "nizho-oobe-apply: invalid accent" >&2
+    exit 2
+fi
+
+# A time zone is a tz database name: up to three parts of letters, digits, _, + and -
+# (America/Argentina/Buenos_Aires, Etc/GMT+5). No dots, so no path tricks, and the
+# name must be a real zone file.
+if [ -n "$zone" ]; then
+    if [[ ! "$zone" =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+){0,2}$ ]] || [ ! -f "/usr/share/zoneinfo/$zone" ]; then
+        echo "nizho-oobe-apply: invalid time zone" >&2
+        exit 2
+    fi
+fi
+
+if [ -n "$tools" ]; then
+    for tool in ${tools//,/ }; do
+        if [[ "$tool" != "vara" && "$tool" != "git" ]]; then
+            echo "nizho-oobe-apply: invalid version control tool" >&2
+            exit 2
+        fi
+    done
+    if [ -z "$commit_name" ] || [ "${#commit_name}" -gt 100 ] || [[ "$commit_name" == *[[:cntrl:]]* ]]; then
+        echo "nizho-oobe-apply: invalid name for commits" >&2
+        exit 2
+    fi
+    if [ "${#commit_email}" -gt 254 ] || [[ ! "$commit_email" =~ ^[^[:space:][:cntrl:]@]+@[^[:space:][:cntrl:]@]+$ ]]; then
+        echo "nizho-oobe-apply: invalid email for commits" >&2
+        exit 2
+    fi
+fi
+
+# Never reset an existing account, including root or the setup user.
+if id -u "$user" >/dev/null 2>&1; then
+    echo "nizho-oobe-apply: account already exists; choose a new username" >&2
+    exit 2
+fi
+
+# Password arrives on stdin so it never appears in argv / process list.
+IFS= read -r pass || { echo "nizho-oobe-apply: password required" >&2; exit 2; }
+if [ "${#pass}" -lt 8 ]; then
+    echo "nizho-oobe-apply: password must be at least 8 characters" >&2
+    exit 2
+fi
+trap 'unset pass' EXIT
+useradd -m -G wheel -s /bin/bash "$user"
+printf '%s:%s\n' "$user" "$pass" | chpasswd
+unset pass
+
+# The new account can already log in. Never follow its .config links as root.
+# Apply this user-owned preference with that account's permissions instead.
+# Besides recording the look, pre-write its colours, Plasma style, icons and
+# wallpaper so the very first desktop frame already matches (no dark-to-light
+# or KDE-to-Nizho flash while the first-login script catches up).
+runuser -u "$user" -- bash -c '
+    set -eu
+    umask 077
+    home=$1 look=$2 accent=$3
+    mkdir -p -- "$home/.config"
+    printf "%s\n" "$look" > "$home/.config/nizho-look"
+    printf "%s\n" "$accent" > "$home/.config/nizho-accent"
+    command -v kwriteconfig6 >/dev/null || exit 0
+    if [ "$look" = light ]; then
+        scheme=NizhoLight style=nizho-light icons=Nizho-Light laf=org.nizho.light.desktop wall=Nizho-Light
+    else
+        scheme=Nizho style=nizho-dark icons=Nizho laf=org.nizho.dark.desktop wall=Nizho-Dark
+    fi
+    # The accent: the blue schemes and wallpapers have Blue on the end of their names.
+    accent_rgb="22,199,132"
+    if [ "$accent" = blue ]; then scheme=${scheme}Blue wall=${wall}-Blue accent_rgb="79,134,255"; fi
+    kg=$home/.config/kdeglobals
+    colors=/usr/share/color-schemes/$scheme.colors
+    if [ -r "$colors" ]; then
+        groups=()
+        while IFS= read -r line; do
+            case "$line" in
+                "["*"]") inner=${line#[}; inner=${inner%]}; IFS="]" read -ra parts <<< "${inner//][/]}"; groups=()
+                         for g in "${parts[@]}"; do groups+=(--group "$g"); done ;;
+                *=*) [ ${#groups[@]} -gt 0 ] && kwriteconfig6 --file "$kg" "${groups[@]}" --key "${line%%=*}" "${line#*=}" ;;
+            esac
+        done < "$colors"
+    fi
+    kwriteconfig6 --file "$kg" --group General --key ColorScheme "$scheme"
+    kwriteconfig6 --file "$kg" --group General --key AccentColor "$accent_rgb"
+    kwriteconfig6 --file "$kg" --group Icons --key Theme "$icons"
+    kwriteconfig6 --file "$kg" --group KDE --key LookAndFeelPackage "$laf"
+    kwriteconfig6 --file "$home/.config/plasmarc" --group Theme --key name "$style"
+    kwriteconfig6 --file "$home/.config/plasmarc" --group Wallpapers --key defaultWallpaperTheme "$wall"
+' nizho-setup-look "/home/$user" "$look" "$accent"
+
+# Optional version control. runuser keeps root's HOME and working directory, so
+# give the tools the new account's own (Git looks for a repository in the
+# working directory even for --global settings and fails in root's). Each tool
+# writes only that account's settings. A failure here is reported but does not
+# stop setup: the account matters more.
+for tool in ${tools//,/ }; do
+    as_user=(runuser -u "$user" -- env --chdir="/home/$user" HOME="/home/$user" XDG_CONFIG_HOME="/home/$user/.config")
+    case "$tool" in
+        vara) "${as_user[@]}" vara identity set --default --name "$commit_name" --email "$commit_email" >/dev/null ||
+                  echo "nizho-oobe-apply: warning: could not set the VARA identity" >&2 ;;
+        git)  { "${as_user[@]}" git config --global user.name "$commit_name" &&
+                "${as_user[@]}" git config --global user.email "$commit_email"; } ||
+                  echo "nizho-oobe-apply: warning: could not set the Git identity" >&2 ;;
+    esac
+done
+
+# The time zone the user chose. A failure is reported but does not stop setup: the
+# account matters more, and the zone can be changed later in Settings.
+if [ -n "$zone" ]; then
+    timedatectl set-timezone "$zone" ||
+        ln -sfn "/usr/share/zoneinfo/$zone" /etc/localtime ||
+        echo "nizho-oobe-apply: warning: could not set the time zone" >&2
+fi
+
+# A computer name other than the default goes into nizhod's settings, so nizhod sets it
+# now and puts it back if anything changes it.
+if [ "$host" != "nizho" ]; then
+    sed -i "/^\[hostname\]/,/^\[/ s/^name = .*/name = \"$host\"/" /etc/nizhod/nizhod.toml
+    grep -q "^name = \"$host\"" /etc/nizhod/nizhod.toml ||
+        echo "nizho-oobe-apply: warning: could not save the computer name" >&2
+fi
+
+mkdir -p /etc/sddm.conf.d
+# Login screen follows the chosen look and accent. Each combination is its own copy of the theme,
+# built into the image (nizho, nizho-light, nizho-blue, nizho-light-blue; see Containerfile),
+# because the login screen cannot read the accent from a user's files.
+theme=nizho
+[ "$look" = "light" ] && theme=nizho-light
+[ "$accent" = "blue" ] && theme="$theme-blue"
+if [ "$theme" != "nizho" ]; then
+    printf '[Theme]\nCurrent=%s\n' "$theme" > /etc/sddm.conf.d/30-nizho-theme.conf
+fi
+# The login screen takes its accent from the sddm account's colour scheme (see the Containerfile),
+# so a blue choice gives it the blue scheme. A failure here does not stop setup.
+if [ "$accent" = "blue" ]; then
+    scheme=/usr/share/color-schemes/NizhoBlue.colors
+    { [ -r "$scheme" ] && mkdir -p /var/lib/sddm/.config &&
+        cp "$scheme" /var/lib/sddm/.config/kdeglobals &&
+        chown sddm:sddm /var/lib/sddm/.config /var/lib/sddm/.config/kdeglobals &&
+        chmod 0644 /var/lib/sddm/.config/kdeglobals; } ||
+        echo "nizho-oobe-apply: warning: could not give the login screen the blue accent" >&2
+fi
+if [ "$autologin" = "1" ]; then
+    printf '[Autologin]\nUser=%s\nSession=plasma.desktop\n' "$user" \
+        > /etc/sddm.conf.d/20-autologin.conf
+else
+    rm -f /etc/sddm.conf.d/20-autologin.conf
+fi
+
+# Seed SDDM's last-user so the greeter greets the new account.
+mkdir -p /var/lib/sddm
+printf '[Last]\nUser=%s\nSession=/usr/share/wayland-sessions/plasma.desktop\n' "$user" \
+    > /var/lib/sddm/state.conf
+chown sddm:sddm /var/lib/sddm/state.conf
+
+# Hand the machine to the graphical target and stop the first-run flow for good.
+systemctl set-default graphical.target
+touch /var/lib/nizho-firstboot-done
+rm -f /etc/sudoers.d/95-nizho-oobe

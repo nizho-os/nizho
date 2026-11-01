@@ -1,6 +1,6 @@
 .pragma library
 
-// The six checks arkad reports. `kind` says how its value turns into a state.
+// The six checks nizhod reports. `kind` says how its value turns into a state.
 var ROWS = [
     { id: "firewall",  title: "Firewall",            prop: "Firewall",       kind: "bool" },
     { id: "dns",       title: "Encrypted DNS (DoT)", prop: "DnsStatus",      kind: "dns" },
@@ -9,7 +9,7 @@ var ROWS = [
     { id: "hostname",  title: "Hostname privacy",    prop: "HostnamePrivacy", kind: "bool" },
     { id: "sandbox",   title: "Browser sandbox",     prop: "BrowserSandbox", kind: "sandbox" }
 ]
-var STALE_SECS = 90   // arkad checks about every 60 s; the tray expires a check after three 30 s polls
+var STALE_SECS = 90   // nizhod checks about every 60 s; the tray expires a check after three 30 s polls
 
 var CONFIGURED = "Configured", ATTENTION = "Needs attention", NOT_SET = "Not configured", UNAVAILABLE = "Unavailable"
 

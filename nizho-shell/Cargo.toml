@@ -1,0 +1,8 @@
+[workspace]
+members = ["nizho-shell-common", "nizho-dashboard", "nizho-wifi", "nizho-update", "nizho-hotkeys", "nizho-capsule", "nizho-perms", "nizho-settings", "nizho-welcome", "nizho-sound", "nizho-bluetooth", "nizho-oobe", "nizho-privacy-tray", "nizho-sensors", "nizho-privacy-dots"]
+resolver = "2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true

@@ -1,4 +1,4 @@
-# Field notes — living with ArkaOS
+# Field notes — living with Nizho
 
 > **First-contact ≠ lived-in.** First impressions measure *excitement*; living
 > with something measures *quality*. They are different metrics — always label
@@ -28,7 +28,7 @@ notice it → write it down → keep using the OS
 
 If something annoys you five times, it's worth fixing; once and never again,
 probably not. Close the IDE more than you open it — for this month you are not
-the lead developer, you are ArkaOS's first real user.
+the lead developer, you are Nizho's first real user.
 
 Add an entry per meaningful day or session. Date it, and say who observed (the
 person living in it, or the assistant during a review).
@@ -62,7 +62,7 @@ person living in it, or the assistant during a review).
 
 **Stopped noticing ("just worked")**
 - Autologin → desktop, no ceremony.
-- `arkad` — the score simply *was* 100; enforcement was invisible.
+- `nizhod` — the score simply *was* 100; enforcement was invisible.
 - The first-boot wizard just *appearing* (the two-month black-screen fight). You
   stop noticing the fix — which is the point.
 
@@ -81,7 +81,7 @@ person living in it, or the assistant during a review).
   would collapse the deliberate two-surface layout: slim top bar for status +
   floating dock for apps) and did **not** reach for Latte-dock magnification
   (unmaintained on Plasma 6 — a maintain-forever trap).
-- Bumped the dock in `arka-layout.js` from `height = 48` → `64`; Plasma's
+- Bumped the dock in `nizho-layout.js` from `height = 48` → `64`; Plasma's
   `icontasks` scales icon size with panel thickness, so this gives larger icons
   and easier hit targets while staying dock-shaped (floating, centered, `fit`).
 - Not yet proven in a booted VM — verify on real desktop before calling it done;
@@ -98,7 +98,7 @@ damage; photos remain unavailable. No kernel panic is recorded in that export. T
 workaround below remain useful evidence; current fixes still need hardware tests.
 A displayed 100/100 score was a configuration aggregate, not a protection proof.
 
-> ArkaOS booted on a **real laptop** for the first time ever — not a VM. Machine:
+> Nizho booted on a **real laptop** for the first time ever — not a VM. Machine:
 > **Nokia PureBook, Intel Core i5-10210U, Intel UHD graphics, 8 GB RAM**, AMI
 > Aptio UEFI. Booted **externally from a USB stick** (BIB raw image `dd`'d to a
 > SanDisk 3.2Gen1); the internal Windows disk was never touched. This clears the
@@ -108,20 +108,20 @@ A displayed 100/100 score was a configuration aggregate, not a protection proof.
 - It just *worked* on real metal, first try: GRUB → kernel → systemd → Plymouth →
   firstboot wizard → KDE Plasma desktop, at **full native resolution** (the
   low-res boot console corrected itself once i915 + Plasma took over — cosmetic).
-- **arka-pulse read a real thermal sensor — 51 °C** (plus real CPU/mem) in the
+- **nizho-pulse read a real thermal sensor — 51 °C** (plus real CPU/mem) in the
   Privacy Dashboard's System Health card. First genuine-hardware reading ever (the
   VM showed "—"). This is the stage-2 "real-hardware deployment" rung, and on a
   *second* machine — exactly what the "stability across machines" calibration
-  question in RELIABILITY-ARKA-PULSE.md wants.
+  question in RELIABILITY-NIZHO-PULSE.md wants.
 
 **"It just works" (bare metal)**
 - Wi-Fi connects, touchpad works, brightness + volume keys work, suspend/resume
-  works. arkad displayed PrivacyScore 100/100 for its DoT/MAC/hostname/IPv6
+  works. nizhod displayed PrivacyScore 100/100 for its DoT/MAC/hostname/IPv6
   checks; this was not an independent audit of traffic or browser protection.
 
 **Awkward / bugs (real use surfaced them — batch-fix then reflash)**
 1. **No audio in sandboxed Firefox.** Volume 100 %, system audio fine (Intel sink
-   present), but the browser is silent. Cause: the bwrap wrapper `arkaos-firefox`
+   present), but the browser is silent. Cause: the bwrap wrapper `nizho-firefox`
    threaded only the Wayland socket into the sandbox, not the audio socket, so
    Firefox couldn't reach PipeWire. **Fix staged** (bind `pipewire-0` + `pulse`
    under `/run/user/UID`); pending a rebuild+reflash to verify on hardware.
@@ -130,7 +130,7 @@ A displayed 100/100 score was a configuration aggregate, not a protection proof.
    found." **Fix staged** — Capsule now adds the Flathub remote at `--user` level
    (no root) and installs `--user` before running. Pending rebuild+reflash.
 3. **App icons render monochrome / miss their real colours — OS-wide, not just
-   Capsule.** ArkaOS sets `Icons=Arka`, but `arka-icons/` is sparse and inherits
+   Capsule.** Nizho sets `Icons=Nizho`, but `nizho-icons/` is sparse and inherits
    breeze-dark; where neither supplies a coloured app icon, KDE/GTK falls back to
    a flat `*-symbolic` glyph. Capsule's catalogue is the same root cause (it uses
    `chat-symbolic`, `dialog-password-symbolic`, … by name). **Not a quick fix —
@@ -144,13 +144,13 @@ These are likely interrelated, not four separate bugs — resolve in order:
   Nokia's Settings → Display **resolution + scale %** before fixing. Fixing this
   may dissolve several of the items below.
 - **Apps don't fill when maximized** — Privacy Dashboard = `adw::Clamp
-  { maximum_size: 720 }` (centred narrow column); other Arka apps need a per-window
+  { maximum_size: 720 }` (centred narrow column); other Nizho apps need a per-window
   expand check. Re-evaluate *after* scaling is set.
-- **Wallpaper flash** — KDE default shows ~5–10 s, then Arka. `arka-plasma-firstrun`
-  applies the wallpaper *after* Plasma starts. Fix: pre-seed the Arka wallpaper into
+- **Wallpaper flash** — KDE default shows ~5–10 s, then Nizho. `nizho-plasma-firstrun`
+  applies the wallpaper *after* Plasma starts. Fix: pre-seed the Nizho wallpaper into
   `/etc/skel` Plasma config so it's the first frame (keep firstrun as fallback).
 - **SDDM login theme looks dated** — visual refresh (modernise the custom theme).
-- **Containerfile note:** `arkaos-firefox` COPY sits *above* the KDE dnf layer, so
+- **Containerfile note:** `nizho-firefox` COPY sits *above* the KDE dnf layer, so
   editing the wrapper busts the multi-hour KDE cache. Move it below the KDE layer.
 
 **🔴 Privacy-claim honesty audit (HIGH priority — "honesty over marketing")**
@@ -179,8 +179,8 @@ Fold the rewrites + Firefox config into the display/UX rebuild batch.
   selected external stick must be explicitly identified before any write.
 
 **Would I miss it?** First real-hardware session, so too early — but seeing the
-green ARKA desktop fill a real panel, with Wi-Fi and the privacy score live, is
-the first time ArkaOS felt like an actual OS rather than a VM demo.
+green NIZHO desktop fill a real panel, with Wi-Fi and the privacy score live, is
+the first time Nizho felt like an actual OS rather than a VM demo.
 
 ---
 

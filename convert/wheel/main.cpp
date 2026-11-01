@@ -1,11 +1,11 @@
-// arka-wheel: the ArkaOS format wheel. Runs hidden for the whole session; the
+// nizho-wheel: the Nizho format wheel. Runs hidden for the whole session; the
 // "Show the format wheel" shortcut (Meta+Alt+C by default, changeable in System
 // Settings > Shortcuts) shows a ring of formats at the cursor while you drag a
-// file. Drop the file on a format and arka-convert makes the copy next to the
-// original. `arka-wheel --files FILE...` (the Dolphin right-click entry) shows
+// file. Drop the file on a format and nizho-convert makes the copy next to the
+// original. `nizho-wheel --files FILE...` (the Dolphin right-click entry) shows
 // the same ring for clicking. "Show the edit wheel" (Meta+Alt+E, or `--edit`)
 // shows a ring of edits instead: crop, black out, trim and so on. All the work
-// is done by arka-convert, or by arka-edit when the tool needs a window.
+// is done by nizho-convert, or by nizho-edit when the tool needs a window.
 
 #include <cmath>
 #include <QAction>
@@ -32,11 +32,11 @@
 #include <KWindowEffects>
 #include <LayerShellQt/Window>
 
-static const QString Service = QStringLiteral("org.arkaos.Wheel");
+static const QString Service = QStringLiteral("org.nizho.Wheel");
 static const QString Path = QStringLiteral("/Wheel");
 
 // The formats each kind of file can become, in wheel order. Every entry must
-// also be a target in arka-convert, which checks the request again anyway.
+// also be a target in nizho-convert, which checks the request again anyway.
 static QStringList formatsForFile(const QString &path)
 {
     static const QStringList image{"png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff"};
@@ -65,7 +65,7 @@ static QStringList formatsForFile(const QString &path)
 }
 
 // The edits each kind of file offers, in wheel order. "rotate-left" and the
-// like are run by arka-convert directly; the rest open arka-edit.
+// like are run by nizho-convert directly; the rest open nizho-edit.
 static QStringList toolsForFile(const QString &path)
 {
     static const QStringList image{"png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff"};
@@ -99,7 +99,7 @@ public:
 class Wheel : public QObject
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "org.arkaos.Wheel")
+    Q_CLASSINFO("D-Bus Interface", "org.nizho.Wheel")
     Q_PROPERTY(QColor accent READ accent CONSTANT)
 
 public:
@@ -109,7 +109,7 @@ public:
 
     Q_INVOKABLE bool dark() const
     {
-        QFile f(QDir::homePath() + QStringLiteral("/.config/arka-look"));
+        QFile f(QDir::homePath() + QStringLiteral("/.config/nizho-look"));
         if (f.open(QIODevice::ReadOnly))
             return f.readAll().trimmed() != "light";
         return true;
@@ -165,15 +165,15 @@ public:
             return;
         if (tool == QLatin1String("crop") || tool == QLatin1String("redact") || tool == QLatin1String("background")
             || tool == QLatin1String("trim"))
-            QProcess::startDetached(QStringLiteral("arka-edit"), {tool, files.first()});
+            QProcess::startDetached(QStringLiteral("nizho-edit"), {tool, files.first()});
         else if (tool == QLatin1String("rotate-left"))
-            QProcess::startDetached(QStringLiteral("arka-convert"), {"rotate", files.first(), "left"});
+            QProcess::startDetached(QStringLiteral("nizho-convert"), {"rotate", files.first(), "left"});
         else if (tool == QLatin1String("rotate-right"))
-            QProcess::startDetached(QStringLiteral("arka-convert"), {"rotate", files.first(), "right"});
+            QProcess::startDetached(QStringLiteral("nizho-convert"), {"rotate", files.first(), "right"});
         else if (tool == QLatin1String("split"))
-            QProcess::startDetached(QStringLiteral("arka-convert"), {"split-pdf", files.first()});
+            QProcess::startDetached(QStringLiteral("nizho-convert"), {"split-pdf", files.first()});
         else if (tool == QLatin1String("merge"))
-            QProcess::startDetached(QStringLiteral("arka-convert"), QStringList{"merge-pdf"} + files);
+            QProcess::startDetached(QStringLiteral("nizho-convert"), QStringList{"merge-pdf"} + files);
     }
 
     Q_INVOKABLE void convert(const QString &format, const QList<QUrl> &urls) const
@@ -183,7 +183,7 @@ public:
             if (u.isLocalFile())
                 args << u.toLocalFile();
         if (args.size() > 1)
-            QProcess::startDetached(QStringLiteral("arka-convert"), args);
+            QProcess::startDetached(QStringLiteral("nizho-convert"), args);
     }
 
     // Blur only the ring itself, like the dock: KWin blurs what is behind it.
@@ -237,8 +237,8 @@ int main(int argc, char **argv)
     if (qEnvironmentVariableIsEmpty("QT_QUICK_BACKEND"))
         qputenv("QT_QUICK_BACKEND", "software");
     QGuiApplication app(argc, argv);
-    app.setApplicationName(QStringLiteral("arka-wheel"));
-    app.setDesktopFileName(QStringLiteral("org.arkaos.wheel"));
+    app.setApplicationName(QStringLiteral("nizho-wheel"));
+    app.setDesktopFileName(QStringLiteral("org.nizho.wheel"));
     app.setQuitOnLastWindowClosed(false);
 
     QStringList files = app.arguments().mid(1);
@@ -273,12 +273,12 @@ int main(int argc, char **argv)
     wheel.window = window;
 
     // For testing without a compositor: size the window, then save a picture of it and quit.
-    const QString shot = qEnvironmentVariable("ARKA_WHEEL_SCREENSHOT");
+    const QString shot = qEnvironmentVariable("NIZHO_WHEEL_SCREENSHOT");
     if (!shot.isEmpty()) {
         window->resize(1000, 700);
-        // ARKA_WHEEL_EVENTS="m X Y;..." moves the pointer (window coordinates) before the picture is taken.
+        // NIZHO_WHEEL_EVENTS="m X Y;..." moves the pointer (window coordinates) before the picture is taken.
         int at = 600;
-        for (const QString &e : qEnvironmentVariable("ARKA_WHEEL_EVENTS").split(';', Qt::SkipEmptyParts)) {
+        for (const QString &e : qEnvironmentVariable("NIZHO_WHEEL_EVENTS").split(';', Qt::SkipEmptyParts)) {
             const QStringList f = e.trimmed().split(' ', Qt::SkipEmptyParts);
             if (f.size() != 3)
                 continue;
@@ -300,7 +300,7 @@ int main(int argc, char **argv)
                                                     | LayerShellQt::Window::AnchorLeft | LayerShellQt::Window::AnchorRight));
     layer->setExclusiveZone(-1);
     layer->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityOnDemand);
-    layer->setScope(QStringLiteral("arka-wheel"));
+    layer->setScope(QStringLiteral("nizho-wheel"));
     layer->setWantsToBeOnActiveScreen(true); // the screen you are working on, not always the first
 
     bus.registerObject(Path, &wheel, QDBusConnection::ExportScriptableSlots);
@@ -309,8 +309,8 @@ int main(int argc, char **argv)
     auto *action = new QAction(&app);
     action->setObjectName(QStringLiteral("show-wheel"));
     action->setText(QStringLiteral("Show the format wheel"));
-    action->setProperty("componentName", QStringLiteral("arka-wheel"));
-    action->setProperty("componentDisplayName", QStringLiteral("ArkaOS Format Wheel"));
+    action->setProperty("componentName", QStringLiteral("nizho-wheel"));
+    action->setProperty("componentDisplayName", QStringLiteral("Nizho Format Wheel"));
     const QList<QKeySequence> keys{QKeySequence(Qt::META | Qt::ALT | Qt::Key_C)};
     KGlobalAccel::self()->setDefaultShortcut(action, keys);
     KGlobalAccel::self()->setShortcut(action, keys); // keeps a shortcut the user changed
@@ -319,8 +319,8 @@ int main(int argc, char **argv)
     auto *editAction = new QAction(&app);
     editAction->setObjectName(QStringLiteral("show-edit-wheel"));
     editAction->setText(QStringLiteral("Show the edit wheel"));
-    editAction->setProperty("componentName", QStringLiteral("arka-wheel"));
-    editAction->setProperty("componentDisplayName", QStringLiteral("ArkaOS Format Wheel"));
+    editAction->setProperty("componentName", QStringLiteral("nizho-wheel"));
+    editAction->setProperty("componentDisplayName", QStringLiteral("Nizho Format Wheel"));
     const QList<QKeySequence> editKeys{QKeySequence(Qt::META | Qt::ALT | Qt::Key_E)};
     KGlobalAccel::self()->setDefaultShortcut(editAction, editKeys);
     KGlobalAccel::self()->setShortcut(editAction, editKeys);
@@ -332,13 +332,13 @@ int main(int argc, char **argv)
     auto *keysAction = new QAction(&app);
     keysAction->setObjectName(QStringLiteral("show-shortcuts"));
     keysAction->setText(QStringLiteral("Show the keyboard shortcuts"));
-    keysAction->setProperty("componentName", QStringLiteral("arka-shortcuts"));
-    keysAction->setProperty("componentDisplayName", QStringLiteral("ArkaOS Shortcuts"));
+    keysAction->setProperty("componentName", QStringLiteral("nizho-shortcuts"));
+    keysAction->setProperty("componentDisplayName", QStringLiteral("Nizho Shortcuts"));
     const QList<QKeySequence> keysKeys{QKeySequence(Qt::META | Qt::Key_Slash)};
     KGlobalAccel::self()->setDefaultShortcut(keysAction, keysKeys);
     KGlobalAccel::self()->setShortcut(keysAction, keysKeys);
     QObject::connect(keysAction, &QAction::triggered, &app, [] {
-        QProcess::startDetached(QStringLiteral("arka-hotkeys"), {});
+        QProcess::startDetached(QStringLiteral("nizho-hotkeys"), {});
     });
 
     if (clickMode)

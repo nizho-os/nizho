@@ -13,6 +13,6 @@ OVMF_*.qcow2
 
 # Local credentials do not belong in an image build context
 tokens
-.arka_pat
+.nizho_pat
 *.pat
 .aws/

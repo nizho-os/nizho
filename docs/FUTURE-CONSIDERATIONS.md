@@ -42,7 +42,7 @@ The single biggest unknown. A VM answers none of this:
 - Displays: HiDPI, multi-monitor.
 - Lifecycle: suspend/resume.
 
-First concrete step of the next phase: **boot ArkaOS on one real laptop and see
+First concrete step of the next phase: **boot Nizho on one real laptop and see
 what breaks.**
 
 ## Compatibility
@@ -97,7 +97,7 @@ This page becomes one of the most valuable things in the project.
 
 ## Ecosystem
 
-- Not an Arka store. Capsule = curated Flathub: verified apps, update status,
+- Not an Nizho store. Capsule = curated Flathub: verified apps, update status,
   trust indicators — layered on Flathub's AppStream metadata, not a new registry.
 
 ## UX / product
@@ -109,11 +109,11 @@ This page becomes one of the most valuable things in the project.
 - Settings state accuracy (e.g. the Automatic Login toggle reflecting the real
   SDDM state — see `docs/FIELD-NOTES.md`).
 - Backup: local + external-drive backup, restore wizard.
-- **Display adaptation (requirement, near-term):** *ArkaOS must adapt its desktop
+- **Display adaptation (requirement, near-term):** *Nizho must adapt its desktop
   presentation to the detected display — never assume a fixed resolution or scale.*
   - **Detect** resolution, refresh, DPI/physical size from **EDID** — KDE/Wayland
     already does this; lean on it, don't reinvent.
-  - **Auto-scale policy (the only ArkaOS-specific bit):** at first boot compute DPI
+  - **Auto-scale policy (the only Nizho-specific bit):** at first boot compute DPI
     and pick a sensible default (≈ ≤110 dpi→100 % · 110–160→125 % · 160–210→150 % ·
     >210→175–200 %), apply once via `kscreen-doctor`. KDE's own default is too
     conservative (100 % on HiDPI) — that's the gap we fill. ~30-line first-boot step.
@@ -121,7 +121,7 @@ This page becomes one of the most valuable things in the project.
     scale/config keyed by each output's EDID (laptop 125 % vs external 4K 175 %).
   - **User override, Windows-style:** resolution / scale / refresh / multi-monitor
     arrangement all user-changeable and remembered — **KDE's Display & Monitor panel
-    already provides this**; ArkaOS just surfaces it clearly in Settings.
+    already provides this**; Nizho just surfaces it clearly in Settings.
   - **Why it matters:** the first bare-metal boot's "everything looks tiny" was
     almost certainly wrong global scale (100 % on a HiDPI panel), which cascades
     into SDDM / panel / text / maximize all looking wrong — **one root cause, not
@@ -149,49 +149,49 @@ This page becomes one of the most valuable things in the project.
 The single most valuable non-feature investment, and the one place where
 deferring is genuinely expensive later:
 
-**Every Arka app talks to Arka *service interfaces*, never KDE/Plasma APIs
-directly.** `WindowService` is the template. Each service is an Arka interface
+**Every Nizho app talks to Nizho *service interfaces*, never KDE/Plasma APIs
+directly.** `WindowService` is the template. Each service is an Nizho interface
 with a swappable implementation:
 
 ```
-PowerService  → PowerDevil   (today)  →  Arka Power   (tomorrow)   — no UI change
-WindowService → KWin         (today)  →  ArkaWM       (tomorrow)   — no UI change
+PowerService  → PowerDevil   (today)  →  Nizho Power   (tomorrow)   — no UI change
+WindowService → KWin         (today)  →  NizhoWM       (tomorrow)   — no UI change
 ```
 
 Candidate services: `WindowService` (exists), `PowerService`, `NetworkService`,
 `NotificationService`, `PermissionService`, `PrivacyService`, `UpdateService`,
 `ThemeService`, `ReliabilityService` (see
-[`RELIABILITY-ARKA-PULSE.md`](RELIABILITY-ARKA-PULSE.md)). None of them name KDE. This is what keeps the "swap Plasma /
-bring ArkaWM" door open without rewriting the desktop apps — so defining the
+[`RELIABILITY-NIZHO-PULSE.md`](RELIABILITY-NIZHO-PULSE.md)). None of them name KDE. This is what keeps the "swap Plasma /
+bring NizhoWM" door open without rewriting the desktop apps — so defining the
 trait first (even when KDE is the only implementation) is the discipline worth
 keeping during the freeze.
 
-### Agentic Arka — the AI layer, if it comes (distant)
+### Agentic Nizho — the AI layer, if it comes (distant)
 
-An on-device assistant that can *operate* ArkaOS — but built on the same **"the
-model is untrusted"** spine as arka-pulse ([`RELIABILITY-ARKA-PULSE.md`](RELIABILITY-ARKA-PULSE.md)), not a
+An on-device assistant that can *operate* Nizho — but built on the same **"the
+model is untrusted"** spine as nizho-pulse ([`RELIABILITY-NIZHO-PULSE.md`](RELIABILITY-NIZHO-PULSE.md)), not a
 chatbot bolted on. The agent never touches the system directly; it emits
 *structured intent* that flows through the very service interfaces and policy
 gates every other actor already uses:
 
 ```
-Arka Agent
+Nizho Agent
    → Structured Intent
-   → Arka Service Interface   (WindowService, PrivacyService, ReliabilityService, …)
+   → Nizho Service Interface   (WindowService, PrivacyService, ReliabilityService, …)
    → Policy Engine            (RiskLevel: auto / ask-human / deny)
    → Auditable Action         (predefined registry only — never free-form)
    → Verify                   (re-check that it did what it claimed)
 ```
 
-The point: this is **not** "add an AI assistant." It is the arka-pulse safety
+The point: this is **not** "add an AI assistant." It is the nizho-pulse safety
 model generalised to the whole OS — the agent *proposes*, deterministic policy
 *decides*, every action is auditable and re-verified, and nothing bypasses the
-service layer. Local-only and privacy-first, same bar as `arkad`. It is exactly
+service layer. Local-only and privacy-first, same bar as `nizhod`. It is exactly
 the service-interface + policy discipline above that makes this buildable later
 without a rewrite — which is why the discipline is worth keeping now, even though
 the agent itself is years out.
 
-**Long-horizon direction (record, don't build):** Agentic Arka · ArkaWM (own WM) ·
+**Long-horizon direction (record, don't build):** Agentic Nizho · NizhoWM (own WM) ·
 a *hardened* Linux LTS kernel — hardening/config first, custom work only if it
 earns it, never a from-scratch kernel on a whim (see guardrails) · Mobile / tablet
 / (much later) car. Desktop-first for the next few years; everything else waits.
@@ -199,7 +199,7 @@ earns it, never a from-scratch kernel on a whim (see guardrails) · Mobile / tab
 ## Guardrails (the don't-do list)
 
 - **Don't reimplement mature Linux infrastructure** — own package manager,
-  network stack, filesystem, kernel — without a compelling reason. ArkaOS's value
+  network stack, filesystem, kernel — without a compelling reason. Nizho's value
   is the *experience*, not novel plumbing.
 - **Don't try to be everything at once** — distro + DE + WM + package ecosystem +
   mobile + car. That list has killed better-funded projects. For the next few

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Privacy Dashboard
+Comment=View and control Nizho privacy settings
+Exec=nizho-dashboard
+Icon=nizho-dashboard
+Keywords=privacy;security;dns;tracking;protection;shield;
+Categories=System;Security;

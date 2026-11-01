@@ -1,6 +1,6 @@
 /*
-    The status pill: how many of arkad's six privacy settings it last confirmed. Green only when all six are
-    confirmed and the check is fresh (under 90 seconds old). Amber when some are not. Grey when arkad cannot be
+    The status pill: how many of nizhod's six privacy settings it last confirmed. Green only when all six are
+    confirmed and the check is fresh (under 90 seconds old). Amber when some are not. Grey when nizhod cannot be
     read or its check is stale. It never says a system is secure or verified, only what was checked.
 
     SPDX-License-Identifier: GPL-3.0-or-later
@@ -20,7 +20,7 @@ PlasmoidItem {
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
 
     readonly property var props: ["LastCheck"].concat(R.ROWS.map(function (r) { return r.prop }))
-    readonly property string readCmd: "busctl " + Plasmoid.configuration.busFlag + " --json=short get-property org.arka.arkad /org/arka/arkad org.arka.arkad " + props.join(" ")
+    readonly property string readCmd: "busctl " + Plasmoid.configuration.busFlag + " --json=short get-property org.nizho.nizhod /org/nizho/nizhod org.nizho.nizhod " + props.join(" ")
     property var values: null
     property double nowSecs: Date.now() / 1000
     readonly property double checkedAt: values ? Number(values.LastCheck) : 0
@@ -55,7 +55,7 @@ PlasmoidItem {
         Layout.preferredWidth: Layout.minimumWidth
         activeFocusOnTab: true
         Accessible.role: Accessible.Button; Accessible.name: root.label
-        Keys.onReturnPressed: launcher.connectSource("arka-dashboard"); Keys.onSpacePressed: launcher.connectSource("arka-dashboard")
+        Keys.onReturnPressed: launcher.connectSource("nizho-dashboard"); Keys.onSpacePressed: launcher.connectSource("nizho-dashboard")
         Rectangle {
             anchors.centerIn: parent; width: parent.width; height: Math.min(parent.height - 4, Kirigami.Units.gridUnit * 1.9); radius: height / 2
             color: ma.containsMouse || pill.activeFocus ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0.05, 0.07, 0.12, 0.42)
@@ -66,6 +66,6 @@ PlasmoidItem {
                 Text { id: txt; text: root.label; color: Kirigami.Theme.textColor; font: Kirigami.Theme.defaultFont; anchors.verticalCenter: parent.verticalCenter }
             }
         }
-        MouseArea { id: ma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: launcher.connectSource("arka-dashboard") }
+        MouseArea { id: ma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: launcher.connectSource("nizho-dashboard") }
     }
 }

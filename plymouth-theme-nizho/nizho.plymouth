@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Nizho
+Description=Nizho boot splash — triangle glow into NIZHO wordmark
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/nizho
+ScriptFile=/usr/share/plymouth/themes/nizho/nizho.script

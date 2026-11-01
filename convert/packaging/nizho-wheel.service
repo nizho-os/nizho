@@ -1,0 +1,18 @@
+[Unit]
+Description=Nizho format wheel
+Documentation=https://github.com/nizho-os/nizhoos
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=dbus
+BusName=org.nizho.Wheel
+ExecStart=/usr/bin/nizho-wheel
+Restart=on-failure
+RestartSec=2
+Environment=QT_QPA_PLATFORM=wayland
+Slice=app.slice
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,5 +1,5 @@
 /*
-    A rectangle with its corners cut at 45 degrees: the shape of ArkaOS's
+    A rectangle with its corners cut at 45 degrees: the shape of Nizho's
     popups (plasma-style/make-panel-svg.py), used for the launcher's search
     field, highlights, tiles and privacy line.
 

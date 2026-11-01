@@ -1,0 +1,16 @@
+[Unit]
+Description=Nizho Privacy Daemon
+After=network.target NetworkManager.service systemd-resolved.service firewalld.service
+Wants=NetworkManager.service systemd-resolved.service
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/nizhod
+Restart=on-failure
+RestartSec=5s
+WatchdogSec=120s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

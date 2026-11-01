@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Settings
+Comment=Nizho system settings
+Exec=nizho-settings-gtk
+Icon=nizho-settings
+Keywords=settings;preferences;appearance;wallpaper;display;theme;
+Categories=System;Settings;
+NoDisplay=true

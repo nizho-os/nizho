@@ -1,6 +1,6 @@
 # Nokia USB boot diagnosis — 2026-10-05
 
-Evidence: read-only extraction in `~/arkaos-diag/out`, collected with
+Evidence: read-only extraction in `~/nizho-diag/out`, collected with
 `usb-diag.sh`. The collector used a read-only loop device and XFS `ro,norecovery`,
 then unmounted it. This review reads the exported files only. Raw journals and
 core dumps are not committed because they can contain personal information.
@@ -68,19 +68,19 @@ See the [GPT fdisk recovery documentation](https://www.rodsbooks.com/gdisk/repai
   newer microcode and enabling CPU-buffer clearing. This is a residual security
   concern, not evidence of the getty crash cause. Review the
   [kernel mitigation guidance](https://www.kernel.org/doc/html/latest/admin-guide/hw-vuln/processor_mmio_stale_data.html)
-  on dedicated ArkaOS hardware; no host firmware or SMT settings were changed.
+  on dedicated Nizho hardware; no host firmware or SMT settings were changed.
 - ACPI firmware errors, NFS initramfs warnings, and a read-only `/usr/local/sbin`
   tmpfiles warning appear; no causal link to the getty fault is established.
 - Boot 0 records a session logout around 212 seconds, followed by SDDM returning
   and another login. Audio-device removal warnings coincide with the session
   transition; they do not establish Firefox sandbox audio failure.
-- arkad starts and reports score 100 in this old image. That aggregate does not
+- nizhod starts and reports score 100 in this old image. That aggregate does not
   validate current controls. There are no Firefox/Capsule failures in these
   exported logs, so their hardware regression tests remain open.
 - ABRT and DrKonqi crash-report components start, including a pending-report
   watcher. These lines do not prove anything was uploaded. Release validation
   must check crash-report consent and outbound behavior rather than claim that
-  no telemetry is possible merely because arkad has no upload client.
+  no telemetry is possible merely because nizhod has no upload client.
 
 ## Evidence fingerprints (SHA-256)
 

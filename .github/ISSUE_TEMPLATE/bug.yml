@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in ArkaOS doesn't work as it should.
+description: Something in Nizho doesn't work as it should.
 labels: [bug]
 body:
   - type: markdown
@@ -8,7 +8,7 @@ body:
   - type: dropdown
     id: where
     attributes:
-      label: Where did you run ArkaOS?
+      label: Where did you run Nizho?
       options: [Virtual machine, Real computer (USB), Real computer (installed)]
     validations: { required: true }
   - type: input
@@ -20,8 +20,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: ArkaOS version
-      description: Output of `cat /usr/lib/arkaos-release`
+      label: Nizho version
+      description: Output of `cat /usr/lib/nizho-release`
   - type: textarea
     id: what
     attributes:
@@ -35,5 +35,5 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: "For example `journalctl -b -p warning` or `journalctl -u arkad -b`. Check them for personal information first."
+      description: "For example `journalctl -b -p warning` or `journalctl -u nizhod -b`. Check them for personal information first."
       render: text

@@ -23,7 +23,7 @@ is a project-killer; the value is in the integration and experience layers.
 Reason: we built the Hyprland shell (phases 5–12) and hit the compositor long
 tail — window management, session, lock, polkit, notifications, screen share.
 Plasma provides a decade of edge cases, themable to the pixel; identity comes
-from the design system + our apps. "ArkaWM" = branded KWin.
+from the design system + our apps. "NizhoWM" = branded KWin.
 Alternatives: keep Hyprland shell (drowning in plumbing), write a compositor
 (re-enters the same pain deeper). **Status: Accepted** (2026-06-27 pivot).
 
@@ -33,7 +33,7 @@ cleanly via named-color overrides to the exact tokens. Rewriting in Qt buys
 widget-metric consistency but costs weeks. **Status: Accepted for DP1**;
 GTK↔Qt consistency gap is a known issue, revisit after real-user feedback.
 
-**005 · arkad: plain Rust loop, no tokio, CLI-tool enforcement**
+**005 · nizhod: plain Rust loop, no tokio, CLI-tool enforcement**
 Reason: a 60-second verify loop needs no async runtime; enforcing via
 well-known tools (nmcli, hostnamectl, sysctl, resolved drop-ins) is auditable
 and survives platform updates. Static musl build keeps it dependency-free.
@@ -55,8 +55,8 @@ no OS internals knowledge, no plumbing vocabulary in the UI.
 **Status: Accepted** (see INSTALLATION-ARCHITECTURE.md).
 
 **009 · Design tokens enforced at two layers**
-Reason: GTK apps read `theme.rs`; Qt/Plasma reads `ArkaOS.colors` +
-kdeglobals. The spec (`arka-design-system/`) is canonical; both layers derive
+Reason: GTK apps read `theme.rs`; Qt/Plasma reads `Nizho.colors` +
+kdeglobals. The spec (`nizho-design-system/`) is canonical; both layers derive
 from it. One token change = spec first, then both implementations.
 **Status: Accepted.**
 

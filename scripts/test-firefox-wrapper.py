@@ -10,7 +10,7 @@ import unittest
 
 class WrapperTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix='arka-browser-test-')
+        self.temp = tempfile.TemporaryDirectory(prefix='nizho-browser-test-')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.home = self.root / 'home with spaces'
@@ -20,10 +20,10 @@ class WrapperTests(unittest.TestCase):
         fake = self.bin / 'bwrap'
         fake.write_text('#!/usr/bin/python3\nimport json,sys\nprint(json.dumps(sys.argv[1:]))\n')
         fake.chmod(0o755)
-        self.wrapper = Path(os.environ.get('ARKA_BROWSER_WRAPPER_SOURCE',
-            Path(__file__).resolve().parents[1] / 'arkaos-firefox'))
+        self.wrapper = Path(os.environ.get('NIZHO_BROWSER_WRAPPER_SOURCE',
+            Path(__file__).resolve().parents[1] / 'nizho-firefox'))
         self.env = dict(os.environ, HOME=str(self.home), WAYLAND_DISPLAY='wayland-0',
-                        PATH=str(self.bin) + ':/usr/bin:/bin', ARKA_TEST_SECRET='synthetic-secret')
+                        PATH=str(self.bin) + ':/usr/bin:/bin', NIZHO_TEST_SECRET='synthetic-secret')
 
     def run_wrapper(self, *args):
         return subprocess.run(['bash', str(self.wrapper), *args], env=self.env,

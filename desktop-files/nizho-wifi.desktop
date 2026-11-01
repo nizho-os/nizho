@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Wi-Fi
+Comment=Connect to wireless networks
+Exec=nizho-wifi
+Icon=nizho-wifi
+Keywords=wifi;wireless;network;internet;connection;hotspot;
+Categories=System;Network;
+NoDisplay=true

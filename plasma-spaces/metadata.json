@@ -3,16 +3,16 @@
     "KPlugin": {
         "Authors": [
             {
-                "Name": "ArkaOS"
+                "Name": "Nizho"
             }
         ],
         "Category": "Windows and Tasks",
         "Description": "Virtual desktops as a hairline ridge: one peak per desktop, a ring and dot on the current one",
         "Icon": "view-grid",
-        "Id": "org.arkaos.spaces",
+        "Id": "org.nizho.spaces",
         "License": "GPL-3.0-or-later",
-        "Name": "ArkaOS Spaces",
-        "Website": "https://github.com/thulasiramk-2310/arka"
+        "Name": "Nizho Spaces",
+        "Website": "https://github.com/nizho-os/nizho"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }

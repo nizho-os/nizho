@@ -25,7 +25,7 @@ if name == os.environ.get('OOBE_TEST_FAIL'):
     sys.exit(1)
 if name == 'id':
     user = sys.argv[-1]
-    existing = {'root', 'arkasetup', 'daemon'}
+    existing = {'root', 'nizhosetup', 'daemon'}
     existing.update((root / 'accounts').read_text().splitlines())
     sys.exit(0 if user in existing else 1)
 if name == 'useradd':
@@ -42,7 +42,7 @@ if name == 'runuser':
 
 class ApplyTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix='arka-oobe-test-')
+        self.temp = tempfile.TemporaryDirectory(prefix='nizho-oobe-test-')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         for name in ('run', 'etc/sudoers.d', 'var/lib', 'bin'):
@@ -52,16 +52,16 @@ class ApplyTests(unittest.TestCase):
             fake = self.root / 'usr/share/zoneinfo' / zone
             fake.parent.mkdir(parents=True, exist_ok=True)
             fake.write_text('TZif')
-        scheme = self.root / 'usr/share/color-schemes/ArkaOSBlue.colors'
+        scheme = self.root / 'usr/share/color-schemes/NizhoBlue.colors'
         scheme.parent.mkdir(parents=True, exist_ok=True)
         scheme.write_text('blue-scheme')
-        (self.root / 'etc/arkad').mkdir()
-        (self.root / 'etc/arkad/arkad.toml').write_text(
-            'check_interval_secs = 60\n\n[dns]\nserver = "9.9.9.9"\n\n[hostname]\nname = "arka"\n')
-        (self.root / 'etc/sudoers.d/95-arkaos-oobe').write_text('setup-only grant')
+        (self.root / 'etc/nizhod').mkdir()
+        (self.root / 'etc/nizhod/nizhod.toml').write_text(
+            'check_interval_secs = 60\n\n[dns]\nserver = "9.9.9.9"\n\n[hostname]\nname = "nizho"\n')
+        (self.root / 'etc/sudoers.d/95-nizho-oobe').write_text('setup-only grant')
         source = Path(os.environ.get(
-            'ARKA_OOBE_HELPER_SOURCE',
-            Path(__file__).resolve().parents[1] / 'arkaos-oobe-apply',
+            'NIZHO_OOBE_HELPER_SOURCE',
+            Path(__file__).resolve().parents[1] / 'nizho-oobe-apply',
         )).read_text()
         for prefix in ('/run/', '/etc/', '/var/lib/', '/home/', '/usr/share/zoneinfo/', '/usr/share/color-schemes/'):
             source = source.replace(prefix, str(self.root) + prefix)
@@ -81,7 +81,7 @@ class ApplyTests(unittest.TestCase):
         if look is not None:
             args.append(look)
         if host is not None or dev is not None or zone is not None or accent is not None:
-            args.append(host or 'arka')
+            args.append(host or 'nizho')
         if dev is not None:
             args.extend(dev)
         elif zone is not None or accent is not None:
@@ -98,10 +98,10 @@ class ApplyTests(unittest.TestCase):
     def assert_no_account_changes(self):
         self.assertEqual((self.root / 'accounts').read_text(), '')
         self.assertFalse((self.root / 'password-input').exists())
-        self.assertFalse((self.root / 'var/lib/arkaos-firstboot-done').exists())
+        self.assertFalse((self.root / 'var/lib/nizho-firstboot-done').exists())
 
     def test_rejects_root_and_setup_accounts(self):
-        for user in ('root', 'arkasetup', 'daemon'):
+        for user in ('root', 'nizhosetup', 'daemon'):
             with self.subTest(user=user):
                 self.assertNotEqual(self.run_helper(user=user).returncode, 0)
                 self.assert_no_account_changes()
@@ -130,13 +130,13 @@ class ApplyTests(unittest.TestCase):
                 self.assert_no_account_changes()
 
     def test_rejects_completed_setup(self):
-        (self.root / 'var/lib/arkaos-firstboot-done').touch()
+        (self.root / 'var/lib/nizho-firstboot-done').touch()
         self.assertNotEqual(self.run_helper().returncode, 0)
         self.assertEqual((self.root / 'accounts').read_text(), '')
         self.assertFalse((self.root / 'password-input').exists())
 
     def test_rejects_concurrent_setup(self):
-        with (self.root / 'run/arkaos-oobe.lock').open('w') as lock:
+        with (self.root / 'run/nizho-oobe.lock').open('w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.assertNotEqual(self.run_helper().returncode, 0)
             self.assert_no_account_changes()
@@ -146,8 +146,8 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / 'accounts').read_text(), 'alice\n')
         self.assertEqual((self.root / 'password-input').read_text(), 'alice:pass:with\\characters\n')
-        self.assertTrue((self.root / 'var/lib/arkaos-firstboot-done').exists())
-        self.assertFalse((self.root / 'etc/sudoers.d/95-arkaos-oobe').exists())
+        self.assertTrue((self.root / 'var/lib/nizho-firstboot-done').exists())
+        self.assertFalse((self.root / 'etc/sudoers.d/95-nizho-oobe').exists())
         self.assertIn('User=alice', (self.root / 'etc/sddm.conf.d/20-autologin.conf').read_text())
         self.assertNotEqual(self.run_helper().returncode, 0)
 
@@ -162,7 +162,7 @@ class ApplyTests(unittest.TestCase):
     def test_new_look_is_written_through_the_unprivileged_account(self):
         result = self.run_helper(look='light')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / 'home/alice/.config/arka-look').read_text(), 'light\n')
+        self.assertEqual((self.root / 'home/alice/.config/nizho-look').read_text(), 'light\n')
         import json
         calls = [json.loads(line) for line in (self.root / 'calls').read_text().splitlines()]
         writes = [call for call in calls if call[0] == 'runuser']
@@ -172,16 +172,16 @@ class ApplyTests(unittest.TestCase):
 
     def test_light_look_selects_the_light_login_theme(self):
         self.assertEqual(self.run_helper(look='light').returncode, 0)
-        theme = self.root / 'etc/sddm.conf.d/30-arka-theme.conf'
-        self.assertEqual(theme.read_text(), '[Theme]\nCurrent=arkaos-light\n')
+        theme = self.root / 'etc/sddm.conf.d/30-nizho-theme.conf'
+        self.assertEqual(theme.read_text(), '[Theme]\nCurrent=nizho-light\n')
 
     def test_dark_look_keeps_the_image_login_theme(self):
         self.assertEqual(self.run_helper(look='dark').returncode, 0)
-        self.assertFalse((self.root / 'etc/sddm.conf.d/30-arka-theme.conf').exists())
+        self.assertFalse((self.root / 'etc/sddm.conf.d/30-nizho-theme.conf').exists())
 
     def test_legacy_caller_defaults_to_dark(self):
         self.assertEqual(self.run_helper().returncode, 0)
-        self.assertEqual((self.root / 'home/alice/.config/arka-look').read_text(), 'dark\n')
+        self.assertEqual((self.root / 'home/alice/.config/nizho-look').read_text(), 'dark\n')
 
     def test_invalid_look_is_rejected_before_account_creation(self):
         for look in ['', 'blue', '../dark', 'light\ndark']:
@@ -195,9 +195,9 @@ class ApplyTests(unittest.TestCase):
     def test_failed_unprivileged_write_does_not_complete_setup(self):
         self.env['OOBE_TEST_FAIL'] = 'runuser'
         self.assertNotEqual(self.run_helper(look='light').returncode, 0)
-        self.assertFalse((self.root / 'var/lib/arkaos-firstboot-done').exists())
-        self.assertFalse((self.root / 'home/alice/.config/arka-look').exists())
-        self.assertTrue((self.root / 'etc/sudoers.d/95-arkaos-oobe').exists())
+        self.assertFalse((self.root / 'var/lib/nizho-firstboot-done').exists())
+        self.assertFalse((self.root / 'home/alice/.config/nizho-look').exists())
+        self.assertTrue((self.root / 'etc/sudoers.d/95-nizho-oobe').exists())
 
     def test_user_creation_failure_does_not_set_password_or_finish(self):
         self.env['OOBE_TEST_FAIL'] = 'useradd'
@@ -207,7 +207,7 @@ class ApplyTests(unittest.TestCase):
     def test_failed_password_cannot_reset_account_on_retry(self):
         self.env['OOBE_TEST_FAIL'] = 'chpasswd'
         self.assertNotEqual(self.run_helper().returncode, 0)
-        self.assertFalse((self.root / 'var/lib/arkaos-firstboot-done').exists())
+        self.assertFalse((self.root / 'var/lib/nizho-firstboot-done').exists())
         self.env.pop('OOBE_TEST_FAIL')
         self.assertNotEqual(self.run_helper().returncode, 0)
         self.assertFalse((self.root / 'password-input').exists())
@@ -215,8 +215,8 @@ class ApplyTests(unittest.TestCase):
     def test_failed_desktop_configuration_keeps_setup_incomplete(self):
         self.env['OOBE_TEST_FAIL'] = 'systemctl'
         self.assertNotEqual(self.run_helper().returncode, 0)
-        self.assertFalse((self.root / 'var/lib/arkaos-firstboot-done').exists())
-        self.assertTrue((self.root / 'etc/sudoers.d/95-arkaos-oobe').exists())
+        self.assertFalse((self.root / 'var/lib/nizho-firstboot-done').exists())
+        self.assertTrue((self.root / 'etc/sudoers.d/95-nizho-oobe').exists())
 
 
     def calls(self):
@@ -236,7 +236,7 @@ class ApplyTests(unittest.TestCase):
             ['runuser', '-u', 'alice', '--', *expected_env, 'git', 'config', '--global', 'user.name', 'Alice Example'],
             ['runuser', '-u', 'alice', '--', *expected_env, 'git', 'config', '--global', 'user.email', 'alice@example.org'],
         ])
-        self.assertTrue((self.root / 'var/lib/arkaos-firstboot-done').exists())
+        self.assertTrue((self.root / 'var/lib/nizho-firstboot-done').exists())
 
     def test_without_version_control_no_tool_runs(self):
         result = self.run_helper(look='dark')
@@ -268,19 +268,19 @@ class ApplyTests(unittest.TestCase):
         result = self.run_helper(look='dark', dev=['vara', 'Alice', 'a@b.c'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('could not set the VARA identity', result.stderr)
-        self.assertTrue((self.root / 'var/lib/arkaos-firstboot-done').exists())
+        self.assertTrue((self.root / 'var/lib/nizho-firstboot-done').exists())
 
-    def test_a_chosen_computer_name_goes_into_arkads_settings(self):
+    def test_a_chosen_computer_name_goes_into_nizhods_settings(self):
         result = self.run_helper(look='dark', host='ram-pc')
         self.assertEqual(result.returncode, 0, result.stderr)
-        toml = (self.root / 'etc/arkad/arkad.toml').read_text()
+        toml = (self.root / 'etc/nizhod/nizhod.toml').read_text()
         self.assertIn('[hostname]\nname = "ram-pc"', toml)
         self.assertIn('server = "9.9.9.9"', toml)
 
-    def test_the_default_computer_name_leaves_arkads_settings_alone(self):
-        before = (self.root / 'etc/arkad/arkad.toml').read_text()
+    def test_the_default_computer_name_leaves_nizhods_settings_alone(self):
+        before = (self.root / 'etc/nizhod/nizhod.toml').read_text()
         self.assertEqual(self.run_helper(look='dark').returncode, 0)
-        self.assertEqual((self.root / 'etc/arkad/arkad.toml').read_text(), before)
+        self.assertEqual((self.root / 'etc/nizhod/nizhod.toml').read_text(), before)
 
     def test_bad_computer_names_are_rejected_before_account_creation(self):
         for host in ('1abc', 'a-', 'Abc', 'my pc', 'a_b', 'b' * 31, 'a;rm', '-x'):
@@ -306,7 +306,7 @@ class ApplyTests(unittest.TestCase):
                 self.assertEqual(self.zone_calls(), [['timedatectl', 'set-timezone', zone]])
 
     def test_a_time_zone_chosen_with_version_control_is_set_after_it(self):
-        result = self.run_helper(host='arka', dev=('git', 'Alice', 'alice@example.com'), zone='Asia/Kolkata')
+        result = self.run_helper(host='nizho', dev=('git', 'Alice', 'alice@example.com'), zone='Asia/Kolkata')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.zone_calls(), [['timedatectl', 'set-timezone', 'Asia/Kolkata']])
 
@@ -328,7 +328,7 @@ class ApplyTests(unittest.TestCase):
         result = self.run_helper(zone='Europe/Berlin')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / 'accounts').read_text(), 'alice\n')
-        self.assertTrue((self.root / 'var/lib/arkaos-firstboot-done').exists())
+        self.assertTrue((self.root / 'var/lib/nizho-firstboot-done').exists())
     def written_settings(self):
         import json
         calls = [json.loads(line) for line in (self.root / 'calls').read_text().splitlines()]
@@ -337,26 +337,26 @@ class ApplyTests(unittest.TestCase):
     def test_a_blue_accent_is_saved_and_gives_the_blue_scheme(self):
         result = self.run_helper(look='dark', accent='blue')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / 'home/alice/.config/arka-accent').read_text(), 'blue\n')
+        self.assertEqual((self.root / 'home/alice/.config/nizho-accent').read_text(), 'blue\n')
         flat = [' '.join(c) for c in self.written_settings()]
-        self.assertTrue(any('--key ColorScheme ArkaOSBlue' in c for c in flat), flat)
+        self.assertTrue(any('--key ColorScheme NizhoBlue' in c for c in flat), flat)
         self.assertTrue(any('--key AccentColor 79,134,255' in c for c in flat), flat)
-        self.assertTrue(any('--key defaultWallpaperTheme ArkaOS-Dark-Blue' in c for c in flat), flat)
+        self.assertTrue(any('--key defaultWallpaperTheme Nizho-Dark-Blue' in c for c in flat), flat)
 
     def test_the_light_look_with_blue_gives_the_light_blue_scheme(self):
         self.assertEqual(self.run_helper(look='light', accent='blue').returncode, 0)
         flat = [' '.join(c) for c in self.written_settings()]
-        self.assertTrue(any('--key ColorScheme ArkaOSLightBlue' in c for c in flat), flat)
-        self.assertTrue(any('--key defaultWallpaperTheme ArkaOS-Light-Blue' in c for c in flat), flat)
+        self.assertTrue(any('--key ColorScheme NizhoLightBlue' in c for c in flat), flat)
+        self.assertTrue(any('--key defaultWallpaperTheme Nizho-Light-Blue' in c for c in flat), flat)
 
     def test_green_is_the_default_accent(self):
         for kwargs in ({}, {'accent': 'green'}):
             with self.subTest(**kwargs):
                 self.setUp()
                 self.assertEqual(self.run_helper(look='dark', **kwargs).returncode, 0)
-                self.assertEqual((self.root / 'home/alice/.config/arka-accent').read_text(), 'green\n')
+                self.assertEqual((self.root / 'home/alice/.config/nizho-accent').read_text(), 'green\n')
                 flat = [' '.join(c) for c in self.written_settings()]
-                self.assertTrue(any(c.endswith('--key ColorScheme ArkaOS') for c in flat), flat)
+                self.assertTrue(any(c.endswith('--key ColorScheme Nizho') for c in flat), flat)
                 self.assertFalse(any('Blue' in c for c in flat), flat)
                 self.assertTrue(any('--key AccentColor 22,199,132' in c for c in flat), flat)
 
@@ -371,7 +371,7 @@ class ApplyTests(unittest.TestCase):
         result = self.run_helper(look='dark', zone='Europe/Berlin', accent='blue')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.zone_calls(), [['timedatectl', 'set-timezone', 'Europe/Berlin']])
-        self.assertEqual((self.root / 'home/alice/.config/arka-accent').read_text(), 'blue\n')
+        self.assertEqual((self.root / 'home/alice/.config/nizho-accent').read_text(), 'blue\n')
     def test_a_blue_choice_gives_the_login_screen_the_blue_scheme(self):
         result = self.run_helper(look='dark', accent='blue')
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -379,31 +379,31 @@ class ApplyTests(unittest.TestCase):
 
     def login_theme(self, look, accent):
         self.assertEqual(self.run_helper(look=look, accent=accent).returncode, 0)
-        return (self.root / 'etc/sddm.conf.d/30-arka-theme.conf').read_text()
+        return (self.root / 'etc/sddm.conf.d/30-nizho-theme.conf').read_text()
 
     def test_dark_blue_selects_the_blue_login_theme(self):
-        self.assertEqual(self.login_theme('dark', 'blue'), '[Theme]\nCurrent=arkaos-blue\n')
+        self.assertEqual(self.login_theme('dark', 'blue'), '[Theme]\nCurrent=nizho-blue\n')
 
     def test_light_blue_selects_the_light_blue_login_theme(self):
-        self.assertEqual(self.login_theme('light', 'blue'), '[Theme]\nCurrent=arkaos-light-blue\n')
+        self.assertEqual(self.login_theme('light', 'blue'), '[Theme]\nCurrent=nizho-light-blue\n')
 
     def test_light_green_keeps_the_light_login_theme(self):
-        self.assertEqual(self.login_theme('light', 'green'), '[Theme]\nCurrent=arkaos-light\n')
+        self.assertEqual(self.login_theme('light', 'green'), '[Theme]\nCurrent=nizho-light\n')
 
     def test_dark_green_keeps_the_image_login_theme_even_with_an_accent_argument(self):
         self.assertEqual(self.run_helper(look='dark', accent='green').returncode, 0)
-        self.assertFalse((self.root / 'etc/sddm.conf.d/30-arka-theme.conf').exists())
+        self.assertFalse((self.root / 'etc/sddm.conf.d/30-nizho-theme.conf').exists())
 
     def test_green_leaves_the_login_screen_alone(self):
         self.assertEqual(self.run_helper(look='dark', accent='green').returncode, 0)
         self.assertFalse((self.root / 'var/lib/sddm/.config/kdeglobals').exists())
 
     def test_a_missing_blue_scheme_does_not_stop_the_account(self):
-        (self.root / 'usr/share/color-schemes/ArkaOSBlue.colors').unlink()
+        (self.root / 'usr/share/color-schemes/NizhoBlue.colors').unlink()
         result = self.run_helper(look='dark', accent='blue')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('could not give the login screen the blue accent', result.stderr)
-        self.assertTrue((self.root / 'var/lib/arkaos-firstboot-done').exists())
+        self.assertTrue((self.root / 'var/lib/nizho-firstboot-done').exists())
 
 if __name__ == '__main__':
     unittest.main()

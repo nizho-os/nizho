@@ -1,4 +1,4 @@
-# The story of ArkaOS
+# The story of Nizho
 
 Not a changelog — a story. The changelog (`CHANGELOG.md`) records *what*
 changed; this file remembers *how the project became what it is*, so that years
@@ -17,25 +17,25 @@ the ambition ran ahead of the shape.
 
 **The foundation.** The first real decision was the immutable model: a single
 bootc image, composefs read-only root, atomic updates with rollback. On top of
-that came `arkad` — the privacy daemon that enforces MAC randomization,
+that came `nizhod` — the privacy daemon that enforces MAC randomization,
 encrypted DNS (DoT/Quad9), a generic hostname, and IPv6 privacy addresses, and
 re-verifies them every 60 seconds. Then boot hardening (TPM PCR measurement to
 PCR 10) and browser isolation (Firefox in a bubblewrap sandbox that can't see
 your files).
 
 **The first desktop.** A custom shell arrived on a wlroots compositor —
-`arka-bar`, `arka-dock`, `arka-launcher` — the Hyprland prototype. It booted, it
+`nizho-bar`, `nizho-dock`, `nizho-launcher` — the Hyprland prototype. It booted, it
 worked, it proved the idea. `v0.1-alpha` was tagged here (2026-06-22).
 
 **The pivot.** On 2026-06-27 came one of the most important calls of the
 project: **retire the custom Hyprland shell and build on KDE Plasma instead.**
 Not because the prototype failed, but because Plasma better served the actual
 goal — a *usable* desktop OS — providing the panel, launcher, settings, file
-manager, and window management so the project could focus on what makes ArkaOS
-*ArkaOS*. Choosing to pivot rather than defend an earlier technical choice is
+manager, and window management so the project could focus on what makes Nizho
+*Nizho*. Choosing to pivot rather than defend an earlier technical choice is
 what kept the project healthy. (The Hyprland shell was removed from the tree in October 2026; it is in the git history up to 0d707ca.)
 
-**The identity.** With Plasma as the base came the Arka Design System v1.0
+**The identity.** With Plasma as the base came the Nizho Design System v1.0
 (tokens, typography, motion, components, a privacy color mapping), a full brand
 identity — Plymouth boot animation, SDDM login theme, icon pack, cursor, sounds,
 a generated signature wallpaper — and the first-party apps: the Privacy
@@ -53,7 +53,7 @@ exit criteria, and a repeatable build pipeline.
 root-caused and fixed), and shipped with real screenshots and honest known
 issues. The difference between a project and a product.
 
-> Developer Preview 1 wasn't the moment ArkaOS became *usable*. It was the
+> Developer Preview 1 wasn't the moment Nizho became *usable*. It was the
 > moment it became *sustainable* — frozen releases, decision records, a threat
 > model, build gates, exit criteria, field notes, factual milestones, a future
 > parking lot, and the willingness to change direction when the evidence
@@ -68,10 +68,10 @@ issues. The difference between a project and a product.
 |------|-----------|
 | 2026 | Project started — immutable bootc foundation |
 | 2026 | First immutable image booted |
-| 2026 | `arkad` privacy daemon; browser sandbox; TPM measured boot |
+| 2026 | `nizhod` privacy daemon; browser sandbox; TPM measured boot |
 | 2026 | Hyprland prototype shell (`v0.1-alpha`, 2026-06-22) |
 | 2026-06-27 | **Pivot to KDE Plasma** — custom shell retired |
-| 2026 | Arka Design System v1.0; Privacy Dashboard; Capsule |
+| 2026 | Nizho Design System v1.0; Privacy Dashboard; Capsule |
 | **2026-07-11** | **Developer Preview 1 released — `v0.1.0-dp1`** |
 
 ---

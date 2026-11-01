@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise arka-dns-after-clock with a fake clock, fake timedatectl and fake systemctl.
+"""Exercise nizho-dns-after-clock with a fake clock, fake timedatectl and fake systemctl.
 
 Nothing real is restarted. Run: python3 scripts/test-dns-after-clock.py
 """
@@ -10,22 +10,22 @@ import subprocess
 import tempfile
 import unittest
 
-SCRIPT = Path(__file__).resolve().parent.parent / "arka-dns-after-clock"
+SCRIPT = Path(__file__).resolve().parent.parent / "nizho-dns-after-clock"
 
 # Prints the next line of $T/times each call (the last line repeats).
 FAKE_NOW = r'''#!/bin/sh
-f="$ARKA_TEST_DIR/times"; n="$ARKA_TEST_DIR/n"
+f="$NIZHO_TEST_DIR/times"; n="$NIZHO_TEST_DIR/n"
 i=$(cat "$n" 2>/dev/null || echo 0); i=$((i + 1)); echo $i > "$n"
 l=$(wc -l < "$f"); [ "$i" -gt "$l" ] && i=$l
 sed -n "${i}p" "$f"
 '''
-# Reports "no" for the first ARKA_TEST_UNSYNCED calls, then "yes".
+# Reports "no" for the first NIZHO_TEST_UNSYNCED calls, then "yes".
 FAKE_TIMEDATECTL = r'''#!/bin/sh
-c="$ARKA_TEST_DIR/tdc"; i=$(cat "$c" 2>/dev/null || echo 0); i=$((i + 1)); echo $i > "$c"
-if [ "$i" -le "${ARKA_TEST_UNSYNCED:-0}" ]; then echo no; else echo yes; fi
+c="$NIZHO_TEST_DIR/tdc"; i=$(cat "$c" 2>/dev/null || echo 0); i=$((i + 1)); echo $i > "$c"
+if [ "$i" -le "${NIZHO_TEST_UNSYNCED:-0}" ]; then echo no; else echo yes; fi
 '''
 FAKE_SYSTEMCTL = r'''#!/bin/sh
-echo "$@" >> "$ARKA_TEST_DIR/systemctl.log"
+echo "$@" >> "$NIZHO_TEST_DIR/systemctl.log"
 '''
 
 
@@ -43,9 +43,9 @@ class DnsAfterClockTest(unittest.TestCase):
 
     def run_script(self, times, unsynced=0, limit=360):
         (self.dir / "times").write_text("\n".join(str(t) for t in times) + "\n")
-        env = dict(os.environ, ARKA_TEST_DIR=str(self.dir), ARKA_NOW=str(self.dir / "now"),
-                   ARKA_TIMEDATECTL=str(self.dir / "timedatectl"), ARKA_SYSTEMCTL=str(self.dir / "systemctl"),
-                   ARKA_SLEEP="true", ARKA_TEST_UNSYNCED=str(unsynced), ARKA_LIMIT=str(limit))
+        env = dict(os.environ, NIZHO_TEST_DIR=str(self.dir), NIZHO_NOW=str(self.dir / "now"),
+                   NIZHO_TIMEDATECTL=str(self.dir / "timedatectl"), NIZHO_SYSTEMCTL=str(self.dir / "systemctl"),
+                   NIZHO_SLEEP="true", NIZHO_TEST_UNSYNCED=str(unsynced), NIZHO_LIMIT=str(limit))
         return subprocess.run(["sh", str(SCRIPT)], env=env, capture_output=True, text=True)
 
     def restarts(self):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the ArkaOS Plasma style's panel and dialog background SVGs.
+"""Generate the Nizho Plasma style's panel and dialog background SVGs.
 
     make-panel-svg.py OUT_DIR
 
@@ -8,7 +8,7 @@ Writes OUT_DIR/widgets/panel-background.svg and OUT_DIR/dialogs/background.svg
 (opaque). Dialogs are every popup Plasma draws: notifications, the volume and
 brightness popups, and the tray, calendar and launcher popups.
 
-Both follow the ArkaOS design system: a raised surface with a 1px border and
+Both follow the Nizho design system: a raised surface with a 1px border and
 a soft shadow, rounded corners for panels and corners cut at 45 degrees for
 popups (see PANEL and DIALOG below). Plasma reads the shape, blur region and
 shadow from these SVGs, so the frame, its alpha (the mask) and the shadow
@@ -36,7 +36,7 @@ PANEL = dict(
 )
 # Popups float over windows, so they take a stronger shadow, closer to the
 # design system's floating surface. Their corners are cut at 45 degrees, like
-# the peaks of the ArkaOS mark and wallpaper, which sets ArkaOS's popups apart
+# the peaks of the Nizho mark and wallpaper, which sets Nizho's popups apart
 # from the rounded ones of other desktops (chosen 2026-10-20 from four looks).
 DIALOG = dict(
     R=10,

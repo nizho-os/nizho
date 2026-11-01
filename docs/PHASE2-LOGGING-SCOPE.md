@@ -3,10 +3,10 @@
 Status: **NOT STARTED. Do not build until the ethos question below is settled.**
 
 Phase 1 (shipped as "Privacy Activity" / enforcement-made-visible) surfaces
-arkad's enforcement *state* and *notable events*. It deliberately does **not**
+nizhod's enforcement *state* and *notable events*. It deliberately does **not**
 log individual sandbox access attempts or individual outbound connections,
 because those signals are (a) not observable without new instrumentation and
-(b) in direct tension with what ArkaOS is for. This note records why, so a
+(b) in direct tension with what Nizho is for. This note records why, so a
 future contributor inherits the constraint instead of rediscovering it.
 
 ## The two deferred signals
@@ -43,7 +43,7 @@ DoT") from systemd-resolved, which is honest and needs no snooping.
 
 **A per-domain / per-connection log is itself a surveillance layer inside a
 privacy OS.** Recording every domain the user visits, or every file the browser
-touches, creates exactly the persistent behavioral record ArkaOS exists to
+touches, creates exactly the persistent behavioral record Nizho exists to
 prevent — and it becomes a target for compromise, subpoena, or drift into
 "telemetry." The irony is the point: the feature that would most vividly *show*
 privacy working is also the one most capable of *breaking* it.

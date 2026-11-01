@@ -1,0 +1,35 @@
+[package]
+name = "nizho-agent"
+version = "0.1.0"
+edition = "2021"
+description = "On-device, approval-gated AI agent for Nizho. Local LLM only; the model can call tools, never touch the system directly."
+
+[lib]
+name = "nizho_agent"
+path = "src/lib.rs"
+
+[[bin]]
+name = "nizho-agent"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std"] }
+# localhost Ollama over plain HTTP — no TLS backend needed
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+sha2 = "0.10"
+hex = "0.4"
+anyhow = "1"
+nix = { version = "0.29", features = ["fs"] }
+# real backend
+zbus = { version = "4", features = ["tokio"] }                         # read org.nizho.nizhod properties
+nizho-pulse = { path = "../nizho-pulse", default-features = false }      # in-process PulseEngine::health()
+nizho-shell-common = { path = "../nizho-shell/nizho-shell-common", default-features = false }
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise arka-rtc-mode with fake firmware boot entries and a fake timedatectl.
+"""Exercise nizho-rtc-mode with fake firmware boot entries and a fake timedatectl.
 
 No clock, service or system configuration is changed.
 Run: python3 scripts/test-rtc-mode.py
@@ -11,14 +11,14 @@ import subprocess
 import tempfile
 import unittest
 
-SCRIPT = Path(__file__).resolve().parent.parent / "arka-rtc-mode"
+SCRIPT = Path(__file__).resolve().parent.parent / "nizho-rtc-mode"
 GUID = "8be4df61-93ca-11d2-aa0d-00e098032b8c"
 
 FAKE_TIMEDATECTL = r'''#!/bin/sh
-echo "$@" >> "$ARKA_TEST_CALLS"
-[ "${ARKA_TEST_FAIL:-}" = 1 ] && exit 1
+echo "$@" >> "$NIZHO_TEST_CALLS"
+[ "${NIZHO_TEST_FAIL:-}" = 1 ] && exit 1
 case "$1" in
-    show) echo "${ARKA_TEST_LOCALRTC:-no}" ;;
+    show) echo "${NIZHO_TEST_LOCALRTC:-no}" ;;
 esac
 '''
 
@@ -49,8 +49,8 @@ class RtcModeTest(unittest.TestCase):
         (self.efi / f"Boot{number:04X}-{GUID}").write_bytes(data)
 
     def run_script(self, **env):
-        e = dict(os.environ, ARKA_EFIVARS=str(self.efi), ARKA_RTC_MARK=str(self.mark),
-                 ARKA_TIMEDATECTL=str(self.fake), ARKA_TEST_CALLS=str(self.calls), **env)
+        e = dict(os.environ, NIZHO_EFIVARS=str(self.efi), NIZHO_RTC_MARK=str(self.mark),
+                 NIZHO_TIMEDATECTL=str(self.fake), NIZHO_TEST_CALLS=str(self.calls), **env)
         return subprocess.run(["sh", str(SCRIPT)], env=e, capture_output=True, text=True)
 
     def recorded(self):
@@ -74,7 +74,7 @@ class RtcModeTest(unittest.TestCase):
 
     def test_already_local_time_is_not_changed_again(self):
         self.entry(5, "Windows Boot Manager")
-        r = self.run_script(ARKA_TEST_LOCALRTC="yes")
+        r = self.run_script(NIZHO_TEST_LOCALRTC="yes")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse(any(c.startswith("set-local-rtc") for c in self.recorded()))
 
@@ -87,7 +87,7 @@ class RtcModeTest(unittest.TestCase):
 
     def test_failure_is_retried_next_boot(self):
         self.entry(5, "Windows Boot Manager")
-        r = self.run_script(ARKA_TEST_FAIL="1")
+        r = self.run_script(NIZHO_TEST_FAIL="1")
         self.assertNotEqual(r.returncode, 0)
         self.assertFalse(self.mark.exists())
 

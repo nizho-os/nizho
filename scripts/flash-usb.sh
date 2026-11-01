@@ -1,5 +1,5 @@
 #!/bin/bash
-# flash-usb.sh — write an ArkaOS raw disk image to a USB stick, verifiably.
+# flash-usb.sh — write an Nizho raw disk image to a USB stick, verifiably.
 #
 #   sudo scripts/flash-usb.sh IMAGE.raw /dev/sdX
 #

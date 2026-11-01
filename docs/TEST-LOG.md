@@ -30,7 +30,7 @@ not already say. The second section records what was checked on 2026-11-01, and 
 | Reduce motion | Tested in a VM (2026-10-25): the setting is written and removed, KDE's change notice is sent on the session bus, and Settings shows the real value when reopened. |
 | Edit from the right-click menu | Tested in a VM (2026-10-26) with a real mouse and keyboard: the menu entries for rotate right and merge, and the crop (opened from the edit wheel), add a background and trim (MP3) windows. Black out's drag was checked in the VM, but its button was only clicked outside it. The other sound and video formats were not tested. Not yet on hardware. |
 | Format wheel and edit wheel | Tested in a VM (2026-10-26) with a real drag from Dolphin: the format wheel converted a picture to WebP and left the original alone, and the edit wheel opened the crop window. Drags from Gwenview and Firefox were tested on 2026-10-19. That was the earlier round look; the octagon look (2026-10-27) has only been checked in screenshots. Not yet with a real touchpad. |
-| Make files smaller, put them in a ZIP, and turn Word files into PDFs | Tested with real files on the development laptop (2026-11-01), not yet in a VM or on hardware. The smaller-video step needs the OpenH264 encoder that ArkaOS ships and that laptop lacks, so it is untested. |
+| Make files smaller, put them in a ZIP, and turn Word files into PDFs | Tested with real files on the development laptop (2026-11-01), not yet in a VM or on hardware. The smaller-video step needs the OpenH264 encoder that Nizho ships and that laptop lacks, so it is untested. |
 | New setup and a Light/Dark look (Fedora 44 candidate) | Tested in a VM in both looks. Not yet on hardware. |
 | Natural touchpad scrolling by default | Tested in a VM with a virtual touchpad. Not yet on a real one. |
 | Installing apps shows what they can reach first | Not tested in a VM or on hardware. |
@@ -59,7 +59,7 @@ kernel 7.2.13, XFS root). Nothing here has run on real hardware.
 - **Dolphin's right-click menu** listed Convert to, Remove hidden details, Edit with the edit wheel, Make smaller,
   Trim and Convert with the format wheel.
 - **Privacy shield in the top bar**: a left click opened the menu with the six settings and recent events.
-- **All nine ArkaOS apps launched from their renamed launchers**, and the dock showed the right icon for each,
+- **All nine Nizho apps launched from their renamed launchers**, and the dock showed the right icon for each,
   with no placeholder letters. The Bluetooth window opened on a machine with no Bluetooth.
 - **Keyboard shortcuts**: 19 of the 24 listed key rows were pressed for real and the result matched the page (Meta+/,
   both wheel keys, launcher, terminal, window overview, peek, tiling, maximise and minimise, spaces, grid, clipboard,

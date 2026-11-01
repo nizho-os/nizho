@@ -11,7 +11,7 @@ SCRIPT = Path(__file__).resolve().parent / "flash-usb.sh"
 
 class PreflightTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(prefix="arka-flash-test-")
+        self.tmp = tempfile.TemporaryDirectory(prefix="nizho-flash-test-")
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.bin = self.root / "bin"
