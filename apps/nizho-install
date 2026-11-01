@@ -2,7 +2,8 @@
 """nizho: install apps from Flathub, after showing what each one can reach.
 
     nizho install APP [--yes] [--any]   show what APP can reach, ask, then install it
-    nizho remove APP [--data]           remove APP (--data also deletes its saved data)
+    nizho remove APP [--data] [--yes]   ask, then remove APP (--data also deletes its saved data)
+    nizho update [APP]                  update your apps, or just APP, to the newest version from Flathub
     nizho search [WORDS]                list the apps Nizho suggests
     nizho info APP                      show what APP can reach, change nothing
     nizho list                          list the apps you installed
@@ -11,7 +12,7 @@ Apps come from Flathub and install for your account only, so no password is need
 and nothing in the system image changes. The suggested list (/usr/share/nizho/apps.json)
 is a selection by Nizho, not an audit: nobody here has reviewed these apps' code.
 APP is a name from that list or a Flathub id such as org.videolan.VLC; an id that
-isn't on the list needs --any. Exit codes: 0 installed, 3 you said no, anything else failed. Flatpak permissions limit what an app can reach;
+isn't on the list needs --any. Exit codes: 0 done, 3 you said no, anything else failed. Flatpak permissions limit what an app can reach;
 they don't make an app safe.
 """
 
@@ -214,10 +215,27 @@ def cmd_install(args):
 
 def cmd_remove(args):
     if not args or args[0].startswith("-"):
-        die("usage: nizho remove APP [--data]")
+        die("usage: nizho remove APP [--data] [--yes]")
     app = find(args[0], load_catalog()) or {"id": args[0], "name": args[0]}
     flags = ["--delete-data"] if "--data" in args else []
+    if "--yes" not in args and "-y" not in args:
+        if not sys.stdin.isatty():
+            die("won't remove without asking; run it in a terminal or add --yes.")
+        extra = " and everything it saved" if flags else ""
+        if input(f"Remove {app['name']}{extra}? [y/N] ").strip().lower() not in ("y", "yes"):
+            print("Nothing was removed.")
+            sys.exit(3)
     sys.exit(flatpak("uninstall", "--user", "-y", *flags, app["id"])[0])
+
+
+def cmd_update(args):
+    if args and args[0].startswith("-"):
+        die("usage: nizho update [APP]")
+    target = []
+    if args:
+        target = [(find(args[0], load_catalog()) or {"id": args[0]})["id"]]
+    ensure_remote()
+    sys.exit(flatpak("update", "--user", "-y", "--noninteractive", *target)[0])
 
 
 def cmd_search(args):
@@ -237,7 +255,7 @@ def cmd_list(_args):
     print(out.strip() or "No apps installed with nizho yet.")
 
 
-COMMANDS = {"install": cmd_install, "remove": cmd_remove, "search": cmd_search, "info": cmd_info, "list": cmd_list}
+COMMANDS = {"install": cmd_install, "remove": cmd_remove, "update": cmd_update, "search": cmd_search, "info": cmd_info, "list": cmd_list}
 
 
 def main(argv):

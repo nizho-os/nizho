@@ -69,6 +69,8 @@ jobs:
         run: python3 -I scripts/test-signing.py
       - name: Test that the repository layout matches what the image build copies
         run: python3 -I scripts/test-build-context.py
+      - name: Test the nizho install, remove and update command
+        run: cd apps && python3 -m unittest test_nizho_install
       - name: Check shell helpers
         run: shellcheck system/nizho-oobe-apply system/nizho-plasma-firstrun system/nizho-firefox system/nizho-firstboot scripts/flash-usb.sh
       - name: Check first-run shell syntax

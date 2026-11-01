@@ -256,6 +256,38 @@ fn build_apps_tab(
     search.set_margin_top(10); search.set_margin_bottom(4);
     page.append(&search);
 
+    // Update apps: asks Flatpak what has a newer version, runs the update in a terminal, then asks again.
+    let update_row = gtk4::Box::new(gtk4::Orientation::Horizontal, 12);
+    update_row.set_margin_start(16); update_row.set_margin_end(16); update_row.set_margin_bottom(4);
+    let update_btn = gtk4::Button::with_label("Update apps");
+    update_btn.add_css_class("cap-get");
+    let update_note = gtk4::Label::new(Some("Updates only the apps you installed here. The system itself updates in Update."));
+    update_note.add_css_class("app-desc");
+    update_note.set_halign(gtk4::Align::Start);
+    update_note.set_hexpand(true);
+    update_row.append(&update_btn);
+    update_row.append(&update_note);
+    page.append(&update_row);
+    {
+        let note = update_note.clone();
+        update_btn.connect_clicked(move |button| {
+            button.set_sensitive(false);
+            button.set_label("Updating…");
+            let (button, note) = (button.clone(), note.clone());
+            glib::MainContext::default().spawn_local(async move {
+                let result = run_in_terminal(install::UPDATE_SCRIPT, "").await;
+                note.set_text(&match (result, pending_updates()) {
+                    (Err(e), _) => e,
+                    (Ok(()), Some(0)) => "Your apps are up to date.".to_string(),
+                    (Ok(()), Some(n)) => format!("{n} app{} still have updates waiting. Open Update apps again to see why.", if n == 1 { " does" } else { "s" }),
+                    (Ok(()), None) => "Could not check whether the updates worked.".to_string(),
+                });
+                button.set_label("Update apps");
+                button.set_sensitive(true);
+            });
+        });
+    }
+
     let scroll = gtk4::ScrolledWindow::builder()
         .vexpand(true)
         .hscrollbar_policy(gtk4::PolicyType::Never)
@@ -463,31 +495,36 @@ fn make_catalog_card(
     desc.set_lines(2);
     card.append(&desc);
 
-    let btn = if installed {
-        let b = gtk4::Button::new();
-        let hb = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);
-        hb.set_halign(gtk4::Align::Center);
-        hb.append(&gtk4::Label::new(Some("Installed ✓")));
-        b.set_child(Some(&hb));
-        b.add_css_class("cap-get");
-        b.set_sensitive(false);
-        b
-    } else {
-        let b = gtk4::Button::with_label("Install");
-        b.add_css_class("cap-get");
-        let id = app.id;
-        let installed_ids = installed_ids.clone();
-        b.connect_clicked(move |button| {
+    // Two buttons, one shown at a time: Install while the app is absent, "Installed ✓" and Remove once it is there.
+    let id = app.id;
+    let install_btn = gtk4::Button::with_label("Install");
+    install_btn.add_css_class("cap-get");
+    let state = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
+    state.set_halign(gtk4::Align::End);
+    let ok = gtk4::Label::new(Some("Installed ✓"));
+    ok.add_css_class("installed-btn");
+    let remove_btn = gtk4::Button::with_label("Remove");
+    remove_btn.add_css_class("cap-get");
+    state.append(&ok);
+    state.append(&remove_btn);
+    install_btn.set_visible(!installed);
+    state.set_visible(installed);
+
+    {
+        let (state, installed_ids) = (state.clone(), installed_ids.clone());
+        install_btn.connect_clicked(move |button| {
             button.set_sensitive(false);
             button.set_label("Installing…");
-            let button = button.clone();
-            let installed_ids = installed_ids.clone();
+            let (button, state, installed_ids) = (button.clone(), state.clone(), installed_ids.clone());
             glib::MainContext::default().spawn_local(async move {
                 match install_app(id).await {
                     Ok(()) => {
                         let mut ids = installed_ids.borrow_mut();
                         if !ids.iter().any(|value| value == id) { ids.push(id.to_owned()); }
-                        button.set_label("Installed ✓");
+                        button.set_visible(false);
+                        button.set_label("Install");
+                        button.set_sensitive(true);
+                        state.set_visible(true);
                     }
                     Err(error) => {
                         button.set_label("Retry install");
@@ -497,10 +534,36 @@ fn make_catalog_card(
                 }
             });
         });
-        b
-    };
-    btn.set_halign(gtk4::Align::End);
-    card.append(&btn);
+    }
+    {
+        let (install_btn, installed_ids) = (install_btn.clone(), installed_ids.clone());
+        remove_btn.connect_clicked(move |button| {
+            button.set_sensitive(false);
+            button.set_label("Removing…");
+            let (button, install_btn, installed_ids) = (button.clone(), install_btn.clone(), installed_ids.clone());
+            glib::MainContext::default().spawn_local(async move {
+                match remove_app(id).await {
+                    Ok(()) => {
+                        installed_ids.borrow_mut().retain(|value| value != id);
+                        button.set_label("Remove");
+                        button.set_sensitive(true);
+                        install_btn.set_visible(true);
+                        if let Some(state) = button.parent() { state.set_visible(false); }
+                    }
+                    Err(error) => {
+                        button.set_label("Remove");
+                        button.set_tooltip_text(Some(&error));
+                        button.set_sensitive(true);
+                    }
+                }
+            });
+        });
+    }
+    let buttons = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
+    buttons.set_halign(gtk4::Align::End);
+    buttons.append(&install_btn);
+    buttons.append(&state);
+    card.append(&buttons);
 
     child.set_child(Some(&card));
     child
@@ -747,22 +810,48 @@ fn save_favorites(favorites: &[String]) {
 
 // ── Utils ────────────────────────────────────────────────────────────────────
 
-async fn install_app(id: &str) -> Result<(), String> {
+/// Run one of the install.rs scripts in a terminal window and wait for it to close.
+async fn run_in_terminal(script: &str, id: &str) -> Result<(), String> {
     use gtk4::gio::{Subprocess, SubprocessFlags};
     use std::ffi::OsStr;
     // --nofork keeps the child attached so the button can await completion.
     // App IDs are positional arguments, never interpolated shell source.
-    let args = ["konsole", "--nofork", "-e", "sh", "-c", install::SCRIPT, "nizho-capsule-install", id];
+    let args = ["konsole", "--nofork", "-e", "sh", "-c", script, "nizho-capsule-script", id];
     let argv: Vec<&OsStr> = args.iter().map(OsStr::new).collect();
     let terminal = Subprocess::newv(&argv, SubprocessFlags::NONE)
-        .map_err(|e| format!("Could not open the installer: {e}"))?;
-    terminal.wait_future().await.map_err(|e| format!("Installer failed: {e}"))?;
-    // A terminal exit alone does not prove installation. Query Flatpak anew.
+        .map_err(|e| format!("Could not open the terminal: {e}"))?;
+    terminal.wait_future().await.map_err(|e| format!("The terminal failed: {e}"))?;
+    Ok(())
+}
+
+/// Is the app installed for this user right now? Asked of Flatpak, never assumed from a terminal's exit.
+async fn is_installed(id: &str) -> Result<bool, String> {
+    use gtk4::gio::{Subprocess, SubprocessFlags};
+    use std::ffi::OsStr;
     let args = ["flatpak", "info", "--user", id];
     let argv: Vec<&OsStr> = args.iter().map(OsStr::new).collect();
     let check = Subprocess::newv(&argv, SubprocessFlags::STDOUT_SILENCE | SubprocessFlags::STDERR_SILENCE)
-        .map_err(|e| format!("Could not verify installation: {e}"))?;
-    check.wait_check_future().await.map_err(|_| "Installation was cancelled or failed. Retry to view the details.".into())
+        .map_err(|e| format!("Could not verify: {e}"))?;
+    Ok(check.wait_check_future().await.is_ok())
+}
+
+async fn install_app(id: &str) -> Result<(), String> {
+    run_in_terminal(install::SCRIPT, id).await?;
+    if is_installed(id).await? { Ok(()) } else { Err("Installation was cancelled or failed. Retry to view the details.".into()) }
+}
+
+async fn remove_app(id: &str) -> Result<(), String> {
+    run_in_terminal(install::REMOVE_SCRIPT, id).await?;
+    if is_installed(id).await? { Err("Nothing was removed (cancelled or failed). Try again to see the details.".into()) } else { Ok(()) }
+}
+
+/// How many of the user's apps have a newer version on Flathub. None if Flatpak could not say.
+fn pending_updates() -> Option<usize> {
+    let out = std::process::Command::new("flatpak")
+        .args(["remote-ls", "--user", "--updates", "--app", "--columns=application"])
+        .output().ok()?;
+    if !out.status.success() { return None; }
+    Some(String::from_utf8_lossy(&out.stdout).lines().filter(|l| !l.trim().is_empty()).count())
 }
 
 fn flatpak_installed() -> Vec<String> {
