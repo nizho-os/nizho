@@ -1,4 +1,0 @@
-/target
-*.jsonl
-# eval fixtures are source, not audit logs
-!eval/*.jsonl
