@@ -8,7 +8,7 @@ name: Image
 on:
   push:
     # test/* branches are built and checked but never published.
-    branches: [master, "test/**"]
+    branches: [main, "test/**"]
     paths-ignore:
       - "docs/**"
       - "website/**"
@@ -35,7 +35,7 @@ jobs:
     timeout-minutes: 300
     steps:
       - name: Refuse to publish without the signing key
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         env:
           SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
         run: |
@@ -72,7 +72,7 @@ jobs:
           sudo podman image inspect localhost/nizho:chunked --format '{{len .RootFS.Layers}} layers'
 
       - name: Push
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -84,12 +84,12 @@ jobs:
           echo "DIGEST=$(sudo cat digest)" >> "$GITHUB_ENV"
 
       - uses: sigstore/cosign-installer@v3
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         with:
           cosign-release: v2.4.1
 
       - name: Sign and verify
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
           COSIGN_PASSWORD: ""
