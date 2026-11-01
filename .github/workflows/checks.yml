@@ -3,6 +3,11 @@ name: Source checks
 on:
   push:
     paths:
+      - "cosign.pub"
+      - "containers/**"
+      - "scripts/test-signing.py"
+      - ".github/workflows/image.yml"
+      - ".github/workflows/pages.yml"
       - "nizhod/**"
       - "nizho-agent/**"
       - "nizho-pulse/**"
@@ -21,6 +26,11 @@ on:
       - ".github/workflows/checks.yml"
   pull_request:
     paths:
+      - "cosign.pub"
+      - "containers/**"
+      - "scripts/test-signing.py"
+      - ".github/workflows/image.yml"
+      - ".github/workflows/pages.yml"
       - "nizhod/**"
       - "nizho-agent/**"
       - "nizho-pulse/**"
@@ -47,6 +57,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install the cosign version that signs the images
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: v2.4.1
+      - name: Test image signing and verification
+        run: python3 -I scripts/test-signing.py
       - name: Check shell helpers
         run: shellcheck nizho-oobe-apply nizho-plasma-firstrun nizho-firefox nizho-firstboot scripts/flash-usb.sh
       - name: Check first-run shell syntax
