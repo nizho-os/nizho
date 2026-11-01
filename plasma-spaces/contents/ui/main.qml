@@ -1,5 +1,5 @@
 /*
-    ArkaOS Spaces: the virtual desktops as a hairline ridge. A click on a peak
+    Nizho Spaces: the virtual desktops as a hairline ridge. A click on a peak
     switches to that desktop. With a single desktop there is nothing to
     switch, so the widget hides itself.
 
@@ -21,12 +21,12 @@ PlasmoidItem {
     Plasmoid.status: vdi.numberOfDesktops > 1 ? PlasmaCore.Types.ActiveStatus
                                               : PlasmaCore.Types.HiddenStatus
 
-    // The ArkaOS accent, saved by arka-apply-look. The panel's own theme colours are Breeze's, so
+    // The Nizho accent, saved by nizho-apply-look. The panel's own theme colours are Breeze's, so
     // they cannot tell green from blue; the saved choice can.
     property string accent: "green"
     P5Support.DataSource {
         engine: "executable"
-        connectedSources: ["cat \"$HOME/.config/arka-accent\" 2>/dev/null"]
+        connectedSources: ["cat \"$HOME/.config/nizho-accent\" 2>/dev/null"]
         interval: 4000
         onNewData: (source, data) => { root.accent = String(data["stdout"]).trim() === "blue" ? "blue" : "green" }
     }

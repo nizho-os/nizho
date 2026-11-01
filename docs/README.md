@@ -1,4 +1,4 @@
-# ArkaOS documentation
+# Nizho documentation
 
 Facts, plans, and ideas are kept **separate** here, and every document has
 exactly one job. Nothing slowly becomes "the roadmap."
@@ -20,8 +20,8 @@ exactly one job. Nothing slowly becomes "the roadmap."
 | [`FIELD-NOTES.md`](FIELD-NOTES.md) | **What using it feels like** — the experiential lens |
 | [`DP2.md`](DP2.md) | **Facts already merged** since DP1 (queued for the next build) |
 | [`FUTURE-CONSIDERATIONS.md`](FUTURE-CONSIDERATIONS.md) | **Ideas** — candidate work, committed to nothing |
-| [`RELIABILITY-ARKA-PULSE.md`](RELIABILITY-ARKA-PULSE.md) | **A candidate reliability layer** — arka-pulse, committed to nothing |
-| [`../arka-design-system/README.md`](../arka-design-system/README.md) | **The design system** — tokens, motion, components |
+| [`RELIABILITY-NIZHO-PULSE.md`](RELIABILITY-NIZHO-PULSE.md) | **A candidate reliability layer** — nizho-pulse, committed to nothing |
+| [`../nizho-design-system/README.md`](../nizho-design-system/README.md) | **The design system** — tokens, motion, components |
 
 Deep-dive findings from earlier phases live at the repo root:
 [`../PHASE3-FINDINGS.md`](../PHASE3-FINDINGS.md) (integrity & boot hardening),

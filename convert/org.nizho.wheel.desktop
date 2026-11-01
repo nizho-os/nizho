@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Nizho Format Wheel
+Comment=Convert a file by dropping it on a format
+Exec=nizho-wheel
+Icon=document-export
+NoDisplay=true

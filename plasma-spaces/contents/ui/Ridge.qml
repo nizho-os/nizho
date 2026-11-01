@@ -20,7 +20,7 @@ Item {
     signal activated(int index)
 
     // Geometry in pixels: each desktop gets a slot; the peak is a 45-degree
-    // triangle, like the peaks of the ArkaOS mark.
+    // triangle, like the peaks of the Nizho mark.
     readonly property int slot: 24
     readonly property int peak: 6
     // The drawing is 22 px tall and sits in the middle of whatever height it is given.

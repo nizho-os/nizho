@@ -1,0 +1,5 @@
+# Where to find the signatures of Nizho images: cosign stores them in the
+# registry next to the image ("sigstore attachments").
+docker:
+  ghcr.io/nizho-os/nizho:
+    use-sigstore-attachments: true

@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.nizho.Wheel
+Exec=/usr/bin/nizho-wheel
+SystemdService=nizho-wheel.service

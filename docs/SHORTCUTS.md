@@ -1,6 +1,6 @@
 # Keyboard shortcuts
 
-The same list opens inside ArkaOS with **Meta + /** (Meta is the Windows or Super key). KDE's own shortcuts
+The same list opens inside Nizho with **Meta + /** (Meta is the Windows or Super key). KDE's own shortcuts
 can be changed in System Settings › Shortcuts.
 
 "Pressed" means the key was pressed for real in a booted VM on 2026-11-01 and the result was seen to be what is written here, unless the row says otherwise.

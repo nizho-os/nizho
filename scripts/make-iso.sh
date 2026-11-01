@@ -1,5 +1,5 @@
 #!/bin/bash
-# make-iso.sh — build the ArkaOS installer ISO from localhost/arkaos:dev.
+# make-iso.sh — build the Nizho installer ISO from localhost/nizho:dev.
 #
 #   scripts/make-iso.sh OUTDIR
 #
@@ -21,4 +21,4 @@ podman machine ssh podman-machine-default \
        -v '/var$repo/installer/config.toml':/config.toml:ro \
        -v '/var$out_abs':/output \
        quay.io/centos-bootc/bootc-image-builder:latest \
-       --type anaconda-iso --rootfs xfs localhost/arkaos:dev"
+       --type anaconda-iso --rootfs xfs localhost/nizho:dev"

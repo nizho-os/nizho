@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Make the blue ArkaOS colour schemes from the green ones.
+"""Make the blue Nizho colour schemes from the green ones.
 
     python3 scripts/make-blue-schemes.py
 
-Reads ArkaOS.colors and ArkaOSLight.colors, writes ArkaOSBlue.colors and
-ArkaOSLightBlue.colors next to them. Only the accent colours change (selection,
+Reads Nizho.colors and NizhoLight.colors, writes NizhoBlue.colors and
+NizhoLightBlue.colors next to them. Only the accent colours change (selection,
 focus, hover, active text, the scheme's own accent). ForegroundPositive stays green:
-it means "good", not "ArkaOS". The brand green maps to the blue below; every other
+it means "good", not "Nizho". The brand green maps to the blue below; every other
 accent green keeps its saturation and brightness and turns by the same amount, so a
 darker green stays a darker blue.
 """
@@ -48,8 +48,8 @@ def convert(text, scheme_id, name):
     return "\n".join(out) + "\n"
 
 root = Path(__file__).resolve().parents[1]
-for src, scheme_id, name in (("ArkaOS.colors", "ArkaOSBlue", "ArkaOS Dark Blue"),
-                             ("ArkaOSLight.colors", "ArkaOSLightBlue", "ArkaOS Light Blue")):
+for src, scheme_id, name in (("Nizho.colors", "NizhoBlue", "Nizho Dark Blue"),
+                             ("NizhoLight.colors", "NizhoLightBlue", "Nizho Light Blue")):
     text = (root / src).read_text()
     (root / (scheme_id + ".colors")).write_text(convert(text, scheme_id, name))
     print("wrote", scheme_id + ".colors")

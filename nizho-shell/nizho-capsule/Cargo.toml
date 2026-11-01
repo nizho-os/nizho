@@ -1,0 +1,14 @@
+[package]
+name = "nizho-capsule"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "nizho-capsule"
+path = "src/main.rs"
+
+[dependencies]
+nizho-shell-common = { path = "../nizho-shell-common", features = ["adw"] }
+gtk4 = "0.9"
+libadwaita = { version = "0.7", features = ["v1_4"] }
+glib = "0.20"

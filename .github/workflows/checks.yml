@@ -3,39 +3,39 @@ name: Source checks
 on:
   push:
     paths:
-      - "arkad/**"
-      - "arka-agent/**"
-      - "arka-pulse/**"
-      - "arka-shell/**"
-      - "arkaos-oobe-apply"
-      - "arkaos-firstboot"
-      - "arka-plasma-firstrun"
-      - "arkaos-settings"
+      - "nizhod/**"
+      - "nizho-agent/**"
+      - "nizho-pulse/**"
+      - "nizho-shell/**"
+      - "nizho-oobe-apply"
+      - "nizho-firstboot"
+      - "nizho-plasma-firstrun"
+      - "nizho-settings"
       - "Containerfile"
       - "scripts/test-oobe-apply.py"
-      - "arkaos-firefox"
+      - "nizho-firefox"
       - "scripts/test-firefox-wrapper.py"
       - "scripts/flash-usb.sh"
       - "scripts/test-flash-preflight.py"
-      - "systemd/arka-bootc-status.*"
+      - "systemd/nizho-bootc-status.*"
       - ".github/workflows/checks.yml"
   pull_request:
     paths:
-      - "arkad/**"
-      - "arka-agent/**"
-      - "arka-pulse/**"
-      - "arka-shell/**"
-      - "arkaos-oobe-apply"
-      - "arkaos-firstboot"
-      - "arka-plasma-firstrun"
-      - "arkaos-settings"
+      - "nizhod/**"
+      - "nizho-agent/**"
+      - "nizho-pulse/**"
+      - "nizho-shell/**"
+      - "nizho-oobe-apply"
+      - "nizho-firstboot"
+      - "nizho-plasma-firstrun"
+      - "nizho-settings"
       - "Containerfile"
       - "scripts/test-oobe-apply.py"
-      - "arkaos-firefox"
+      - "nizho-firefox"
       - "scripts/test-firefox-wrapper.py"
       - "scripts/flash-usb.sh"
       - "scripts/test-flash-preflight.py"
-      - "systemd/arka-bootc-status.*"
+      - "systemd/nizho-bootc-status.*"
       - ".github/workflows/checks.yml"
   workflow_dispatch:
 
@@ -48,18 +48,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check shell helpers
-        run: shellcheck arkaos-oobe-apply arka-plasma-firstrun arkaos-firefox arkaos-firstboot scripts/flash-usb.sh
+        run: shellcheck nizho-oobe-apply nizho-plasma-firstrun nizho-firefox nizho-firstboot scripts/flash-usb.sh
       - name: Check first-run shell syntax
-        run: bash -n arkaos-oobe-apply && bash -n arkaos-firstboot && bash -n arkaos-settings
+        run: bash -n nizho-oobe-apply && bash -n nizho-firstboot && bash -n nizho-settings
       - name: Test setup with isolated accounts and paths
         run: python3 scripts/test-oobe-apply.py
       - name: Test USB source preflight without devices
         run: python3 scripts/test-flash-preflight.py
       - name: Test browser sandbox launch boundary
-        run: bash -n arkaos-firefox && python3 scripts/test-firefox-wrapper.py
-      - name: Test that the format wheel offers only what arka-convert accepts
+        run: bash -n nizho-firefox && python3 scripts/test-firefox-wrapper.py
+      - name: Test that the format wheel offers only what nizho-convert accepts
         run: python3 scripts/test-wheel-formats.py
-      - name: Test arka install (permission wording and the app list)
+      - name: Test nizho install (permission wording and the app list)
         run: python3 -I -m unittest discover -s apps -p 'test_*.py'
 
   rust:
@@ -70,13 +70,13 @@ jobs:
         run: rustup default stable
       - name: Test privacy enforcement
         # Authorization tests use their own session bus, never the host system bus.
-        run: cargo test --locked --manifest-path arkad/Cargo.toml
+        run: cargo test --locked --manifest-path nizhod/Cargo.toml
       - name: Test reliability core
-        run: cargo test --locked --manifest-path arka-pulse/Cargo.toml --features dbus
+        run: cargo test --locked --manifest-path nizho-pulse/Cargo.toml --features dbus
       - name: Test agent and daemon status contract
-        run: cargo test --locked --manifest-path arka-agent/Cargo.toml
+        run: cargo test --locked --manifest-path nizho-agent/Cargo.toml
       - name: Test shared privacy states and tray
-        run: cargo test --locked --manifest-path arka-shell/Cargo.toml -p arka-shell-common -p arka-privacy-tray
+        run: cargo test --locked --manifest-path nizho-shell/Cargo.toml -p nizho-shell-common -p nizho-privacy-tray
 
   desktop:
     runs-on: ubuntu-24.04
@@ -88,14 +88,14 @@ jobs:
       - name: Install desktop build dependencies
         run: dnf install -y -q gtk4-devel gtk4-layer-shell-devel libadwaita-devel rust cargo gcc pkgconf-pkg-config
       - name: Test every desktop crate including first-run setup
-        run: cargo test --locked --manifest-path arka-shell/Cargo.toml --workspace
+        run: cargo test --locked --manifest-path nizho-shell/Cargo.toml --workspace
       - name: Test desktop backends without a display or host services
         run: |
-          rustc --edition=2021 --test arka-shell/arka-perms/src/permissions.rs -o /tmp/perms-tests
+          rustc --edition=2021 --test nizho-shell/nizho-perms/src/permissions.rs -o /tmp/perms-tests
           /tmp/perms-tests
-          rustc --edition=2021 --test arka-shell/arka-wifi/src/net.rs -o /tmp/wifi-tests
+          rustc --edition=2021 --test nizho-shell/nizho-wifi/src/net.rs -o /tmp/wifi-tests
           /tmp/wifi-tests
-          rustc --edition=2021 --test arka-shell/arka-sound/src/audio.rs -o /tmp/sound-tests
+          rustc --edition=2021 --test nizho-shell/nizho-sound/src/audio.rs -o /tmp/sound-tests
           /tmp/sound-tests
-          rustc --edition=2021 --test arka-shell/arka-update/src/operation.rs -o /tmp/update-tests
+          rustc --edition=2021 --test nizho-shell/nizho-update/src/operation.rs -o /tmp/update-tests
           /tmp/update-tests

@@ -1,10 +1,10 @@
 #!/bin/bash
-# ArkaOS QA: boot the image N times headless, record reliability + timing.
+# Nizho QA: boot the image N times headless, record reliability + timing.
 # Usage: scripts/qa-boot-loop.sh [N] [disk.qcow2]
 # Output: qa-results/boot-loop-<timestamp>.csv  (one row per boot)
 #
 # Pass criteria per boot: VM reaches graphical.target (sddm up) within
-# TIMEOUT seconds, arkad is active, and no systemd units failed.
+# TIMEOUT seconds, nizhod is active, and no systemd units failed.
 
 set -u
 N=${1:-10}
@@ -18,11 +18,11 @@ SER=4465
 
 mkdir -p "$OUT"
 CSV="$OUT/boot-loop-$(date +%Y%m%d-%H%M%S).csv"
-echo "boot,result,secs_to_graphical,failed_units,arkad,notes" > "$CSV"
+echo "boot,result,secs_to_graphical,failed_units,nizhod,notes" > "$CSV"
 
 # Serial expect helper: send a command after logging in, capture output.
 serial_cmd() {
-    # $1 = command;  logs in as ram/arkaos, runs it, prints output
+    # $1 = command;  logs in as ram/nizho, runs it, prints output
     python3 - "$1" <<'PYEOF'
 import socket, sys, time
 
@@ -49,7 +49,7 @@ send("")                       # wake the getty
 out = drain()
 if "login:" in out:
     send("ram"); drain()
-    send("arkaos"); time.sleep(1.5); drain()
+    send("nizho"); time.sleep(1.5); drain()
 send(cmd + " ; echo QA_EOC")
 deadline = time.time() + 20
 buf = ""
@@ -71,7 +71,7 @@ for i in $(seq 1 "$N"); do
     t0=$(date +%s)
 
     # Poll over serial until sddm/graphical target is up or timeout.
-    result=FAIL; secs=""; failed=""; arkad=""
+    result=FAIL; secs=""; failed=""; nizhod=""
     while true; do
         now=$(date +%s); el=$(( now - t0 ))
         if (( el > TIMEOUT )); then result=TIMEOUT; break; fi
@@ -85,13 +85,13 @@ for i in $(seq 1 "$N"); do
 
     if [ "$result" = PASS ]; then
         failed=$(serial_cmd "systemctl --failed --no-legend | wc -l" | grep -oE '^[0-9]+' | tail -1)
-        arkad=$(serial_cmd "systemctl is-active arkad" | grep -oE 'active|inactive|failed' | head -1)
+        nizhod=$(serial_cmd "systemctl is-active nizhod" | grep -oE 'active|inactive|failed' | head -1)
         [ "${failed:-0}" != "0" ] && result=DEGRADED
-        [ "$arkad" != "active" ] && result=DEGRADED
+        [ "$nizhod" != "active" ] && result=DEGRADED
     fi
 
     kill $QPID 2>/dev/null; wait $QPID 2>/dev/null
-    echo "$i,$result,${secs:-},${failed:-},${arkad:-}," | tee -a "$CSV"
+    echo "$i,$result,${secs:-},${failed:-},${nizhod:-}," | tee -a "$CSV"
 done
 
 echo

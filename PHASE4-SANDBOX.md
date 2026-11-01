@@ -49,7 +49,7 @@ Filesystem binds (all read-only unless noted):
 
 Hidden from /etc (confirmed absent inside sandbox):
   NetworkManager/     — WiFi credentials not visible to browser
-  arkad/              — privacy daemon config not visible
+  nizhod/              — privacy daemon config not visible
   machine-id          — unique host identifier not exposed
   shadow, passwd      — not needed by browser
 
@@ -60,7 +60,7 @@ Namespace isolation:
   --new-session       — new session ID (no terminal escape)
   --die-with-parent   — sandbox dies when wrapper exits
 
-Network: host network namespace (browser needs internet). arkad's DNS-over-TLS
+Network: host network namespace (browser needs internet). nizhod's DNS-over-TLS
 enforcer (Quad9) and IPv6 privacy extensions remain active — they operate at the
 kernel/NetworkManager layer, below the bwrap sandbox boundary.
 ```
@@ -107,8 +107,8 @@ alternatives fonts hosts ld.so.cache ld.so.conf.d nsswitch.conf pki resolv.conf 
 === NM in etc ===
 ls: cannot access '/etc/NetworkManager': No such file or directory
 
-=== arkad in etc ===
-ls: cannot access '/etc/arkad': No such file or directory
+=== nizhod in etc ===
+ls: cannot access '/etc/nizhod': No such file or directory
 ```
 
 After sandbox exit: `~/secret.txt` unchanged in real home. Sandbox writes went to
@@ -120,14 +120,14 @@ There is no gap between what was tested and what ships.
 
 ## Regression checks (same boot, verified)
 
-- `systemctl is-active arkad` → `active` (Phase 2 privacy enforcers intact)
+- `systemctl is-active nizhod` → `active` (Phase 2 privacy enforcers intact)
 - `mount | grep composefs` → `ro` overlay (Phase 3 composefs rootfs intact)
 
 ## What this demonstrates vs. what it is not
 
 **Demonstrates:**
 - A compromised browser process cannot read files from the user's home directory
-- WiFi credentials (NM), daemon config (arkad), and host identity (machine-id) are
+- WiFi credentials (NM), daemon config (nizhod), and host identity (machine-id) are
   not visible to the browser
 - The sandbox is the only available launch path — no unsandboxed escape hatch
 

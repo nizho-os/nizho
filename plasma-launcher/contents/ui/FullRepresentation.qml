@@ -132,12 +132,12 @@ Item {
         }
     }
 
-    // The privacy line is the tray's own text: arka-privacy-tray --status
+    // The privacy line is the tray's own text: nizho-privacy-tray --status
     // prints the same level and header the tray shows, from one fresh reading.
     P5Support.DataSource {
         id: privacy
 
-        readonly property string statusCommand: "arka-privacy-tray --status"
+        readonly property string statusCommand: "nizho-privacy-tray --status"
         property string level: "unknown"
         property string header: ""
 
@@ -592,7 +592,7 @@ Item {
                 PC3.ToolTip.delay: Kirigami.Units.toolTipDelay
 
                 onClicked: {
-                    privacy.run("kstart --application arka-dashboard");
+                    privacy.run("kstart --application nizho-dashboard");
                     root.expanded = false;
                 }
 

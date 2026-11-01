@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Check that every format the format wheel offers is one arka-convert accepts.
+"""Check that every format the format wheel offers is one nizho-convert accepts.
 
 The wheel (convert/wheel/main.cpp) keeps its own short list per kind of file so
-it can draw instantly; this reads that list and asks arka-convert about the same
+it can draw instantly; this reads that list and asks nizho-convert about the same
 files. Nothing is converted. Run: python3 scripts/test-wheel-formats.py
 """
 
@@ -14,7 +14,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = (ROOT / "convert" / "wheel" / "main.cpp").read_text()
-CONVERT = ROOT / "convert" / "arka-convert"
+CONVERT = ROOT / "convert" / "nizho-convert"
 
 
 def cpp_list(name):
@@ -46,7 +46,7 @@ def targets(filename):
 
 
 class WheelFormatsTest(unittest.TestCase):
-    def test_every_wheel_slot_is_accepted_by_arka_convert(self):
+    def test_every_wheel_slot_is_accepted_by_nizho_convert(self):
         exts = {"image": cpp_list("image"), "audio": cpp_list("audio"), "video": cpp_list("video"), "pdf": ["pdf"],
                 "office": cpp_list("office"), "other": ["txt"]}
         for kind, slots in wheel_slots().items():

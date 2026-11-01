@@ -1,5 +1,5 @@
 /*
-    ArkaOS launcher: a popup from the top bar with pinned apps, categories,
+    Nizho launcher: a popup from the top bar with pinned apps, categories,
     search and the session buttons. The app list, search, pinned list and
     session actions come from Plasma's own models (the ones Kickoff uses), so
     installed apps, menu edits and pins behave the same as in stock Plasma.
@@ -33,10 +33,10 @@ PlasmoidItem {
         showFavoritesPlaceholder: true // row 0 stands for the pinned apps, as in Kickoff
 
         Component.onCompleted: {
-            favoritesModel.initForClient("org.arkaos.launcher.favorites.instance-" + Plasmoid.id)
+            favoritesModel.initForClient("org.nizho.launcher.favorites.instance-" + Plasmoid.id)
             // Pins are shared by every launcher of the account, so an account
             // that already has pins keeps them. A new one gets the list in
-            // kicker-extra-favoritesrc, which the image sets to ArkaOS's apps.
+            // kicker-extra-favoritesrc, which the image sets to Nizho's apps.
             if (!Plasmoid.configuration.favoritesPorted) {
                 if (favoritesModel.count < 1) {
                     favoritesModel.portOldFavorites([])
@@ -66,17 +66,17 @@ PlasmoidItem {
         id: processRunner
     }
 
-    // The ArkaOS accent, saved by arka-apply-look. The panel's own theme colours are Breeze's, so
+    // The Nizho accent, saved by nizho-apply-look. The panel's own theme colours are Breeze's, so
     // they cannot tell green from blue; the saved choice can.
     property string accent: "green"
     P5Support.DataSource {
         engine: "executable"
-        connectedSources: ["cat \"$HOME/.config/arka-accent\" 2>/dev/null"]
+        connectedSources: ["cat \"$HOME/.config/nizho-accent\" 2>/dev/null"]
         interval: 4000
         onNewData: (source, data) => { root.accent = String(data["stdout"]).trim() === "blue" ? "blue" : "green" }
     }
 
-    Plasmoid.icon: root.accent === "blue" ? "arka-start-blue" : "arka-start"
+    Plasmoid.icon: root.accent === "blue" ? "nizho-start-blue" : "nizho-start"
     toolTipMainText: Plasmoid.title
     toolTipSubText: ""
 

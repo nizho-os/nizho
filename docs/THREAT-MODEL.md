@@ -1,11 +1,11 @@
-# ArkaOS threat model
+# Nizho threat model
 
 Reviewed 2026-10-04. These are implementation boundaries and limitations,
 not a certification of the deployed image. See [release validation](RELEASE-VALIDATION.md).
 
 ## Privileged changes and local applications
 
-arkad runs with system privileges to maintain privacy configuration. Status is
+nizhod runs with system privileges to maintain privacy configuration. Status is
 readable over D-Bus. Manual `EnforceAll` checks the authenticated bus sender with
 polkit before invoking an enforcer. The shipped policy requires administrator
 authentication for active local users, denies ordinary inactive/remote sessions,

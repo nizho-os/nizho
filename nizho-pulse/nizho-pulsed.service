@@ -1,0 +1,17 @@
+[Unit]
+Description=Nizho Reliability Daemon (read-only, org.nizho.pulse)
+Documentation=file:///usr/share/doc/nizho/RELIABILITY-NIZHO-PULSE.md
+
+[Service]
+# Plain simple service: nizho-pulse has no sd_notify dependency (the core stays
+# near-zero-dep), so no Type=notify / WatchdogSec here as nizhod uses. It only
+# reads /proc + /sys and publishes a snapshot; it changes nothing.
+Type=simple
+ExecStart=/usr/bin/nizho-pulsed --interval 10
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

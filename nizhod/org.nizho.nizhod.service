@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.nizho.nizhod
+Exec=/usr/bin/nizhod
+User=root
+SystemdService=nizhod.service

@@ -1,6 +1,6 @@
 name: Stick image
 
-# Builds a raw disk image of the published ArkaOS image, for a fresh install on a
+# Builds a raw disk image of the published Nizho image, for a fresh install on a
 # USB stick, and keeps it for a few days as a downloadable artifact. Run it by
 # hand (Actions > Stick image > Run workflow). The image must already be
 # published and signed by the Image workflow; this one only turns it into a disk.
@@ -22,7 +22,7 @@ permissions:
   packages: read
 
 env:
-  IMAGE: ghcr.io/thulasiramk-2310/arka
+  IMAGE: ghcr.io/nizho-os/nizho
 
 jobs:
   disk:
@@ -42,7 +42,7 @@ jobs:
         with:
           cosign-release: v2.4.1
 
-      - name: Check the image is signed by the ArkaOS key
+      - name: Check the image is signed by the Nizho key
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -61,30 +61,30 @@ jobs:
         run: |
           # No serial console: a forced console=ttyS0 crash-looped agetty on the Nokia.
           # The installed system takes its updates from the signed public image.
-          sudo truncate -s "${{ inputs.size }}" /mnt/arka-stick.raw
+          sudo truncate -s "${{ inputs.size }}" /mnt/nizho-stick.raw
           sudo podman run --rm --privileged --pid=host --security-opt label=disable \
             -v /var/lib/containers:/var/lib/containers -v /dev:/dev -v /mnt:/output \
             "$IMAGE:${{ inputs.tag }}" \
             bootc install to-disk --via-loopback --generic-image \
-              --target-imgref "$IMAGE:latest" --filesystem xfs /output/arka-stick.raw
-          sudo du -sh --apparent-size /mnt/arka-stick.raw
-          sudo du -sh /mnt/arka-stick.raw
+              --target-imgref "$IMAGE:latest" --filesystem xfs /output/nizho-stick.raw
+          sudo du -sh --apparent-size /mnt/nizho-stick.raw
+          sudo du -sh /mnt/nizho-stick.raw
 
       - name: Compress
         run: |
           sudo apt-get install -y zstd >/dev/null
-          sudo zstd -T0 -10 -q /mnt/arka-stick.raw -o /mnt/arka-stick.raw.zst
-          sudo rm /mnt/arka-stick.raw
-          cd /mnt && sudo sha256sum arka-stick.raw.zst | sudo tee arka-stick.raw.zst.sha256
-          ls -lh /mnt/arka-stick.raw.zst
+          sudo zstd -T0 -10 -q /mnt/nizho-stick.raw -o /mnt/nizho-stick.raw.zst
+          sudo rm /mnt/nizho-stick.raw
+          cd /mnt && sudo sha256sum nizho-stick.raw.zst | sudo tee nizho-stick.raw.zst.sha256
+          ls -lh /mnt/nizho-stick.raw.zst
 
       - name: Keep it
         uses: actions/upload-artifact@v4
         with:
-          name: arka-stick-${{ inputs.tag }}
+          name: nizho-stick-${{ inputs.tag }}
           path: |
-            /mnt/arka-stick.raw.zst
-            /mnt/arka-stick.raw.zst.sha256
+            /mnt/nizho-stick.raw.zst
+            /mnt/nizho-stick.raw.zst.sha256
           compression-level: 0
           retention-days: 3
           if-no-files-found: error
@@ -97,13 +97,13 @@ jobs:
           This erases the stick. Check the device name first (`lsblk`), never use your system disk.
 
           ```sh
-          gh run download <this run's id> -R ${{ github.repository }} -n arka-stick-${{ inputs.tag }} -D ~/arka-stick
-          cd ~/arka-stick && sha256sum -c arka-stick.raw.zst.sha256
-          zstd -dc arka-stick.raw.zst | sudo dd of=/dev/disk/by-id/<your-stick> bs=4M conv=fsync status=progress
+          gh run download <this run's id> -R ${{ github.repository }} -n nizho-stick-${{ inputs.tag }} -D ~/nizho-stick
+          cd ~/nizho-stick && sha256sum -c nizho-stick.raw.zst.sha256
+          zstd -dc nizho-stick.raw.zst | sudo dd of=/dev/disk/by-id/<your-stick> bs=4M conv=fsync status=progress
           sudo sgdisk -e /dev/disk/by-id/<your-stick>
           sudo sgdisk --move-main-table=2 /dev/disk/by-id/<your-stick>
           sudo sgdisk -v /dev/disk/by-id/<your-stick>   # must say "No problems found"
-          rm -r ~/arka-stick
+          rm -r ~/nizho-stick
           ```
 
           The image keeps its main partition table at sector 2016, and some firmware (the Nokia's) rejects the

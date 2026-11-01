@@ -72,7 +72,7 @@ reopen that problem. Not a drop-in replacement.
 **Build on systemd-boot-native tooling from scratch** — Start from a minimal base
 that uses systemd-boot as the primary bootloader (not GRUB+shim), configure bootupd
 or bootctl from scratch without inheriting the CentOS ESP ownership model. This is
-a separate deliberate project, not a patch on ArkaOS. Scope: Phase 5 or later.
+a separate deliberate project, not a patch on Nizho. Scope: Phase 5 or later.
 
 ---
 
@@ -82,7 +82,7 @@ Bank Phase 3 at current state.
 
 The composefs rootfs integrity and TPM PCR 0–10 measurements are real and verified.
 The PCR 11–15 gap is a platform limitation of CentOS Stream 10 bootc — it is not
-a defect in ArkaOS. The NASM assembly EFI shim workaround was correctly avoided
+a defect in Nizho. The NASM assembly EFI shim workaround was correctly avoided
 throughout (would have been fragile, unmaintainable, and not the right abstraction).
 
 Phase 4 (app sandboxing) is independent of the bootloader and is the next real work.
@@ -93,6 +93,6 @@ Phase 4 (app sandboxing) is independent of the bootloader and is the next real w
 
 | Artifact | Name |
 |---|---|
-| Container (GRUB, pre-Phase 3) | `localhost/arkaos:grub-fallback` |
-| Container (Phase 3 milestone) | `localhost/arkaos:phase3-milestone` |
+| Container (GRUB, pre-Phase 3) | `localhost/nizho:grub-fallback` |
+| Container (Phase 3 milestone) | `localhost/nizho:phase3-milestone` |
 | qcow2 (bootable fallback) | `output/qcow2/disk-grub-fallback.qcow2` |

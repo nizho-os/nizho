@@ -1,0 +1,16 @@
+[SddmGreeterTheme]
+Name=Nizho
+Description=Nizho branded login — dark with green accent
+Author=Nizho
+Copyright=Nizho
+License=MIT
+Type=sddm-theme
+Version=1.0
+Website=https://github.com/nizho-os/nizho
+Screenshot=
+MainScript=Main.qml
+ConfigFile=theme.conf
+TranslationsDirectory=
+Email=
+Theme-Id=nizho
+Theme-API=2.0

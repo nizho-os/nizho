@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Keyboard Shortcuts
+Comment=View all Nizho keyboard shortcuts
+Exec=nizho-hotkeys
+Icon=nizho-hotkeys
+Keywords=keyboard;shortcuts;hotkeys;keybindings;help;cheat;
+Categories=System;

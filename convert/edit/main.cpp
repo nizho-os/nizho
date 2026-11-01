@@ -1,7 +1,7 @@
-// arka-edit: the small window behind the "Edit" entries: crop, black out parts
+// nizho-edit: the small window behind the "Edit" entries: crop, black out parts
 // of a picture, put a picture on a background, trim sound or video.
-//   arka-edit crop|redact|background|trim FILE
-// It only collects what you chose. The work is done by arka-convert, which
+//   nizho-edit crop|redact|background|trim FILE
+// It only collects what you chose. The work is done by nizho-convert, which
 // runs it in the sandbox and never changes the original.
 
 #include <QDir>
@@ -33,13 +33,13 @@ public:
     QString fileName() const { return QFileInfo(m_file).fileName(); }
     QUrl fileUrl() const { return QUrl::fromLocalFile(m_file); }
 
-    // Length of a sound or video in seconds, asked of arka-convert (sandboxed). 0 if unknown.
+    // Length of a sound or video in seconds, asked of nizho-convert (sandboxed). 0 if unknown.
     qreal duration() const
     {
         if (m_tool != QLatin1String("trim"))
             return 0;
         QProcess p;
-        p.start(QStringLiteral("arka-convert"), {QStringLiteral("--duration"), m_file});
+        p.start(QStringLiteral("nizho-convert"), {QStringLiteral("--duration"), m_file});
         if (!p.waitForFinished(15000))
             return 0;
         return QString::fromUtf8(p.readAllStandardOutput()).trimmed().toDouble();
@@ -47,7 +47,7 @@ public:
 
     Q_INVOKABLE bool dark() const
     {
-        QFile f(QDir::homePath() + QStringLiteral("/.config/arka-look"));
+        QFile f(QDir::homePath() + QStringLiteral("/.config/nizho-look"));
         if (f.open(QIODevice::ReadOnly))
             return f.readAll().trimmed() != "light";
         return true;
@@ -64,10 +64,10 @@ public:
         return size;
     }
 
-    // Hand the choice to arka-convert and close. args are plain strings, never a shell line.
+    // Hand the choice to nizho-convert and close. args are plain strings, never a shell line.
     Q_INVOKABLE void apply(const QStringList &args)
     {
-        QProcess::startDetached(QStringLiteral("arka-convert"), QStringList{m_tool} + QStringList{m_file} + args);
+        QProcess::startDetached(QStringLiteral("nizho-convert"), QStringList{m_tool} + QStringList{m_file} + args);
         QGuiApplication::quit();
     }
 };
@@ -78,14 +78,14 @@ int main(int argc, char **argv)
     if (qEnvironmentVariableIsEmpty("QT_QUICK_BACKEND"))
         qputenv("QT_QUICK_BACKEND", "software");
     QGuiApplication app(argc, argv);
-    app.setApplicationName(QStringLiteral("arka-edit"));
-    app.setDesktopFileName(QStringLiteral("org.arkaos.edit"));
+    app.setApplicationName(QStringLiteral("nizho-edit"));
+    app.setDesktopFileName(QStringLiteral("org.nizho.edit"));
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 
     const QStringList a = app.arguments();
     static const QStringList tools{"crop", "redact", "background", "trim"};
     if (a.size() != 3 || !tools.contains(a[1]) || !QFileInfo(a[2]).isFile()) {
-        qCritical("usage: arka-edit crop|redact|background|trim FILE");
+        qCritical("usage: nizho-edit crop|redact|background|trim FILE");
         return 2;
     }
 
@@ -101,10 +101,10 @@ int main(int argc, char **argv)
     if (!window)
         return 1;
 
-    // For testing without a screen. ARKA_EDIT_EVENTS replays mouse events as
+    // For testing without a screen. NIZHO_EDIT_EVENTS replays mouse events as
     // "p X Y" (press), "m X Y" (move), "r X Y" (release), ";"-separated, in window
-    // coordinates; ARKA_EDIT_SCREENSHOT then saves the window and quits.
-    const QStringList events = qEnvironmentVariable("ARKA_EDIT_EVENTS").split(';', Qt::SkipEmptyParts);
+    // coordinates; NIZHO_EDIT_SCREENSHOT then saves the window and quits.
+    const QStringList events = qEnvironmentVariable("NIZHO_EDIT_EVENTS").split(';', Qt::SkipEmptyParts);
     int delay = 500;
     for (const QString &e : events) {
         const QStringList f = e.trimmed().split(' ', Qt::SkipEmptyParts);
@@ -119,7 +119,7 @@ int main(int argc, char **argv)
             QCoreApplication::sendEvent(window, &ev);
         });
     }
-    const QString shot = qEnvironmentVariable("ARKA_EDIT_SCREENSHOT");
+    const QString shot = qEnvironmentVariable("NIZHO_EDIT_SCREENSHOT");
     if (!shot.isEmpty())
         QTimer::singleShot(delay + 700, [window, shot] {
             window->grabWindow().save(shot);

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Render an ArkaOS default wallpaper: a quiet, nearly flat field with the Arka
+# Render an Nizho default wallpaper: a quiet, nearly flat field with the Nizho
 # triangle drawn as three hairlines, cropped off the right edge. Only the inner
 # line carries the brand green. No glow, no gradients to speak of, no text:
 # the wallpaper is scenery, the UI carries the words. Fine grain prevents
