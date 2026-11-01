@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/nizho-wordmark-dark.svg"/>
-    <img src="assets/branding/nizho-wordmark.svg" width="300" alt="Nizho"/>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/nizho-wordmark-text-dark.svg"/>
+    <img src="assets/branding/nizho-wordmark-text.svg" width="220" alt="Nizho"/>
   </picture>
 </p>
 
