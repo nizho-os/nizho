@@ -92,7 +92,7 @@ hardware data point, and the known rough edges are in the release validation not
 
 What a daily-use desktop needs that Nizho does not do yet, or that nobody has tested:
 
-- **Video and audio formats:** only Fedora's free codecs are installed, so some files (for example H.265 video or AAC audio) may not play. Not tested; VLC from Install Apps may cover it.
+- **Video and audio formats:** only Fedora's free codecs are installed, so some files (for example H.265 video or AAC audio) may not play. Not tested. VLC is in Install Apps' suggested list (as a sandboxed Flatpak from Flathub) and brings its own codecs, so it should cover most of these files; we have not checked that either.
 - **NVIDIA graphics cards:** there is no proprietary NVIDIA driver, so those cards use the open driver. Not tested.
 - **Backing up your files:** rollback protects the system, not your documents. There is no backup tool yet.
 - **Language and keyboard:** setup now asks for both. It has unit tests and a preview render, but has not yet been run in a booted image. How much of the desktop is translated depends on the language.
