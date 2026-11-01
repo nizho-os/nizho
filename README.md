@@ -113,7 +113,7 @@ exactly that: we haven't tried it.
   computer (rollback retries included) needs the passphrase, and the 6.7 GB ISO
   is not published. Not tested on real hardware.
 - **Signed updates from ghcr.io.** GitHub Actions builds the image on pushes to
-  `master` that touch more than docs, the website, assets or Markdown files, and
+  `main` that touch more than docs, the website, assets or Markdown files, and
   once a week. It splits the image into
   small layers, signs it with cosign and publishes it as
   `ghcr.io/nizho-os/nizho`. Nizho accepts an image from there only if it

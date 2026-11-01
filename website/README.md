@@ -13,7 +13,7 @@ not a security score.
 ## Deploying (GitHub Pages)
 
 Deployment is automated by [`.github/workflows/pages.yml`](../.github/workflows/pages.yml),
-which publishes the `website/` folder on every push to `master`.
+which publishes the `website/` folder on every push to `main`.
 
 **One-time setup** (repo owner, in the browser):
 
