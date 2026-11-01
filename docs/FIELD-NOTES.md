@@ -153,7 +153,7 @@ These are likely interrelated, not four separate bugs — resolve in order:
 - **Containerfile note:** `nizho-firefox` COPY sits *above* the KDE dnf layer, so
   editing the wrapper busts the multi-hour KDE cache. Move it below the KDE layer.
 
-**🔴 Privacy-claim honesty audit (HIGH priority — "honesty over marketing")**
+**Privacy-claim honesty audit (HIGH priority — "honesty over marketing")**
 Audited every Privacy Dashboard claim against the actual implementation:
 - **Two claims are FALSE / unbacked** (no Firefox config exists anywhere in the
   image): *"No tracking cookies — deleted on close"* and *"Computer ID is hidden —

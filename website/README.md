@@ -42,7 +42,7 @@ Pages* → *Run workflow*.
 
 ## Design notes
 
-- **Light theme by default**, dark on a toggle (☾ / ☀) — the choice is
+- **Light theme by default**, dark on a toggle — the choice is
   remembered in `localStorage`; with no stored choice the page follows the OS.
 - Accent is a warm amber "ray" — *nizho* is Sanskrit for *ray of light*.
 - Type: **Fraunces** (display) + **IBM Plex Sans / Mono** (body / technical).
@@ -51,7 +51,7 @@ Pages* → *Run workflow*.
 
 ## Repository discovery metadata
 
-For GitHub repo settings — **Settings → General** (bio) and the **⚙ Topics**
+For GitHub repo settings — **Settings → General** (bio) and the **Topics**
 control on the repo home. Kept accurate: no `go`, `d-bus`, or `flatpak` tags,
 because those aren't what Nizho is built from.
 

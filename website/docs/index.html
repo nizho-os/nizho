@@ -66,9 +66,9 @@
       <h1 style="margin-top:14px;font-size:clamp(32px,4.4vw,46px);font-weight:700;letter-spacing:-.025em;line-height:1.08">Nizho, documented as it actually is.</h1>
       <p style="margin-top:18px;font-size:17px;line-height:1.65;color:#8B93A3;text-wrap:pretty">This is a Developer Preview. These pages describe what runs today, what we are still validating, and what does not exist yet. Where a claim cannot be demonstrated, it is labelled rather than softened.</p>
       <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px">
-        <span style="border:1px solid rgba(22,199,132,.4);color:#16C784;border-radius:4px;padding:6px 10px">● CONFIGURED</span>
-        <span style="border:1px solid rgba(84,214,198,.4);color:#54D6C6;border-radius:4px;padding:6px 10px">◐ EXPERIMENTAL</span>
-        <span style="border:1px solid #2A3244;color:#8B93A3;border-radius:4px;padding:6px 10px">○ NOT YET</span>
+        <span style="border:1px solid rgba(22,199,132,.4);color:#16C784;border-radius:4px;padding:6px 10px">CONFIGURED</span>
+        <span style="border:1px solid rgba(84,214,198,.4);color:#54D6C6;border-radius:4px;padding:6px 10px">EXPERIMENTAL</span>
+        <span style="border:1px solid #2A3244;color:#8B93A3;border-radius:4px;padding:6px 10px">NOT YET</span>
       </div>
 
       <section id="what-is-nizho" style="margin-top:64px;border-top:1px solid #1C2230;padding-top:36px">
@@ -91,10 +91,10 @@
 
         <h3 style="margin-top:36px;font-size:19px;font-weight:600">What Nizho is not</h3>
         <ul style="margin-top:16px;display:flex;flex-direction:column;gap:12px;font-size:15px;line-height:1.6;color:#8B93A3">
-          <li style="display:flex;gap:12px"><span style="color:#8B93A3;font-family:'JetBrains Mono',monospace">○</span><span>It is not anonymity software. It does not route your traffic, and it cannot make you untrackable.</span></li>
-          <li style="display:flex;gap:12px"><span style="color:#8B93A3;font-family:'JetBrains Mono',monospace">○</span><span>It is not a hardened security distribution or a replacement for threat-model-specific tooling.</span></li>
-          <li style="display:flex;gap:12px"><span style="color:#8B93A3;font-family:'JetBrains Mono',monospace">○</span><span>It is not production ready. The graphical installer is VM-tested only and not published, and there is no hardware compatibility guarantee.</span></li>
-          <li style="display:flex;gap:12px"><span style="color:#8B93A3;font-family:'JetBrains Mono',monospace">○</span><span>It is not a Linux fork. The kernel, drivers and desktop come from upstream.</span></li>
+          <li style="display:flex;gap:12px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:9px;border-radius:50%;border:1.5px solid #8B93A3"></span><span>It is not anonymity software. It does not route your traffic, and it cannot make you untrackable.</span></li>
+          <li style="display:flex;gap:12px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:9px;border-radius:50%;border:1.5px solid #8B93A3"></span><span>It is not a hardened security distribution or a replacement for threat-model-specific tooling.</span></li>
+          <li style="display:flex;gap:12px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:9px;border-radius:50%;border:1.5px solid #8B93A3"></span><span>It is not production ready. The graphical installer is VM-tested only and not published, and there is no hardware compatibility guarantee.</span></li>
+          <li style="display:flex;gap:12px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:9px;border-radius:50%;border:1.5px solid #8B93A3"></span><span>It is not a Linux fork. The kernel, drivers and desktop come from upstream.</span></li>
         </ul>
       </section>
 
@@ -182,11 +182,11 @@ last re-check          14s ago</pre>
         <h3 id="pulse" style="margin-top:44px;font-size:21px;font-weight:600;color:#54D6C6">nizho-pulse · reliability layer</h3>
         <p style="margin-top:14px;font-size:15.5px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">Local reliability monitoring and prediction. Currently focused on telemetry, detection, prediction and verification; recovery actions remain constrained and experimental. Nothing is sent off the device.</p>
         <ul style="margin-top:18px;display:flex;flex-direction:column;gap:12px;font-size:15px;line-height:1.6;color:#8B93A3">
-          <li style="display:flex;gap:12px"><span style="color:#16C784;font-family:'JetBrains Mono',monospace">●</span><span><strong style="color:#EEF1F6;font-weight:600">Telemetry</strong> — disk, memory, thermals, service failures, journal patterns, collected locally.</span></li>
-          <li style="display:flex;gap:12px"><span style="color:#16C784;font-family:'JetBrains Mono',monospace">●</span><span><strong style="color:#EEF1F6;font-weight:600">Detection</strong> — degradation surfaced with the signal that triggered it.</span></li>
-          <li style="display:flex;gap:12px"><span style="color:#54D6C6;font-family:'JetBrains Mono',monospace">◐</span><span><strong style="color:#EEF1F6;font-weight:600">Prediction</strong> — early warning ahead of failure. Thresholds are still being calibrated.</span></li>
-          <li style="display:flex;gap:12px"><span style="color:#54D6C6;font-family:'JetBrains Mono',monospace">◐</span><span><strong style="color:#EEF1F6;font-weight:600">Verification</strong> — confirming the system is in the state it reports.</span></li>
-          <li style="display:flex;gap:12px"><span style="color:#8B93A3;font-family:'JetBrains Mono',monospace">○</span><span><strong style="color:#8B93A3;font-weight:600">Autonomous recovery</strong> — not shipped. nizho-pulse recommends; you decide.</span></li>
+          <li style="display:flex;gap:12px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:9px;border-radius:50%;background:#16C784"></span><span><strong style="color:#EEF1F6;font-weight:600">Telemetry</strong> — disk, memory, thermals, service failures, journal patterns, collected locally.</span></li>
+          <li style="display:flex;gap:12px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:9px;border-radius:50%;background:#16C784"></span><span><strong style="color:#EEF1F6;font-weight:600">Detection</strong> — degradation surfaced with the signal that triggered it.</span></li>
+          <li style="display:flex;gap:12px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:9px;border-radius:50%;border:1.5px solid #54D6C6;background:linear-gradient(90deg,#54D6C6 50%,transparent 50%)"></span><span><strong style="color:#EEF1F6;font-weight:600">Prediction</strong> — early warning ahead of failure. Thresholds are still being calibrated.</span></li>
+          <li style="display:flex;gap:12px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:9px;border-radius:50%;border:1.5px solid #54D6C6;background:linear-gradient(90deg,#54D6C6 50%,transparent 50%)"></span><span><strong style="color:#EEF1F6;font-weight:600">Verification</strong> — confirming the system is in the state it reports.</span></li>
+          <li style="display:flex;gap:12px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:9px;border-radius:50%;border:1.5px solid #8B93A3"></span><span><strong style="color:#8B93A3;font-weight:600">Autonomous recovery</strong> — not shipped. nizho-pulse recommends; you decide.</span></li>
         </ul>
 
         <h3 id="updates" style="margin-top:44px;font-size:21px;font-weight:600;color:#EAB94A">Updates &amp; rollback</h3>
@@ -278,10 +278,10 @@ $ bootc rollback         # go back to the previous version at the next boot</pre
 
   // ── proof table ──
   var TAGS = {
-    configured: { label: "● configured", color: "#16C784" },
-    failed: { label: "● failed test", color: "#EAB94A" },
-    experimental: { label: "◐ experimental", color: "#54D6C6" },
-    "not yet": { label: "○ not yet", color: "#8B93A3" }
+    configured: { label: "configured", color: "#16C784" },
+    failed: { label: "failed test", color: "#EAB94A" },
+    experimental: { label: "experimental", color: "#54D6C6" },
+    "not yet": { label: "not yet", color: "#8B93A3" }
   };
   var PROOFS = [
     { mech: "MAC address randomized", note: "Per-connection randomization at the NetworkManager layer. Does not hide you from anything above link level.", tag: "configured" },

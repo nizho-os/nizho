@@ -51,21 +51,21 @@ while true; do
 
     printf "    ${D}┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄${E}\n"
     printf "    ${D}Q  quit${E}\n\n"
-    printf "    ${C}▸${E} "
+    printf "    ${C}>${E} "
     read -r choice || break
 
     case "${choice,,}" in
         1)
             if autologin_on; then
                 disable_autologin
-                printf "\n    ${G}✓${E}  Nizho autologin preference removed. Check Plasma Login Screen settings for other overrides.\n"
+                printf "\n    ${G}Done${E}  Nizho autologin preference removed. Check Plasma Login Screen settings for other overrides.\n"
             else
                 if ! enable_autologin; then
                     printf '\n    Could not enable autologin for a regular user.\n'
                     read -r || true
                     continue
                 fi
-                printf "\n    ${G}✓${E}  Autologin enabled for ${C}$(autologin_user)${E} — takes effect next boot.\n"
+                printf "\n    ${G}Done${E}  Autologin enabled for ${C}$(autologin_user)${E} — takes effect next boot.\n"
             fi
             printf "\n    Press Enter to continue..."
             read -r

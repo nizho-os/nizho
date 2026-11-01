@@ -464,7 +464,7 @@ fn make_catalog_card(
     // Star / favorite button
     let exec_for_fav = format!("flatpak run {}", app.id);
     let is_fav = favorites.borrow().contains(&exec_for_fav);
-    let star_btn = gtk4::Button::with_label(if is_fav { "★" } else { "☆" });
+    let star_btn = gtk4::Button::from_icon_name(if is_fav { "starred-symbolic" } else { "non-starred-symbolic" });
     star_btn.add_css_class("star-btn");
     let fav_rc = favorites.clone();
     let exec_fav2 = exec_for_fav.clone();
@@ -473,10 +473,10 @@ fn make_catalog_card(
         let mut favs = fav_rc.borrow_mut();
         if favs.contains(&exec_fav2) {
             favs.retain(|e| e != &exec_fav2);
-            star_btn2.set_label("☆");
+            star_btn2.set_icon_name("non-starred-symbolic");
         } else {
             favs.push(exec_fav2.clone());
-            star_btn2.set_label("★");
+            star_btn2.set_icon_name("starred-symbolic");
         }
         save_favorites(&favs);
     });
@@ -495,13 +495,13 @@ fn make_catalog_card(
     desc.set_lines(2);
     card.append(&desc);
 
-    // Two buttons, one shown at a time: Install while the app is absent, "Installed ✓" and Remove once it is there.
+    // Two buttons, one shown at a time: Install while the app is absent, "Installed" and Remove once it is there.
     let id = app.id;
     let install_btn = gtk4::Button::with_label("Install");
     install_btn.add_css_class("cap-get");
     let state = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
     state.set_halign(gtk4::Align::End);
-    let ok = gtk4::Label::new(Some("Installed ✓"));
+    let ok = gtk4::Label::new(Some("Installed"));
     ok.add_css_class("installed-btn");
     let remove_btn = gtk4::Button::with_label("Remove");
     remove_btn.add_css_class("cap-get");
@@ -639,7 +639,7 @@ fn refresh_running(list: &gtk4::ListBox) {
             window_service().focus(&focus_id);
         });
 
-        let close_btn = gtk4::Button::with_label("✕");
+        let close_btn = gtk4::Button::from_icon_name("window-close-symbolic");
         close_btn.add_css_class("win-close-btn");
         let close_id = win.id.clone();
         close_btn.connect_clicked(move |_| {

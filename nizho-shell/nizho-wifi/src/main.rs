@@ -150,14 +150,14 @@ fn rebuild_rows(list: &gtk4::ListBox, networks: &[net::Network]) {
         let name = gtk4::Label::new(Some(&n.ssid));
         name.set_halign(gtk4::Align::Start);
         name.set_css_classes(&["title-4"]);
-        let sub = gtk4::Label::new(Some(if n.secured { "Secured  🔒" } else { "Open" }));
+        let sub = gtk4::Label::new(Some(if n.secured { "Secured" } else { "Open" }));
         sub.set_halign(gtk4::Align::Start);
         sub.set_css_classes(&["caption"]);
         vbox.append(&name); vbox.append(&sub);
         hbox.append(&vbox);
 
         if n.in_use {
-            let badge = gtk4::Label::new(Some("Connected ✓"));
+            let badge = gtk4::Label::new(Some("Connected"));
             badge.add_css_class("connected");
             badge.set_valign(gtk4::Align::Center);
             hbox.append(&badge);

@@ -158,7 +158,7 @@ they are not. Same data, two audiences.
 Normal user — a single verdict, nothing technical:
 
 ```
-🟢 System Health
+System Health
 Your computer is healthy. No action needed.
 ```
 
@@ -176,13 +176,13 @@ And when something is actually predicted, the recommendation carries its risk an
 asks before acting — never a silent mutation:
 
 ```
-⚠ Network may become unstable
+Network may become unstable
 Nizho detected increasing network errors.
 Recommended: restart network service     Risk: Low
 [ Fix Automatically ]   [ Review ]
         │
         ▼
-✓ Fixed — connection restored. Nizho verified the recovery.
+Fixed — connection restored. Nizho verified the recovery.
 ```
 
 ---
@@ -226,8 +226,8 @@ next uncertainty is not "can we build it?" (demonstrated) but "does prediction
 hold on real behaviour well enough to justify an LLM and privileged recovery?"
 
 ```
-1  Synthetic correctness        ✅ done (dry-run loop + tests)
-2  Read-only real-hardware deployment  ✅ runs on real hardware (see below)
+1  Synthetic correctness        done (dry-run loop + tests)
+2  Read-only real-hardware deployment  runs on real hardware (see below)
 3  Prediction calibration       ← the gate that earns everything after it
 4  Local explanation (LLM)
 5  Policy-gated recovery (real executor)

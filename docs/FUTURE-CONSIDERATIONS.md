@@ -53,12 +53,12 @@ shape (not claims):
 
 ```
 Validated hardware
-  ✓ Lenovo ThinkPad T14 Gen 4
-  ✓ Framework Laptop 13
-  ✓ ASUS Zephyrus G14
-  ✓ Dell XPS 13
-  ✓ Intel NUC
-  ✓ Ryzen desktop
+  - Lenovo ThinkPad T14 Gen 4
+  - Framework Laptop 13
+  - ASUS Zephyrus G14
+  - Dell XPS 13
+  - Intel NUC
+  - Ryzen desktop
 Known issues
   …
 ```
