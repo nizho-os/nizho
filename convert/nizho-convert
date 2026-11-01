@@ -580,6 +580,13 @@ def notify(text, body="", replace=None, urgency="normal"):
     return done.stdout.strip() or None
 
 
+def done_title(fmt):
+    """What the finished pop-up says. The wheel asks for smaller-image, smaller-video and so on; the menu asks for smaller."""
+    if fmt == "smaller" or fmt.startswith("smaller-"):
+        return "Made smaller"
+    return {"clean": "Removed hidden details", "zip": "Zipped"}.get(fmt, "Converted")
+
+
 def notify_done(text, path, replace=None):
     """The finished notification, with a "Show in Folder" button. notify-send
     has to stay alive to hear the click, so it runs in a detached copy of this
@@ -732,10 +739,9 @@ def main(argv):
     if failed:
         notify("Couldn't convert everything", "\n".join(failed[:4]), nid)
     elif len(made) == 1:
-        title = {"clean": "Removed hidden details", "smaller": "Made smaller", "zip": "Zipped"}.get(fmt, "Converted")
-        notify_done(title, made[0], nid)
+        notify_done(done_title(fmt), made[0], nid)
     else:
-        notify("Converted", f"{len(made)} files saved" + (" in Downloads" if SAVED_ELSEWHERE else " next to the originals"), nid)
+        notify(done_title(fmt), f"{len(made)} files saved" + (" in Downloads" if SAVED_ELSEWHERE else " next to the originals"), nid)
     return 1 if failed else 0
 
 

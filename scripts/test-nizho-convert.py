@@ -584,5 +584,27 @@ class NizhoConvertTest(unittest.TestCase):
                                 "stream=width", "-of", "csv=p=0", str(out)], capture_output=True, text=True).stdout.strip()
         self.assertEqual(width, "1280")
 
+class FinishedTitleTest(unittest.TestCase):
+    """The pop-up that says a job is done must name the job, whichever way the wheel or the menu asked for it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = load_script()
+
+    def test_every_make_smaller_action_says_made_smaller(self):
+        for fmt in ("smaller", "smaller-image", "smaller-pdf", "smaller-audio", "smaller-video"):
+            with self.subTest(fmt=fmt):
+                self.assertEqual(self.mod.done_title(fmt), "Made smaller")
+
+    def test_zip_and_clean_keep_their_own_titles(self):
+        self.assertEqual(self.mod.done_title("zip"), "Zipped")
+        self.assertEqual(self.mod.done_title("clean"), "Removed hidden details")
+
+    def test_a_format_change_says_converted(self):
+        for fmt in ("png", "jpg", "pdf", "mp3", "mp4", "docx"):
+            with self.subTest(fmt=fmt):
+                self.assertEqual(self.mod.done_title(fmt), "Converted")
+
+
 if __name__ == "__main__":
     unittest.main()
