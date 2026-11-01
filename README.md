@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/branding/nizho-wordmark.svg" width="300" alt="Nizho"/>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/nizho-wordmark-dark.svg"/>
+    <img src="assets/branding/nizho-wordmark.svg" width="300" alt="Nizho"/>
+  </picture>
 </p>
 
 <p align="center">A desktop Linux where privacy settings are on by default, and the system tells you plainly what it checked and what it didn't.</p>
