@@ -4,7 +4,7 @@ version: 2
 # VM-tested by hand instead of proposed automatically.
 updates:
   - package-ecosystem: cargo
-    directories: ["/nizhod", "/nizho-shell", "/nizho-pulse", "/nizho-agent"]
+    directories: ["/nizhod", "/nizho-shell", "/nizho-pulse"]
     schedule: { interval: weekly }
     groups:
       rust:

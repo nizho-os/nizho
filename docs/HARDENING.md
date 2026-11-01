@@ -148,7 +148,7 @@ bash -n nizho-oobe-apply
 bash -n nizho-firstboot
 cargo test --locked --manifest-path nizhod/Cargo.toml
 cargo test --locked --manifest-path nizho-pulse/Cargo.toml --features dbus
-cargo test --locked --manifest-path nizho-agent/Cargo.toml
+# the agent now lives in nizho-os/nizho-agent; run: cargo test --locked there
 cargo test --locked --manifest-path nizho-shell/Cargo.toml -p nizho-shell-common -p nizho-privacy-tray
 ```
 

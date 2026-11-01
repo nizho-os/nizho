@@ -195,6 +195,9 @@ docs/                    architecture, building, testing, installation, release 
 scripts/                 QA harnesses, make-disk.sh, make-iso.sh, flash-usb.sh
 ```
 
+Research that is not part of the image lives in its own repositories: [nizho-agent](https://github.com/nizho-os/nizho-agent),
+an on-device assistant that asks for your approval before it does anything.
+
 ## Documentation
 
 | | |
