@@ -242,9 +242,9 @@ RUN useradd -m -s /bin/bash nizhosetup && passwd -l nizhosetup && \
     touch /home/nizhosetup/.hushlogin && \
     chown nizhosetup:nizhosetup /home/nizhosetup/.bash_profile /home/nizhosetup/.hushlogin
 
-# Nizho default wallpapers, one per look: the Nizho triangle as hairlines on a
-# quiet field, no text, rendered at 4K so HiDPI panels stay sharp. default.png
-# (the dark one) backs the login and lock screens. Users can change them.
+# Nizho default wallpapers, one per look and accent: the outline of the Nizho mark in the accent colour, with three
+# neutral contour lines around it, no text, rendered at 4K so HiDPI panels stay sharp (desktop/wallpapers/make-default.sh).
+# default.png (the dark one) backs the login and lock screens. Users can change them.
 COPY desktop/wallpapers/make-default.sh /tmp/make-default.sh
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q ImageMagick && \
     mkdir -p /usr/share/nizho/wallpapers && \
