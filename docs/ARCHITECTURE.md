@@ -3,6 +3,10 @@
 Why each piece exists, how they talk to each other, and where to change things.
 Read this before touching anything.
 
+<p align="center">
+  <img src="../assets/branding/architecture.svg" width="100%" alt="Component map: first-party apps and the Plasma desktop on top, nizhod on the right publishing read-only status on the system D-Bus, then the immutable image, then the Fedora kernel and hardware"/>
+</p>
+
 ## The one-paragraph version
 
 Nizho is a privacy-first desktop OS built as an **OCI container image** (bootc).
