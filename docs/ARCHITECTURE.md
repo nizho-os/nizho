@@ -55,12 +55,12 @@ nizho-shell/              — GTK4/libadwaita first-party apps (one crate each)
   nizho-dashboard/        — privacy score, enforcer status, timeline, weekly report
   nizho-capsule/          — app store front-end (flatpak)
   nizho-perms/            — permission manager
-  nizho-settings/ etc.    — settings, wifi, sound, update, welcome, hotkeys
-nizho-design-system/      — canonical design spec v1.0 (tokens, motion, rules)
-nizho-icons/              — Nizho icon theme (SVG, inherits breeze-dark)
-plymouth-theme-nizho/   — boot splash (script plugin)
-sddm-theme-nizho/       — login screen (QML)
-desktop-files/           — launcher entries for the nizho apps
+  system/nizho-settings/ etc.    — settings, wifi, sound, update, welcome, hotkeys
+desktop/nizho-design-system/      — canonical design spec v1.0 (tokens, motion, rules)
+desktop/nizho-icons/              — Nizho icon theme (SVG, inherits breeze-dark)
+desktop/plymouth-theme-nizho/   — boot splash (script plugin)
+desktop/sddm-theme-nizho/       — login screen (QML)
+desktop/desktop-files/           — launcher entries for the nizho apps
 nizho-layout.js           — Plasma scripting: top panel + floating dock layout
 nizho-plasma-firstrun     — first-login one-shot: wallpaper, scheme, layout
 nizho-firstboot         — first-boot TUI: user creation, autologin choice
@@ -108,7 +108,7 @@ missing, zero, future or older timestamps display a neutral unknown state.
 3. **First login (nizho-plasma-firstrun):** VM resolution bump, wallpaper +
    scheme apply via plasma-apply-*, panel layout via
    `PlasmaShell.evaluateScript(nizho-layout.js)` (top bar 36px + floating
-   icons-only dock + the Nizho launcher, `plasma-launcher/`), then self-removes.
+   icons-only dock + the Nizho launcher, `desktop/plasma-launcher/`), then self-removes.
 
 Why a first-login script instead of baking plasmashell config? Plasma's panel
 config is per-user, versioned, and hostile to hand-written files; the scripting
@@ -116,7 +116,7 @@ API is the supported path. dbus-send is used because qdbus isn't in the image.
 
 ## Design system
 
-`nizho-design-system/README.md` is canonical. Two enforcement points:
+`desktop/nizho-design-system/README.md` is canonical. Two enforcement points:
 - GTK apps: `nizho-shell-common/src/theme.rs` (TOKENS + ADW_OVERRIDES css).
 - Qt/Plasma: `Nizho.colors` + kdeglobals.
 A token change happens in the spec first, then both implementation layers.

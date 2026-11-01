@@ -172,7 +172,7 @@ greenboot. Reproduced with an update whose kernel arguments point `init=` at a
 missing file: it stopped at the initramfs emergency prompt and waited there
 indefinitely (`kernel.panic=0`, emergency shell enabled).
 
-Fix: `kernel/20-nizho-recovery.toml` adds `panic=10 rd.shell=0
+Fix: `system/kernel/20-nizho-recovery.toml` adds `panic=10 rd.shell=0
 rd.emergency=reboot`, and `nizho-arm-boot-counter` (a second `ExecStop` in the
 trigger drop-in) sets `boot_counter=GREENBOOT_MAX_BOOT_ATTEMPTS` (3) and
 `boot_success=0` once greenboot has recorded the staged update, so GRUB's
@@ -198,7 +198,7 @@ user who needs it can remove the option from the GRUB entry for one boot.
 ### Installer ISO with disk encryption, VM-tested 2026-10-12
 
 `scripts/make-iso.sh` builds an Anaconda ISO (bootc-image-builder
-`anaconda-iso`) with `installer/config.toml`. Problems found and fixed during
+`anaconda-iso`) with `system/installer/config.toml`. Problems found and fixed during
 the VM runs, each confirmed in a fresh install afterwards:
 
 - Anaconda set `graphical.target`, so Nizho setup never ran and the login

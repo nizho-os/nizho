@@ -83,7 +83,7 @@ launcher → dashboard → capsule → settings → perms → wifi → sound →
 Dolphin → System Settings. For each: spacing on the 8px grid, radii from the
 design-system table, colors are token values (pick pixels and compare), Inter
 everywhere, one icon language per row. Any deviation is a bug against
-`nizho-design-system/README.md`.
+`desktop/nizho-design-system/README.md`.
 
 ### User testing
 

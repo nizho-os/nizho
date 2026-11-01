@@ -28,7 +28,7 @@ RUN cargo build --locked --release
 # computer).
 FROM docker.io/fedora:${FEDORA_VERSION} AS dock-builder
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q rpm-build 'dnf-command(builddep)' 'dnf-command(download)'
-COPY crystal-dock/nizho-look.patch crystal-dock/nizho-per-user.patch crystal-dock/build-rpm.sh /build/
+COPY desktop/crystal-dock/nizho-look.patch desktop/crystal-dock/nizho-per-user.patch desktop/crystal-dock/build-rpm.sh /build/
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked sh /build/build-rpm.sh
 
 # Stage 2c: the format wheel (convert/wheel), a small Qt Quick program that
@@ -60,27 +60,27 @@ RUN git clone --quiet --depth 1 --branch "$VARA_TAG" https://github.com/thulasir
 # final stage takes each tree in ONE step instead of ~35. COPY into an empty
 # stage is near-instant.
 FROM scratch AS files
-COPY firewalld/nizho.xml /usr/lib/firewalld/zones/nizho.xml
-COPY kernel/10-nizho-hardening.toml /usr/lib/bootc/kargs.d/10-nizho-hardening.toml
-COPY kernel/60-nizho-hardening.conf /usr/lib/sysctl.d/60-nizho-hardening.conf
-COPY kernel/20-nizho-recovery.toml /usr/lib/bootc/kargs.d/20-nizho-recovery.toml
-COPY nizho-arm-boot-counter /usr/libexec/nizho-arm-boot-counter
-COPY nizho-stale-trigger-check /usr/libexec/nizho-stale-trigger-check
-COPY autostart/nizho-privacy-dots.desktop /etc/xdg/autostart/nizho-privacy-dots.desktop
-COPY crystal-dock/nizho-dock.desktop /etc/xdg/autostart/nizho-dock.desktop
-COPY crystal-dock/nizho-dock-start /usr/libexec/nizho-dock-start
-COPY crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/KDE/panel_1.conf
-COPY crystal-dock/appearance.conf /etc/skel/.config/crystal-dock/KDE/appearance.conf
-COPY crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/generic/panel_1.conf
-COPY crystal-dock/appearance.conf /etc/skel/.config/crystal-dock/generic/appearance.conf
-COPY nizho-rtc-mode /usr/libexec/nizho-rtc-mode
-COPY systemd/nizho-rtc-mode.service /usr/lib/systemd/system/nizho-rtc-mode.service
-COPY nizho-dns-after-clock /usr/libexec/nizho-dns-after-clock
-COPY systemd/nizho-dns-after-clock.service /usr/lib/systemd/system/nizho-dns-after-clock.service
-COPY tmpfiles/nizho-nizhosetup.conf /usr/lib/tmpfiles.d/nizho-nizhosetup.conf
-COPY systemd/greenboot-healthcheck.service.d/10-nizho-stale-trigger.conf /usr/lib/systemd/system/greenboot-healthcheck.service.d/10-nizho-stale-trigger.conf
-COPY systemd/greenboot-set-rollback-trigger.service.d/10-nizho-stop-at-shutdown.conf /usr/lib/systemd/system/greenboot-set-rollback-trigger.service.d/10-nizho-stop-at-shutdown.conf
-COPY nizho-apply-look /usr/libexec/nizho-apply-look
+COPY system/firewalld/nizho.xml /usr/lib/firewalld/zones/nizho.xml
+COPY system/kernel/10-nizho-hardening.toml /usr/lib/bootc/kargs.d/10-nizho-hardening.toml
+COPY system/kernel/60-nizho-hardening.conf /usr/lib/sysctl.d/60-nizho-hardening.conf
+COPY system/kernel/20-nizho-recovery.toml /usr/lib/bootc/kargs.d/20-nizho-recovery.toml
+COPY system/nizho-arm-boot-counter /usr/libexec/nizho-arm-boot-counter
+COPY system/nizho-stale-trigger-check /usr/libexec/nizho-stale-trigger-check
+COPY system/autostart/nizho-privacy-dots.desktop /etc/xdg/autostart/nizho-privacy-dots.desktop
+COPY desktop/crystal-dock/nizho-dock.desktop /etc/xdg/autostart/nizho-dock.desktop
+COPY desktop/crystal-dock/nizho-dock-start /usr/libexec/nizho-dock-start
+COPY desktop/crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/KDE/panel_1.conf
+COPY desktop/crystal-dock/appearance.conf /etc/skel/.config/crystal-dock/KDE/appearance.conf
+COPY desktop/crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/generic/panel_1.conf
+COPY desktop/crystal-dock/appearance.conf /etc/skel/.config/crystal-dock/generic/appearance.conf
+COPY system/nizho-rtc-mode /usr/libexec/nizho-rtc-mode
+COPY system/systemd/nizho-rtc-mode.service /usr/lib/systemd/system/nizho-rtc-mode.service
+COPY system/nizho-dns-after-clock /usr/libexec/nizho-dns-after-clock
+COPY system/systemd/nizho-dns-after-clock.service /usr/lib/systemd/system/nizho-dns-after-clock.service
+COPY system/tmpfiles/nizho-nizhosetup.conf /usr/lib/tmpfiles.d/nizho-nizhosetup.conf
+COPY system/systemd/greenboot-healthcheck.service.d/10-nizho-stale-trigger.conf /usr/lib/systemd/system/greenboot-healthcheck.service.d/10-nizho-stale-trigger.conf
+COPY system/systemd/greenboot-set-rollback-trigger.service.d/10-nizho-stop-at-shutdown.conf /usr/lib/systemd/system/greenboot-set-rollback-trigger.service.d/10-nizho-stop-at-shutdown.conf
+COPY system/nizho-apply-look /usr/libexec/nizho-apply-look
 COPY convert/nizho-convert /usr/bin/nizho-convert
 COPY apps/nizho-install /usr/bin/nizho
 COPY apps/apps.json /usr/share/nizho/apps.json
@@ -99,11 +99,11 @@ COPY convert/nizho-edit-media.desktop /usr/share/kio/servicemenus/nizho-edit-med
 COPY convert/org.nizho.edit.desktop /usr/share/applications/org.nizho.edit.desktop
 COPY convert/org.nizho.wheel.desktop /usr/share/applications/org.nizho.wheel.desktop
 COPY convert/nizho-wheel-autostart.desktop /etc/xdg/autostart/nizho-wheel.desktop
-COPY systemd/vara-hub.service /usr/lib/systemd/user/vara-hub.service
-COPY plasma-style/panel /usr/share/plasma/desktoptheme/nizho-dark
-COPY plasma-style/panel /usr/share/plasma/desktoptheme/nizho-light
+COPY system/systemd/vara-hub.service /usr/lib/systemd/user/vara-hub.service
+COPY desktop/plasma-style/panel /usr/share/plasma/desktoptheme/nizho-dark
+COPY desktop/plasma-style/panel /usr/share/plasma/desktoptheme/nizho-light
 COPY nizhod/org.nizho.nizhod.policy /usr/share/polkit-1/actions/org.nizho.nizhod.policy
-COPY nizho-firefox /usr/bin/firefox-sandbox
+COPY system/nizho-firefox /usr/bin/firefox-sandbox
 COPY nizhod/nizhod.service /usr/lib/systemd/system/nizhod.service
 COPY nizhod/nizhod.toml /etc/nizhod/nizhod.toml
 COPY nizhod/org.nizho.nizhod.conf /etc/dbus-1/system.d/org.nizho.nizhod.conf
@@ -112,7 +112,7 @@ COPY nizho-pulse/nizho-pulsed.service /usr/lib/systemd/system/nizho-pulsed.servi
 COPY nizho-pulse/org.nizho.pulse.conf /etc/dbus-1/system.d/org.nizho.pulse.conf
 COPY nizho-pulse/org.nizho.pulse.service /usr/share/dbus-1/system-services/org.nizho.pulse.service
 COPY docs/RELIABILITY-NIZHO-PULSE.md /usr/share/doc/nizho/RELIABILITY-NIZHO-PULSE.md
-COPY firefox-policies.json /usr/lib64/firefox/distribution/policies.json
+COPY system/firefox-policies.json /usr/lib64/firefox/distribution/policies.json
 
 FROM scratch AS bins
 COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/nizhod /usr/bin/nizhod
@@ -210,9 +210,9 @@ RUN mkdir -p /etc/sysctl.d /etc/systemd/system.conf.d && \
       > /etc/systemd/system.conf.d/00-nizho-quiet.conf
 
 # First-boot setup wizard + settings utility
-COPY nizho-firstboot         /usr/libexec/nizho-firstboot
-COPY nizho-firstboot.service /usr/lib/systemd/system/nizho-firstboot.service
-COPY nizho-settings          /usr/bin/nizho-settings
+COPY system/nizho-firstboot         /usr/libexec/nizho-firstboot
+COPY system/nizho-firstboot.service /usr/lib/systemd/system/nizho-firstboot.service
+COPY system/nizho-settings          /usr/bin/nizho-settings
 RUN chmod 755 /usr/libexec/nizho-firstboot /usr/bin/nizho-settings && \
     echo '%wheel ALL=(ALL) NOPASSWD: /usr/bin/nizho-settings' \
       > /etc/sudoers.d/99-nizho-settings
@@ -245,7 +245,7 @@ RUN useradd -m -s /bin/bash nizhosetup && passwd -l nizhosetup && \
 # Nizho default wallpapers, one per look: the Nizho triangle as hairlines on a
 # quiet field, no text, rendered at 4K so HiDPI panels stay sharp. default.png
 # (the dark one) backs the login and lock screens. Users can change them.
-COPY wallpapers/make-default.sh /tmp/make-default.sh
+COPY desktop/wallpapers/make-default.sh /tmp/make-default.sh
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q ImageMagick && \
     mkdir -p /usr/share/nizho/wallpapers && \
     sh /tmp/make-default.sh /usr/share/nizho/wallpapers/default-light.png 3840 2160 light && \
@@ -257,15 +257,15 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
     dnf remove -y -q ImageMagick
 
 # nizho-tools .desktop files for launcher search
-COPY desktop-files/ /usr/share/applications/
+COPY desktop/desktop-files/ /usr/share/applications/
 
 # ── NizhoWM: brand KDE Plasma as Nizho ──────────────────────────────────────
 # Inter typeface (Nizho design system) + the Nizho Plasma color scheme.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y rsms-inter-fonts
-COPY Nizho.colors /usr/share/color-schemes/Nizho.colors
-COPY NizhoLight.colors /usr/share/color-schemes/NizhoLight.colors
-COPY NizhoBlue.colors /usr/share/color-schemes/NizhoBlue.colors
-COPY NizhoLightBlue.colors /usr/share/color-schemes/NizhoLightBlue.colors
+COPY desktop/Nizho.colors /usr/share/color-schemes/Nizho.colors
+COPY desktop/NizhoLight.colors /usr/share/color-schemes/NizhoLight.colors
+COPY desktop/NizhoBlue.colors /usr/share/color-schemes/NizhoBlue.colors
+COPY desktop/NizhoLightBlue.colors /usr/share/color-schemes/NizhoLightBlue.colors
 
 # Design-system defaults for every new user (read from /etc/skel on account
 # creation): Nizho color scheme, green #16C784 accent, Inter font — applied
@@ -287,7 +287,7 @@ RUN printf '[Desktop Entry]\nType=Application\nName=Nizho Privacy Activity\nExec
       > /etc/skel/.config/autostart/nizho-privacy-tray.desktop
 
 # Custom Nizho SDDM login theme (dark, green accent, fade-in animation).
-COPY sddm-theme-nizho/ /usr/share/sddm/themes/nizho/
+COPY desktop/sddm-theme-nizho/ /usr/share/sddm/themes/nizho/
 RUN printf '[Theme]\nCurrent=nizho\n' > /etc/sddm.conf.d/30-nizho-theme.conf && \
     printf '[Users]\nHideUsers=nizhosetup\n' > /etc/sddm.conf.d/31-nizho-hide-setup.conf
 # The login theme follows the desktop accent (theme.conf accent=auto), read
@@ -347,7 +347,7 @@ RUN rpm -e plasma-welcome && \
       > /etc/systemd/system/mcelog.service.d/10-hardware-only.conf
 
 # Nizho icon theme (dark plates, green line glyphs; inherits breeze-dark).
-COPY nizho-icons/ /usr/share/icons/Nizho/
+COPY desktop/nizho-icons/ /usr/share/icons/Nizho/
 
 # The KDE spin already ships power profiles (tuned-ppd — same D-Bus API as
 # power-profiles-daemon, which CONFLICTS with it) plus kio-extras and
@@ -357,7 +357,7 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
 # NizhoCursor: white pointer with green outline, generated at build; every
 # other shape inherits from breeze_cursors. NizhoSound: soft sine-based event
 # sounds. Plymouth splash images. All need ImageMagick/xcursorgen/sox once.
-COPY plymouth-theme-nizho/ /usr/share/plymouth/themes/nizho/
+COPY desktop/plymouth-theme-nizho/ /usr/share/plymouth/themes/nizho/
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q ImageMagick xcursorgen sox liberation-sans-fonts && \
     # -- cursor ---------------------------------------------------------------
     mkdir -p /tmp/cur /usr/share/icons/NizhoCursor/cursors && \
@@ -457,7 +457,7 @@ RUN cp -a /usr/share/icons/Nizho /usr/share/icons/Nizho-Light && \
 
 # Update status for unprivileged apps (bootc status needs root): written to
 # /run/nizho/bootc-status.json at boot, every 10 min, and when deployments change.
-COPY systemd/nizho-bootc-status.service systemd/nizho-bootc-status.timer systemd/nizho-bootc-status.path /usr/lib/systemd/system/
+COPY system/systemd/nizho-bootc-status.service system/systemd/nizho-bootc-status.timer system/systemd/nizho-bootc-status.path /usr/lib/systemd/system/
 RUN systemctl enable nizho-bootc-status.timer nizho-bootc-status.path
 
 # Nizho wallpapers as real KDE wallpaper packages, and the system default
@@ -472,14 +472,14 @@ RUN for look in Dark Light; do for acc in "" -Blue; do \
     printf '[Wallpapers]\ndefaultWallpaperTheme=Nizho-Dark\ndefaultFileSuffix=.png\ndefaultWidth=3840\ndefaultHeight=2160\n' > /etc/xdg/plasmarc
 
 # Setup helper and first-login script (here so editing them is a cheap rebuild).
-COPY nizho-oobe-apply /usr/libexec/nizho-oobe-apply
-COPY nizho-plasma-firstrun /usr/libexec/nizho-plasma-firstrun
-COPY nizho-layout.js /usr/share/nizho/nizho-layout.js
-COPY plasma-launcher /usr/share/plasma/plasmoids/org.nizho.launcher
-COPY plasma-brand /usr/share/plasma/plasmoids/org.nizho.brand
-COPY plasma-search /usr/share/plasma/plasmoids/org.nizho.search
-COPY plasma-statuspill /usr/share/plasma/plasmoids/org.nizho.statuspill
-COPY plasma-spaces /usr/share/plasma/plasmoids/org.nizho.spaces
+COPY system/nizho-oobe-apply /usr/libexec/nizho-oobe-apply
+COPY system/nizho-plasma-firstrun /usr/libexec/nizho-plasma-firstrun
+COPY system/nizho-layout.js /usr/share/nizho/nizho-layout.js
+COPY desktop/plasma-launcher /usr/share/plasma/plasmoids/org.nizho.launcher
+COPY desktop/plasma-brand /usr/share/plasma/plasmoids/org.nizho.brand
+COPY desktop/plasma-search /usr/share/plasma/plasmoids/org.nizho.search
+COPY desktop/plasma-statuspill /usr/share/plasma/plasmoids/org.nizho.statuspill
+COPY desktop/plasma-spaces /usr/share/plasma/plasmoids/org.nizho.spaces
 # Apps pinned in the launcher for a new account. Fedora's kde-settings pins
 # Kontact and KWrite through its own kicker-extra-favoritesrc; /etc/xdg comes
 # first in XDG_CONFIG_DIRS, so this list is the one Plasma reads.
@@ -488,9 +488,9 @@ RUN printf '[General]\nPrepend=%s\nIgnoreDefaults=true\n' \
       > /etc/xdg/kicker-extra-favoritesrc
 
 # A top bar on every screen, including one connected later (panels/).
-COPY panels/nizho-panels /usr/libexec/nizho-panels
-COPY panels/nizho-panels.service /usr/lib/systemd/user/nizho-panels.service
-COPY panels/kwin /usr/share/kwin/scripts/nizho-panels
+COPY desktop/panels/nizho-panels /usr/libexec/nizho-panels
+COPY desktop/panels/nizho-panels.service /usr/lib/systemd/user/nizho-panels.service
+COPY desktop/panels/kwin /usr/share/kwin/scripts/nizho-panels
 RUN chmod 755 /usr/libexec/nizho-panels && systemctl --global enable nizho-panels.service
 
 # KDE Connect is off by default: while it runs, it makes the computer visible
@@ -498,7 +498,7 @@ RUN chmod 755 /usr/libexec/nizho-panels && systemctl --global enable nizho-panel
 # still starts it. Its login autostart is hidden, its tray widget is taken out
 # once per account (plasma-updates/), and Dolphin's send-to-device entry, which
 # started it on every right-click, is off (Dolphin's settings can turn it on).
-COPY plasma-updates/nizho-kdeconnect-off.js /usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/nizho-kdeconnect-off.js
+COPY desktop/plasma-updates/nizho-kdeconnect-off.js /usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/nizho-kdeconnect-off.js
 RUN test -f /etc/xdg/autostart/org.kde.kdeconnect.daemon.desktop && \
     echo 'Hidden=true' >> /etc/xdg/autostart/org.kde.kdeconnect.daemon.desktop && \
     printf '[Show]\nkdeconnectfileitemaction=false\n' > /etc/xdg/kservicemenurc
@@ -508,7 +508,7 @@ RUN test -f /etc/xdg/autostart/org.kde.kdeconnect.daemon.desktop && \
 # there; a pull of an unsigned or differently signed image fails before
 # anything is installed. Other registries keep Fedora's default policy.
 COPY cosign.pub /etc/pki/containers/nizho.pub
-COPY containers/nizho.yaml /etc/containers/registries.d/nizho.yaml
+COPY system/containers/nizho.yaml /etc/containers/registries.d/nizho.yaml
 RUN python3 -c 'import json; p="/etc/containers/policy.json"; c=json.load(open(p)); \
 c.setdefault("transports", {}).setdefault("docker", {})["ghcr.io/nizho-os/nizho"] = \
 [{"type": "sigstoreSigned", "keyPath": "/etc/pki/containers/nizho.pub", "signedIdentity": {"type": "matchRepository"}}]; \

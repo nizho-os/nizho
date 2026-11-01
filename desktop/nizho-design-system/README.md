@@ -74,7 +74,7 @@ Nothing bounces twice. Nothing moves without a reason.
 
 Line icons, 3px stroke, round caps/joins, on 64×64 grid.
 App icons: rounded square `#0F141A` plate, `#1E2630` 2px border, radius 14,
-glyph in `accent`. Ship set lives in `nizho-icons/` (dashboard, capsule,
+glyph in `accent`. Ship set lives in `desktop/nizho-icons/` (dashboard, capsule,
 settings, wifi, update, perms, sound, hotkeys, bluetooth, welcome, files, browser).
 System icons inherit breeze-dark; replace opportunistically, never mix styles in one row.
 
@@ -120,8 +120,8 @@ Deep `#07080E` field, blue radial glow, faint triangle grid, layered ▲ marks,
 ## 13. Boot & Login
 
 - **Plymouth:** three staggered ▲ fade in, outer glow pulses, `NIZHO` wordmark
-  rises, thin accent progress line. ≤5s. Theme in `plymouth-theme-nizho/`.
-- **SDDM:** `sddm-theme-nizho/` — wallpaper under scrim, clock top-right,
+  rises, thin accent progress line. ≤5s. Theme in `desktop/plymouth-theme-nizho/`.
+- **SDDM:** `desktop/sddm-theme-nizho/` — wallpaper under scrim, clock top-right,
   centered wordmark + tagline, single password field, accent Unlock.
 
 ## Implementation map
@@ -130,11 +130,11 @@ Deep `#07080E` field, blue radial glow, faint triangle grid, layered ▲ marks,
 |---|---|
 | GTK shell tokens | `nizho-shell/nizho-shell-common/src/theme.rs` |
 | Plasma/Qt scheme | `Nizho.colors` + `/etc/skel/.config/kdeglobals` |
-| Icons | `nizho-icons/` → `/usr/share/icons/Nizho` |
+| Icons | `desktop/nizho-icons/` → `/usr/share/icons/Nizho` |
 | Cursor | built in Containerfile → `/usr/share/icons/NizhoCursor` |
 | Sounds | built in Containerfile → `/usr/share/sounds/Nizho` |
-| Boot splash | `plymouth-theme-nizho/` |
-| Login | `sddm-theme-nizho/` |
+| Boot splash | `desktop/plymouth-theme-nizho/` |
+| Login | `desktop/sddm-theme-nizho/` |
 | Wallpaper | Containerfile ImageMagick stage |
 
 A change to a token happens here first, then propagates to every layer above.

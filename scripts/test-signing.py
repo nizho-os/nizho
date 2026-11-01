@@ -91,7 +91,7 @@ class SetupTests(unittest.TestCase):
             images.add(m.group(1))
         self.assertEqual(len(images), 1, "image.yml and disk.yml publish and read different images")
         image = images.pop()
-        self.assertIn(f"{image}:", text("containers/nizho.yaml"))
+        self.assertIn(f"{image}:", text("system/containers/nizho.yaml"))
         self.assertTrue(image.startswith("ghcr.io/nizho-os/"), image)
 
     def test_signing_uses_the_org_secret_and_checks_its_own_work(self):

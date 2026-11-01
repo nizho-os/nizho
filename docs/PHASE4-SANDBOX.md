@@ -62,7 +62,7 @@ Namespace isolation:
 
 Network: host network namespace (browser needs internet). nizhod's DNS-over-TLS
 enforcer (Quad9) and IPv6 privacy extensions remain active — they operate at the
-kernel/NetworkManager layer, below the bwrap sandbox boundary.
+system/kernel/NetworkManager layer, below the bwrap sandbox boundary.
 ```
 
 Browser profile data (`.mozilla/`) writes to the `/home` tmpfs and is discarded

@@ -120,7 +120,7 @@ next guest image. A complete dependency advisory scan was not run. The updated
 ### Image and hardware gates
 
 1. Build the Fedora 44 candidate in an isolated builder and verify all package,
-   service and kernel/UKI assumptions; pin reviewed image digests for a release.
+   service and system/kernel/UKI assumptions; pin reviewed image digests for a release.
 2. Boot a disposable image and exercise first-run success/failure, networking,
    DNS packet capture, VPN/captive portals, MAC reconnects, disabled/missing
    interfaces, browser file/socket isolation, and service restarts.

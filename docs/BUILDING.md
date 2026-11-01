@@ -43,7 +43,7 @@ flakes; if the layer still fails it is almost always transient: rerun).
 podman machine ssh podman-machine-default \
   "cd /var/home/$USER/nizho && rm -rf output/qcow2 && podman run --rm --privileged \
     -v /var/lib/containers/storage:/var/lib/containers/storage \
-    -v /var/home/$USER/nizho/config.toml:/config.toml:ro \
+    -v /var/home/$USER/nizho/system/installer/disk-config.toml:/config.toml:ro \
     -v /var/home/$USER/nizho/output:/output \
     quay.io/centos-bootc/bootc-image-builder:latest \
     --type qcow2 --rootfs xfs localhost/nizho:dev"

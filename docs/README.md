@@ -7,7 +7,7 @@ exactly one job. Nothing slowly becomes "the roadmap."
 
 | Document | Its one job |
 |----------|-------------|
-| [`../HISTORY.md`](../HISTORY.md) | **What happened** — the story and its turning points |
+| [`../HISTORY.md`](HISTORY.md) | **What happened** — the story and its turning points |
 | [`DECISIONS.md`](DECISIONS.md) | **Why** it happened — architectural decision records |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | **How it works** — the component map and reasoning |
 | [`THREAT-MODEL.md`](THREAT-MODEL.md) | **What we defend against** — and what we don't |
@@ -21,11 +21,11 @@ exactly one job. Nothing slowly becomes "the roadmap."
 | [`DP2.md`](DP2.md) | **Facts already merged** since DP1 (queued for the next build) |
 | [`FUTURE-CONSIDERATIONS.md`](FUTURE-CONSIDERATIONS.md) | **Ideas** — candidate work, committed to nothing |
 | [`RELIABILITY-NIZHO-PULSE.md`](RELIABILITY-NIZHO-PULSE.md) | **A candidate reliability layer** — nizho-pulse, committed to nothing |
-| [`../nizho-design-system/README.md`](../nizho-design-system/README.md) | **The design system** — tokens, motion, components |
+| [`../nizho-design-system/README.md`](../desktop/nizho-design-system/README.md) | **The design system** — tokens, motion, components |
 
 Deep-dive findings from earlier phases live at the repo root:
-[`../PHASE3-FINDINGS.md`](../PHASE3-FINDINGS.md) (integrity & boot hardening),
-[`../PHASE4-SANDBOX.md`](../PHASE4-SANDBOX.md) (browser sandbox proof).
+[`../PHASE3-FINDINGS.md`](PHASE3-FINDINGS.md) (integrity & boot hardening),
+[`../PHASE4-SANDBOX.md`](PHASE4-SANDBOX.md) (browser sandbox proof).
 
 ## How an idea becomes a release
 

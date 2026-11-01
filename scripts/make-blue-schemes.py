@@ -47,7 +47,7 @@ def convert(text, scheme_id, name):
         out.append(line)
     return "\n".join(out) + "\n"
 
-root = Path(__file__).resolve().parents[1]
+root = Path(__file__).resolve().parents[1] / "desktop"
 for src, scheme_id, name in (("Nizho.colors", "NizhoBlue", "Nizho Dark Blue"),
                              ("NizhoLight.colors", "NizhoLightBlue", "Nizho Light Blue")):
     text = (root / src).read_text()

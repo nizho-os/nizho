@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import unittest
 
-SCRIPT = Path(__file__).resolve().parent.parent / "nizho-dns-after-clock"
+SCRIPT = Path(__file__).resolve().parent.parent / "system" / "nizho-dns-after-clock"
 
 # Prints the next line of $T/times each call (the last line repeats).
 FAKE_NOW = r'''#!/bin/sh

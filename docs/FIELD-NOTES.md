@@ -130,7 +130,7 @@ A displayed 100/100 score was a configuration aggregate, not a protection proof.
    found." **Fix staged** — Capsule now adds the Flathub remote at `--user` level
    (no root) and installs `--user` before running. Pending rebuild+reflash.
 3. **App icons render monochrome / miss their real colours — OS-wide, not just
-   Capsule.** Nizho sets `Icons=Nizho`, but `nizho-icons/` is sparse and inherits
+   Capsule.** Nizho sets `Icons=Nizho`, but `desktop/nizho-icons/` is sparse and inherits
    breeze-dark; where neither supplies a coloured app icon, KDE/GTK falls back to
    a flat `*-symbolic` glyph. Capsule's catalogue is the same root cause (it uses
    `chat-symbolic`, `dialog-password-symbolic`, … by name). **Not a quick fix —

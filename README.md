@@ -108,7 +108,7 @@ There is no single gatekeeper. These are three separate pieces.
 real home, except `~/Downloads`, which the browser can read and write. It
 exposes a short list of system files plus the Wayland and audio sockets. Audio
 access can include microphone recording. The session D-Bus is hidden. Our
-earlier isolation checks are in [PHASE4-SANDBOX.md](PHASE4-SANDBOX.md). Each
+earlier isolation checks are in [PHASE4-SANDBOX.md](docs/PHASE4-SANDBOX.md). Each
 release still needs to be tested again.
 
 **The Permissions app edits Flatpak settings.** It changes the direct grants of
@@ -173,30 +173,46 @@ it depends on what we learn from daily use ([DP2 notes](docs/DP2.md)).
 ## Repository
 
 ```
-Containerfile            the OS: everything in the image is declared here
-nizhod/                   privacy daemon (Rust, static musl)
-nizho-pulse/              read-only System Health service
-nizho-shell/              GTK4 first-party apps, shared design tokens and IPC types
-nizho-design-system/      design spec v1.0: tokens, motion, components
-nizho-icons/              icon theme          plymouth-theme-nizho/   boot splash
-sddm-theme-nizho/       login theme         desktop-files/           launcher entries
-plasma-launcher/         launcher panel      plasma-style/            popups and panel style
-panels/                  top bar on every screen
-crystal-dock/            dock patch and build
-convert/                 Convert to, edit and format wheel tools
-nizho-firefox           sandbox wrapper     nizho-firstboot         first-boot setup
-nizho-plasma-firstrun     first-login branding one-shot
-nizho-apply-look          Light/Dark switch (first login and Settings)
-systemd/                 update-status publisher for unprivileged apps
-firewalld/               the Nizho firewall zone
-kernel/                  kernel hardening (boot options and runtime settings)
-installer/               installer ISO configuration
-docs/                    architecture, building, testing, installation, release notes
-scripts/                 QA harnesses, make-disk.sh, make-iso.sh, flash-usb.sh
+Containerfile                      the OS: everything in the image is declared here
+cosign.pub                         the key installed systems check updates against
+
+nizhod/                            privacy daemon (Rust, static musl)
+nizho-pulse/                       read-only System Health service
+nizho-shell/                       GTK4 first-party apps, shared design tokens and IPC types
+convert/                           Convert to, edit and format wheel tools
+apps/                              the app list and the nizho install command
+
+desktop/                           the Nizho look and the desktop around KWin
+  desktop/plasma-launcher/         launcher panel
+  desktop/plasma-style/            popups and panel style
+  desktop/panels/                  top bar on every screen
+  desktop/crystal-dock/            dock patch and build
+  desktop/nizho-icons/             icon theme
+  desktop/plymouth-theme-nizho/    boot splash
+  desktop/sddm-theme-nizho/        login theme
+  desktop/desktop-files/           launcher entries
+  desktop/nizho-design-system/     design spec: tokens, motion, components
+
+system/                            what runs on the installed machine
+  system/nizho-firstboot           first-boot setup
+  system/nizho-oobe-apply          creates the account and applies your choices
+  system/nizho-plasma-firstrun     first-login branding one-shot
+  system/nizho-apply-look          Light/Dark and green/blue switch
+  system/nizho-firefox             sandbox wrapper
+  system/systemd/                  update-status publisher for unprivileged apps
+  system/firewalld/                the Nizho firewall zone
+  system/kernel/                   kernel hardening (boot options and runtime settings)
+  system/installer/                installer ISO and disk image configuration
+
+docs/                              architecture, building, testing, installation, release notes
+scripts/                           QA harnesses, make-disk.sh, make-iso.sh, flash-usb.sh
+assets/                            README diagrams
+website/                           the project site
 ```
 
-Research that is not part of the image lives in its own repositories: [nizho-agent](https://github.com/nizho-os/nizho-agent),
-an on-device assistant that asks for your approval before it does anything.
+Research that is not part of the image lives in its own repositories:
+[nizho-agent](https://github.com/nizho-os/nizho-agent), an on-device assistant that asks for your approval before it
+does anything, and [nizho-wm](https://github.com/nizho-os/nizho-wm), a compositor prototype.
 
 ## Documentation
 
@@ -207,7 +223,7 @@ an on-device assistant that asks for your approval before it does anything.
 | [Testing](docs/TESTING.md) | how we verify, the QA scripts, budgets |
 | [Installation](docs/INSTALLATION-ARCHITECTURE.md) | VM image, USB image and installer ISO (partly out of date) |
 | [Threat model](docs/THREAT-MODEL.md) | what Nizho does and does not protect against |
-| [Design System](nizho-design-system/README.md) | tokens, typography, motion, components |
+| [Design System](desktop/nizho-design-system/README.md) | tokens, typography, motion, components |
 | [Release Notes](docs/RELEASE-NOTES-DP1.md) | what DP1 has, what is known to be incomplete |
 
 ## Security

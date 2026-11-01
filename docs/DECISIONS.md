@@ -8,7 +8,7 @@ status here first — that's the point of the file.
 
 **001 · Fedora bootc as the base**
 Reason: atomic image-based updates with rollback; the OS is a reproducible
-Containerfile; freshest kernel/systemd/desktop stack with first-class bootc
+Containerfile; freshest system/kernel/systemd/desktop stack with first-class bootc
 support. Alternatives: Arch (no immutable story), Debian (stale for desktop),
 NixOS (different paradigm, steep contributor curve), CentOS Stream 10 (tried
 first — missing fs-verity kernel config, stale desktop packages).
@@ -56,7 +56,7 @@ no OS internals knowledge, no plumbing vocabulary in the UI.
 
 **009 · Design tokens enforced at two layers**
 Reason: GTK apps read `theme.rs`; Qt/Plasma reads `Nizho.colors` +
-kdeglobals. The spec (`nizho-design-system/`) is canonical; both layers derive
+kdeglobals. The spec (`desktop/nizho-design-system/`) is canonical; both layers derive
 from it. One token change = spec first, then both implementations.
 **Status: Accepted.**
 

@@ -3,47 +3,53 @@ name: Source checks
 on:
   push:
     paths:
+      - "scripts/test-build-context.py"
+      - "scripts/copy-map.py"
+      - ".containerignore"
       - "cosign.pub"
-      - "containers/**"
+      - "system/containers/**"
       - "scripts/test-signing.py"
       - ".github/workflows/image.yml"
       - ".github/workflows/pages.yml"
       - "nizhod/**"
       - "nizho-pulse/**"
       - "nizho-shell/**"
-      - "nizho-oobe-apply"
-      - "nizho-firstboot"
-      - "nizho-plasma-firstrun"
-      - "nizho-settings"
+      - "system/nizho-oobe-apply"
+      - "system/nizho-firstboot"
+      - "system/nizho-plasma-firstrun"
+      - "system/nizho-settings"
       - "Containerfile"
       - "scripts/test-oobe-apply.py"
-      - "nizho-firefox"
+      - "system/nizho-firefox"
       - "scripts/test-firefox-wrapper.py"
       - "scripts/flash-usb.sh"
       - "scripts/test-flash-preflight.py"
-      - "systemd/nizho-bootc-status.*"
+      - "system/systemd/nizho-bootc-status.*"
       - ".github/workflows/checks.yml"
   pull_request:
     paths:
+      - "scripts/test-build-context.py"
+      - "scripts/copy-map.py"
+      - ".containerignore"
       - "cosign.pub"
-      - "containers/**"
+      - "system/containers/**"
       - "scripts/test-signing.py"
       - ".github/workflows/image.yml"
       - ".github/workflows/pages.yml"
       - "nizhod/**"
       - "nizho-pulse/**"
       - "nizho-shell/**"
-      - "nizho-oobe-apply"
-      - "nizho-firstboot"
-      - "nizho-plasma-firstrun"
-      - "nizho-settings"
+      - "system/nizho-oobe-apply"
+      - "system/nizho-firstboot"
+      - "system/nizho-plasma-firstrun"
+      - "system/nizho-settings"
       - "Containerfile"
       - "scripts/test-oobe-apply.py"
-      - "nizho-firefox"
+      - "system/nizho-firefox"
       - "scripts/test-firefox-wrapper.py"
       - "scripts/flash-usb.sh"
       - "scripts/test-flash-preflight.py"
-      - "systemd/nizho-bootc-status.*"
+      - "system/systemd/nizho-bootc-status.*"
       - ".github/workflows/checks.yml"
   workflow_dispatch:
 
@@ -61,16 +67,18 @@ jobs:
           cosign-release: v2.4.1
       - name: Test image signing and verification
         run: python3 -I scripts/test-signing.py
+      - name: Test that the repository layout matches what the image build copies
+        run: python3 -I scripts/test-build-context.py
       - name: Check shell helpers
-        run: shellcheck nizho-oobe-apply nizho-plasma-firstrun nizho-firefox nizho-firstboot scripts/flash-usb.sh
+        run: shellcheck system/nizho-oobe-apply system/nizho-plasma-firstrun system/nizho-firefox system/nizho-firstboot scripts/flash-usb.sh
       - name: Check first-run shell syntax
-        run: bash -n nizho-oobe-apply && bash -n nizho-firstboot && bash -n nizho-settings
+        run: bash -n system/nizho-oobe-apply && bash -n system/nizho-firstboot && bash -n system/nizho-settings
       - name: Test setup with isolated accounts and paths
         run: python3 scripts/test-oobe-apply.py
       - name: Test USB source preflight without devices
         run: python3 scripts/test-flash-preflight.py
       - name: Test browser sandbox launch boundary
-        run: bash -n nizho-firefox && python3 scripts/test-firefox-wrapper.py
+        run: bash -n system/nizho-firefox && python3 scripts/test-firefox-wrapper.py
       - name: Test that the format wheel offers only what nizho-convert accepts
         run: python3 scripts/test-wheel-formats.py
       - name: Test nizho install (permission wording and the app list)

@@ -66,7 +66,7 @@ The installer is deliberately thin. Its entire contract:
   raw, bootc, osbuild, ostree, or composefs. The user journey is:
   Download → Flash USB → Boot → Install → Restart → Welcome to Nizho.
 - **Nizho-branded, design-system compliant** — same tokens, same typography,
-  same motion rules as the rest of the OS (see `nizho-design-system/`).
+  same motion rules as the rest of the OS (see `desktop/nizho-design-system/`).
 
 ### Why not Anaconda (`--type anaconda-iso`)?
 

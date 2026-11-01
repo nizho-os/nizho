@@ -3,7 +3,7 @@ name: Image
 # Builds the Nizho bootc image, splits it into many small layers so an update
 # downloads only what changed, signs it, and publishes it to
 # ghcr.io/nizho-os/nizho. Installed systems only accept images signed
-# with the key whose public half is cosign.pub (see containers/).
+# with the key whose public half is cosign.pub (see system/containers/).
 
 on:
   push:

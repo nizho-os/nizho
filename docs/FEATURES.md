@@ -6,7 +6,7 @@ made before the project was renamed Nizho; no Nizho image has been built or test
 
 This is source work plus the test results we wrote down along the way. The
 rollback and installer results (2026-10-11 and 2026-10-12) are written up in
-[Release Validation](docs/RELEASE-VALIDATION.md). The other dated results come
+[Release Validation](RELEASE-VALIDATION.md). The other dated results come
 from our own test sessions and are not all recorded in a repo document. Everything
 here was tested in a VM between 2026-10-11 and 2026-10-26 unless it says otherwise. "Not yet on hardware" means
 exactly that: we haven't tried it.
@@ -26,13 +26,13 @@ exactly that: we haven't tried it.
   VM.
 - **nizho-pulse.** A read-only *System Health* view (`org.nizho.pulse`, like
   `nizhod`). It only watches, and it says what it can't measure yet. See the
-  [design](docs/RELIABILITY-NIZHO-PULSE.md).
+  [design](RELIABILITY-NIZHO-PULSE.md).
 
 ### Installing, updating, rolling back
 
 - **Installer ISO with disk encryption (first version).** `scripts/make-iso.sh`
   builds an installer from the image using Fedora's installer (Anaconda), set up
-  in `installer/config.toml`. You pick the disk, nothing is written before
+  in `system/installer/config.toml`. You pick the disk, nothing is written before
   "Begin Installation", and the disk is encrypted (LUKS2) by default. Nizho
   setup creates your account on first boot. Tested in a VM on 2026-10-12:
   install, unlocking at boot, setup with all six settings configured, the
@@ -88,7 +88,7 @@ exactly that: we haven't tried it.
 - **How we word privacy.** Firefox's tracking and fingerprinting-script blocking
   reduce some tracking. They do not prevent fingerprinting. *Configured* means
   the checked setting is in place, not "you are protected". A check that is
-  missing or stale shows as unknown. See the [threat model](docs/THREAT-MODEL.md).
+  missing or stale shows as unknown. See the [threat model](THREAT-MODEL.md).
 - **Firewall on by default.** An Nizho firewall zone rejects connections other
   computers try to open to this one. `nizhod` checks the zone's actual rules and
   policies, not just its name. Setup, the dashboard and the tray show the result.
@@ -193,7 +193,7 @@ exactly that: we haven't tried it.
   (2026-11-01) we pressed most of them for real and the result matched the page;
   Alt+`, Ctrl+F3 and Meta+Ctrl+Shift+arrows were not pressed, and two more were
   pressed without checking the result. The list is in
-  [docs/SHORTCUTS.md](docs/SHORTCUTS.md). Not yet on hardware.
+  [docs/SHORTCUTS.md](SHORTCUTS.md). Not yet on hardware.
 - **Three spaces.** New accounts start with three virtual desktops and the top bar
   shows KDE's space switcher. Older accounts get two more once, at login. We have
   not seen the switcher working: our test session has no window manager. Not

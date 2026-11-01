@@ -1,7 +1,7 @@
 // Nizho desktop layout for KDE Plasma — evokes the Nizho design:
 //   • a slim top bar (launcher + clock + spaces + system tray) on every screen
 //   • the dock at the bottom is Crystal Dock, started separately
-//   • the Nizho launcher (org.nizho.launcher, plasma-launcher/), a popup
+//   • the Nizho launcher (org.nizho.launcher, desktop/plasma-launcher/), a popup
 //     from the top-left button
 // Applied once on first login: new desktops get it from the Nizho global
 // theme, older ones from nizho-plasma-firstrun via evaluateScript. nizho-panels
@@ -248,7 +248,7 @@ for (var dq = 0; keepPanels && dq < all.length; dq++) {
 }
 
 // --- Dock ---------------------------------------------------------------------
-// The dock is Crystal Dock, its own window started at login (see crystal-dock/),
+// The dock is Crystal Dock, its own window started at login (see desktop/crystal-dock/),
 // not a Plasma panel: a panel can't grow icons above itself the way the macOS
 // Dock does.
 

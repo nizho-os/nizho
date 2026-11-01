@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import unittest
 
-SCRIPT = Path(__file__).resolve().parent.parent / "nizho-rtc-mode"
+SCRIPT = Path(__file__).resolve().parent.parent / "system" / "nizho-rtc-mode"
 GUID = "8be4df61-93ca-11d2-aa0d-00e098032b8c"
 
 FAKE_TIMEDATECTL = r'''#!/bin/sh

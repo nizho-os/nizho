@@ -61,7 +61,7 @@ class ApplyTests(unittest.TestCase):
         (self.root / 'etc/sudoers.d/95-nizho-oobe').write_text('setup-only grant')
         source = Path(os.environ.get(
             'NIZHO_OOBE_HELPER_SOURCE',
-            Path(__file__).resolve().parents[1] / 'nizho-oobe-apply',
+            Path(__file__).resolve().parents[1] / 'system' / 'nizho-oobe-apply',
         )).read_text()
         for prefix in ('/run/', '/etc/', '/var/lib/', '/home/', '/usr/share/zoneinfo/', '/usr/share/color-schemes/'):
             source = source.replace(prefix, str(self.root) + prefix)

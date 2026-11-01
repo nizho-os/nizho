@@ -21,7 +21,7 @@ class WrapperTests(unittest.TestCase):
         fake.write_text('#!/usr/bin/python3\nimport json,sys\nprint(json.dumps(sys.argv[1:]))\n')
         fake.chmod(0o755)
         self.wrapper = Path(os.environ.get('NIZHO_BROWSER_WRAPPER_SOURCE',
-            Path(__file__).resolve().parents[1] / 'nizho-firefox'))
+            Path(__file__).resolve().parents[1] / 'system' / 'nizho-firefox'))
         self.env = dict(os.environ, HOME=str(self.home), WAYLAND_DISPLAY='wayland-0',
                         PATH=str(self.bin) + ':/usr/bin:/bin', NIZHO_TEST_SECRET='synthetic-secret')
 
