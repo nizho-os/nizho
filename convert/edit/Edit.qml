@@ -1,4 +1,4 @@
-// arka-edit: crop, black out parts, add a background, trim. See main.cpp.
+// nizho-edit: crop, black out parts, add a background, trim. See main.cpp.
 import QtQuick
 import QtQuick.Window
 import QtQuick.Controls

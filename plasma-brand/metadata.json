@@ -1,14 +1,14 @@
 {
     "KPackageStructure": "Plasma/Applet",
     "KPlugin": {
-        "Authors": [{ "Name": "ArkaOS" }],
+        "Authors": [{ "Name": "Nizho" }],
         "Category": "System Information",
         "Description": "start-here",
         "Icon": "",
-        "Id": "org.arkaos.brand",
+        "Id": "org.nizho.brand",
         "License": "GPL-3.0-or-later",
-        "Name": "ArkaOS wordmark and tagline for the top bar",
-        "Website": "https://github.com/thulasiramk-2310/arka"
+        "Name": "Nizho wordmark and tagline for the top bar",
+        "Website": "https://github.com/nizho-os/nizho"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }

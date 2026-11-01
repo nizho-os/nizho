@@ -26,7 +26,7 @@ Window {
     property int hover: -1
     property bool dark: true
 
-    // The ArkaOS look, as on the wallpaper: a flat field, hairlines, no gloss or glow.
+    // The Nizho look, as on the wallpaper: a flat field, hairlines, no gloss or glow.
     // Green appears once, as a short line on the slot you are on.
     readonly property color surface: dark ? Qt.rgba(20 / 255, 22 / 255, 27 / 255, 0.97) : Qt.rgba(244 / 255, 243 / 255, 238 / 255, 0.97)
     readonly property color slotFill: "transparent"
@@ -38,7 +38,7 @@ Window {
     readonly property color rim: dark ? Qt.rgba(1, 1, 1, 0.34) : Qt.rgba(0, 0, 0, 0.46)
     readonly property color ink: dark ? "#ECEFF3" : "#14181F"
     readonly property color muted: dark ? "#A3ABB6" : "#5B6472"
-    readonly property color accent: "#16C784"     // ArkaOS's own colour, not the desktop accent
+    readonly property color accent: "#16C784"     // Nizho's own colour, not the desktop accent
     readonly property color accentInk: "#06281B"
 
     readonly property var names: ({ png: "PNG", jpg: "JPEG", webp: "WEBP", pdf: "PDF", mp3: "MP3", wav: "WAV",
@@ -142,10 +142,10 @@ Window {
     }
 
     // One slot of the ring as an SVG path, with its corners cut at 45 degrees
-    // like the ArkaOS popups. i is the slot, n the number of slots.
+    // like the Nizho popups. i is the slot, n the number of slots.
     // ── Cut-corner geometry ───────────────────────────────────────────────────
     // The wheel is an octagon, not a circle: flat sides with 45-degree cuts, the shape
-    // the rest of ArkaOS uses. Everything below is in the ring item's own coordinates.
+    // the rest of Nizho uses. Everything below is in the ring item's own coordinates.
     readonly property real shapeR: outerR * 1.04      // the outline's corner radius
 
     function octPoints(rad) {          // eight corners, flat sides facing up/down/left/right

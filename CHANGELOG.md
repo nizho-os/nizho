@@ -5,17 +5,17 @@
 ### Added
 - Immutable OS foundation: bootc image model, composefs read-only rootfs,
   atomic updates with rollback, TPM PCR 0–10 measurement.
-- `arkad` privacy daemon: MAC randomization, encrypted DNS (DoT/Quad9),
+- `nizhod` privacy daemon: MAC randomization, encrypted DNS (DoT/Quad9),
   hostname normalization, IPv6 privacy addresses; enforce-on-boot +
   re-verify every 60 s; privacy event log + D-Bus interface + privacy score.
 - Firefox bubblewrap sandbox: tmpfs home, /etc allowlist, no D-Bus,
   Downloads-only passthrough.
-- KDE Plasma desktop branded as ArkaOS: top panel + floating dock +
+- KDE Plasma desktop branded as Nizho: top panel + floating dock +
   full-screen launcher layout, dark + green design system throughout.
-- Arka Design System v1.0 (`arka-design-system/`): tokens, typography,
+- Nizho Design System v1.0 (`nizho-design-system/`): tokens, typography,
   motion, components, privacy color mapping.
-- Custom SDDM login theme, Plymouth boot animation (▲ → glow → ARKA),
-  Arka icon pack (12 icons), ArkaCursor, Arka sound theme, generated
+- Custom SDDM login theme, Plymouth boot animation (▲ → glow → NIZHO),
+  Nizho icon pack (12 icons), NizhoCursor, Nizho sound theme, generated
   signature wallpaper, Inter/JetBrains Mono typography.
 - First-party apps: Dashboard (privacy score, timeline, weekly report),
   Capsule (app store), Permissions, Settings, WiFi, Sound, Update, Welcome.

@@ -1,4 +1,4 @@
-# bootc-image-builder config for the ArkaOS installer ISO (--type anaconda-iso).
+# bootc-image-builder config for the Nizho installer ISO (--type anaconda-iso).
 #
 # "graphical" makes Anaconda interactive: without it the ISO installs to the
 # first disk it finds without asking, which could erase another OS. The person
@@ -10,10 +10,10 @@
 # empty volume over bootc's /var/home.
 #
 # firewall --use-system-defaults: keep the image's firewall. Without it
-# Anaconda adds ssh to the default (ArkaOS) zone, and arkad then reports the
+# Anaconda adds ssh to the default (Nizho) zone, and nizhod then reports the
 # firewall as needing attention.
 #
-# skipx: keep the image's console default target, so ArkaOS setup runs on
+# skipx: keep the image's console default target, so Nizho setup runs on
 # first boot; setup switches to the graphical login when it's done.
 #
 # %post: bootc mounts / as a read-only composefs overlay, which cannot be
@@ -21,8 +21,8 @@
 # The installed system then takes its updates from the signed public image
 # instead of the ISO's embedded copy.
 #
-# No account is created here: the Users module is turned off and ArkaOS setup
-# (arka-oobe) creates the account on first boot, as on the disk images.
+# No account is created here: the Users module is turned off and Nizho setup
+# (nizho-oobe) creates the account on first boot, as on the disk images.
 [customizations.installer.kickstart]
 contents = """
 graphical
@@ -31,8 +31,8 @@ firewall --use-system-defaults
 autopart --type=plain --fstype=xfs --nohome --encrypted
 
 %post
-awk '$1 ~ /^#/ || $2 != "/"' /etc/fstab > /etc/fstab.arkaos && mv /etc/fstab.arkaos /etc/fstab
-bootc switch --mutate-in-place --transport registry ghcr.io/thulasiramk-2310/arka:latest
+awk '$1 ~ /^#/ || $2 != "/"' /etc/fstab > /etc/fstab.nizho && mv /etc/fstab.nizho /etc/fstab
+bootc switch --mutate-in-place --transport registry ghcr.io/nizho-os/nizho:latest
 %end
 """
 

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Sound & Volume
+Comment=Control audio volume and devices
+Exec=nizho-sound
+Icon=nizho-sound
+Keywords=sound;volume;audio;speaker;microphone;mic;music;media;
+Categories=AudioVideo;Audio;
+NoDisplay=true

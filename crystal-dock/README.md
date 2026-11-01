@@ -1,7 +1,7 @@
-# ArkaOS Dock (Crystal Dock settings)
+# Nizho Dock (Crystal Dock settings)
 
 The dock is [Crystal Dock](https://github.com/dangvd/crystal-dock), started at
-login by `arkaos-dock.desktop`. Plasma panels can't draw outside
+login by `nizho-dock.desktop`. Plasma panels can't draw outside
 their own strip, so a Plasma widget can't grow icons above the dock the way the
 macOS Dock does; Crystal Dock is its own Wayland layer-shell window and can.
 
@@ -15,11 +15,11 @@ copy in `generic/`, which Crystal Dock reads when `XDG_CURRENT_DESKTOP` is unset
   releases, is off.
 - `appearance.conf`: the Flat 2D style, a small dot under running apps,
   icons from 48 px growing to 80 px under the pointer. These are the dark
-  colours; `arka-apply-look` switches the background, border and dots with
+  colours; `nizho-apply-look` switches the background, border and dots with
   the Light/Dark look.
 
 The image builds Fedora's own crystal-dock source package with
-`arkaos-look.patch` (`build-rpm.sh`, in the Containerfile's dock-builder
+`nizho-look.patch` (`build-rpm.sh`, in the Containerfile's dock-builder
 stage). For the Flat 2D style the patch:
 
 - asks KWin to blur what is behind the dock, inside its rounded background

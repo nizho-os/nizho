@@ -3,16 +3,16 @@
     "KPlugin": {
         "Authors": [
             {
-                "Name": "ArkaOS"
+                "Name": "Nizho"
             }
         ],
         "Category": "Application Launchers",
         "Description": "Opens apps, searches apps and settings, and shows the privacy status",
-        "Icon": "arka-start",
-        "Id": "org.arkaos.launcher",
+        "Icon": "nizho-start",
+        "Id": "org.nizho.launcher",
         "License": "GPL-3.0-or-later",
-        "Name": "ArkaOS Launcher",
-        "Website": "https://github.com/thulasiramk-2310/arka"
+        "Name": "Nizho Launcher",
+        "Website": "https://github.com/nizho-os/nizho"
     },
     "X-Plasma-API-Minimum-Version": "6.0",
     "X-Plasma-Provides": [

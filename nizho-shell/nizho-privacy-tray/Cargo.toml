@@ -1,0 +1,23 @@
+[package]
+name = "nizho-privacy-tray"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "nizho-privacy-tray"
+path = "src/main.rs"
+
+# Item 1 — "Privacy Activity": a StatusNotifierItem tray applet that makes
+# nizhod's enforcement visible. Read-only: it reads enforcer STATE from nizhod's
+# D-Bus (org.nizho.nizhod) and notable EVENTS from nizhod's existing world-readable
+# log (/var/log/nizho/privacy.jsonl). No new privileged path, no per-connection
+# or per-domain logging (that is phase 2 — see docs/PHASE2-LOGGING-SCOPE.md).
+[dependencies]
+nizho-shell-common = { path = "../nizho-shell-common", default-features = false }
+ksni = "0.3"
+zbus = { version = "5", features = ["tokio"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

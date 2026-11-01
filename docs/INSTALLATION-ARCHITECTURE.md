@@ -4,7 +4,7 @@ Where installation is today, where it's going, and the rules that keep it clean.
 
 ## The invariant
 
-Everything derives from **one source image** (`localhost/arkaos:dev`, the
+Everything derives from **one source image** (`localhost/nizho:dev`, the
 Containerfile build), and the **first-boot wizard never changes**:
 
 ```
@@ -21,10 +21,10 @@ bootc-image-builder
 Installation (whatever the medium)
         │
         ▼
-arkaos-firstboot (OOBE: user, autologin) — identical on every path
+nizho-firstboot (OOBE: user, autologin) — identical on every path
         │
         ▼
-First login (arka-plasma-firstrun: branding, layout) → Desktop
+First login (nizho-plasma-firstrun: branding, layout) → Desktop
 ```
 
 However the bits land on the disk, the system that boots afterwards is
@@ -41,7 +41,7 @@ system, pre-OOBE. Audience: developers with QEMU/KVM.
 ## DP2 (planned): real hardware
 
 ```
-USB → boot live environment → Arka Installer → bootc install to-disk
+USB → boot live environment → Nizho Installer → bootc install to-disk
     → reboot → firstboot wizard → desktop
 ```
 
@@ -58,15 +58,15 @@ The installer is deliberately thin. Its entire contract:
   is a front-end over one command. Partitioning UI ("alongside Windows",
   "advanced") is deferred until the OS is mature — and even then it
   parameterizes bootc/OS tooling, never reimplements it.
-- **No Arka internals knowledge.** The installer must not know about arkad,
+- **No Nizho internals knowledge.** The installer must not know about nizhod,
   Plasma, or the design tokens' existence — only "write this immutable image
   to that disk." If the installer needs to know something about the OS,
   that something belongs in the image or the OOBE instead.
 - **No plumbing vocabulary in the UI.** Users never see the words qcow2,
   raw, bootc, osbuild, ostree, or composefs. The user journey is:
-  Download → Flash USB → Boot → Install → Restart → Welcome to ArkaOS.
-- **Arka-branded, design-system compliant** — same tokens, same typography,
-  same motion rules as the rest of the OS (see `arka-design-system/`).
+  Download → Flash USB → Boot → Install → Restart → Welcome to Nizho.
+- **Nizho-branded, design-system compliant** — same tokens, same typography,
+  same motion rules as the rest of the OS (see `nizho-design-system/`).
 
 ### Why not Anaconda (`--type anaconda-iso`)?
 
@@ -80,5 +80,5 @@ not acceptable as a shipped artifact.
 1. DP1 ships qcow2. (Feature-frozen, QA in progress.)
 2. Hardware bring-up: `--type raw`, dd to a test machine, fix what breaks
    (firmware, GPU, WiFi). No installer yet — raw image is the vehicle.
-3. Live ISO + thin Arka Installer as described above.
+3. Live ISO + thin Nizho Installer as described above.
 4. Only after the OS is validated on hardware: smarter installer options.

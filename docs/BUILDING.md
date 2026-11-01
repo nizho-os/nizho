@@ -1,4 +1,4 @@
-# Building ArkaOS
+# Building Nizho
 
 The recipe now targets Fedora 44 as an unvalidated candidate. Complete the
 [release and hardware gates](RELEASE-VALIDATION.md) before distributing an image.
@@ -30,7 +30,7 @@ at `/var/home/<you>` via virtiofs.
 
 ```sh
 podman machine ssh podman-machine-default \
-  "cd /var/home/$USER/arkaos && podman build -t localhost/arkaos:dev ."
+  "cd /var/home/$USER/nizho && podman build -t localhost/nizho:dev ."
 ```
 
 ~15 min warm cache; hours cold (the `@kde-desktop-environment` layer downloads
@@ -41,12 +41,12 @@ flakes; if the layer still fails it is almost always transient: rerun).
 
 ```sh
 podman machine ssh podman-machine-default \
-  "cd /var/home/$USER/arkaos && rm -rf output/qcow2 && podman run --rm --privileged \
+  "cd /var/home/$USER/nizho && rm -rf output/qcow2 && podman run --rm --privileged \
     -v /var/lib/containers/storage:/var/lib/containers/storage \
-    -v /var/home/$USER/arkaos/config.toml:/config.toml:ro \
-    -v /var/home/$USER/arkaos/output:/output \
+    -v /var/home/$USER/nizho/config.toml:/config.toml:ro \
+    -v /var/home/$USER/nizho/output:/output \
     quay.io/centos-bootc/bootc-image-builder:latest \
-    --type qcow2 --rootfs xfs localhost/arkaos:dev"
+    --type qcow2 --rootfs xfs localhost/nizho:dev"
 ```
 
 Output: `output/qcow2/disk.qcow2`.
@@ -67,10 +67,10 @@ qemu-system-x86_64 -enable-kvm -m 6144 -cpu host -smp 2 -machine q35 \
 - QEMU monitor (screendump, sendkey): `telnet localhost 4444`
 - TPM (optional, for PCR work):
   ```
-  swtpm_setup --tpm2 --tpmstate /tmp/arkaos-tpm --createek --decryption --create-ek-cert
-  swtpm socket --tpmstate dir=/tmp/arkaos-tpm --ctrl type=unixio,path=/tmp/arkaos-tpm.sock --tpm2 --daemon
+  swtpm_setup --tpm2 --tpmstate /tmp/nizho-tpm --createek --decryption --create-ek-cert
+  swtpm socket --tpmstate dir=/tmp/nizho-tpm --ctrl type=unixio,path=/tmp/nizho-tpm.sock --tpm2 --daemon
   # then add to the QEMU command:
-  #   -chardev socket,id=chrtpm,path=/tmp/arkaos-tpm.sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0
+  #   -chardev socket,id=chrtpm,path=/tmp/nizho-tpm.sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0
   ```
 
 ## Hard-won rules — break these and lose hours
@@ -93,7 +93,7 @@ qemu-system-x86_64 -enable-kvm -m 6144 -cpu host -smp 2 -machine q35 \
 
 ## Iterating cheaply
 
-- Rust-only change (arkad, shell apps): the builder stages rebuild but the KDE
+- Rust-only change (nizhod, shell apps): the builder stages rebuild but the KDE
   layer stays cached — keep branding/config edits BELOW the
   `@kde-desktop-environment` RUN in the Containerfile to preserve that cache.
 - Theme/branding-only change: seconds of rebuild + BIB (~8 min).
@@ -109,7 +109,7 @@ never select the internal Linux/Windows disk. Unmount the stick's partitions
 before writing. This procedure is documentation, not a first-boot action.
 
 ```sh
-sudo dd if=arkaos-preview.raw of=/dev/sdX bs=4M status=progress conv=fsync &&
+sudo dd if=nizho-preview.raw of=/dev/sdX bs=4M status=progress conv=fsync &&
   sudo sgdisk -e /dev/sdX &&
   sudo sgdisk -v /dev/sdX &&
   sync

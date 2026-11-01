@@ -1,0 +1,11 @@
+[Unit]
+Description=Publish read-only system update status for Nizho apps
+Documentation=file:///usr/share/doc/nizho
+# `bootc status` needs root. This writes its JSON to a world-readable file so
+# the Updates app and Privacy dashboard can show it without any privilege.
+
+[Service]
+Type=oneshot
+TimeoutStartSec=30s
+ExecStopPost=/bin/sh -c 'if [ "$SERVICE_RESULT" != success ]; then rm -f /run/nizho/bootc-status.json; fi'
+ExecStart=/bin/sh -c 'mkdir -p /run/nizho && bootc status --json --format-version=1 > /run/nizho/bootc-status.json.tmp && chmod 0644 /run/nizho/bootc-status.json.tmp && mv -f /run/nizho/bootc-status.json.tmp /run/nizho/bootc-status.json'

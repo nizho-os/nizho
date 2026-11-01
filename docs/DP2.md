@@ -27,17 +27,17 @@ land in the next build.
 ## Window-management abstraction (the headline of DP2)
 
 Capsule's "Running" tab previously called `hyprctl` directly — a hard coupling
-to a compositor ArkaOS no longer ships. That coupling is gone.
+to a compositor Nizho no longer ships. That coupling is gone.
 
 ```
     Capsule ─▶ WindowService ─▶ KWin        (today)
-    Capsule ─▶ WindowService ─▶ KWin/ArkaWM (tomorrow)
+    Capsule ─▶ WindowService ─▶ KWin/NizhoWM (tomorrow)
 ```
 
-- `arka-shell-common::window` defines a compositor-neutral `Window` type and a
+- `nizho-shell-common::window` defines a compositor-neutral `Window` type and a
   `WindowService` trait (`list` / `focus` / `close`). Apps speak only this.
 - `window_service()` selects the backend at runtime. Today it returns the KWin
-  backend; a future ArkaWM backend slots in here with no caller change.
+  backend; a future NizhoWM backend slots in here with no caller change.
 - The KWin backend drives KWin's Scripting D-Bus interface via `dbus-send`
   (universally present, unlike the version-variable `qdbus`).
 
@@ -50,19 +50,19 @@ correctness.)
 
 ## Remaining Hyprland-era debt to clear
 
-- **Vestigial shell crates — DONE (moved to `legacy/`, later removed; in git history up to 0d707ca).** `arka-bar`,
-  `arka-dock`, `arka-launcher` were the custom Hyprland shell; under Plasma they
+- **Vestigial shell crates — DONE (moved to `legacy/`, later removed; in git history up to 0d707ca).** `nizho-bar`,
+  `nizho-dock`, `nizho-launcher` were the custom Hyprland shell; under Plasma they
   are replaced by the panel, icontasks dock, and kickerdash launcher (see
-  `arka-layout.js`) and were never autostarted. Confirmed no desktop-file,
+  `nizho-layout.js`) and were never autostarted. Confirmed no desktop-file,
   autostart, layout, or keybinding referenced them. They are now:
   - moved to `legacy/` (own Cargo workspace; see `legacy/README.md`),
-  - removed from the active `arka-shell` workspace,
+  - removed from the active `nizho-shell` workspace,
   - no longer built or `COPY`'d into the image, and
   - the now-unused `gtk4-layer-shell` toolchain was dropped from both the
     builder and the runtime package set.
 
   Source kept for a release or two rather than deleted, to preserve project
-  history. Remove for good once confirmed truly unused. (The active `arka-shell`
+  history. Remove for good once confirmed truly unused. (The active `nizho-shell`
   workspace now `cargo check`s cleanly on a host with no layer-shell.)
 - Audit any other `hyprctl` / `swaymsg` / `foot` / `thunar` / `wofi` residue
   and route real needs through the appropriate abstraction or KDE equivalent.
@@ -74,14 +74,14 @@ Capsule is a **Flathub client, not a publisher.** It runs
 KDE Discover or GNOME Software — and never hosts, redistributes, or re-signs
 anyone's binaries. That role needs no per-developer agreement (an app store
 does not need a vendor's sign-off to offer an install button for a public
-Flathub app). Agreements/rights only become necessary if ArkaOS later (a) hosts
+Flathub app). Agreements/rights only become necessary if Nizho later (a) hosts
 its own app repository and redistributes binaries, (b) bundles a proprietary app
 into the image (that app's EULA applies), or (c) implies partnership/endorsement.
 
 Two hygiene items: pull catalog metadata (names, icons, descriptions) from
 Flathub's AppStream instead of hand-curating, so branding stays aligned and
 self-updates; and let proprietary-app EULAs be accepted by the user at install
-time, not by ArkaOS.
+time, not by Nizho.
 
 ## Screenshot grid — historical DP1 capture
 

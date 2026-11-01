@@ -1,0 +1,21 @@
+[Unit]
+Description=Nizho First Boot User Setup
+DefaultDependencies=no
+After=basic.target plymouth-quit-wait.service
+Before=getty@tty1.service
+ConditionPathExists=!/var/lib/nizho-firstboot-done
+
+[Service]
+Type=oneshot
+Environment=TERM=linux
+ExecStart=/usr/libexec/nizho-firstboot
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

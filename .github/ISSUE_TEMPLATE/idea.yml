@@ -10,4 +10,4 @@ body:
   - type: textarea
     id: idea
     attributes:
-      label: What would you like ArkaOS to do?
+      label: What would you like Nizho to do?

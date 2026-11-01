@@ -1,4 +1,4 @@
-# ArkaOS Developer Preview 1
+# Nizho Developer Preview 1
 
 **Version 0.1.0-dp1 — historical release notes**
 
@@ -7,18 +7,18 @@ These notes and DP1 screenshots do not validate the current Fedora 44 candidate.
 
 Privacy-first • Immutable • Built on Linux • Designed for people
 
-## What is ArkaOS?
+## What is Nizho?
 
-ArkaOS is a privacy-first, immutable desktop operating system built on
+Nizho is a privacy-first, immutable desktop operating system built on
 Linux, designed to make secure computing simple, intuitive, and accessible
 for everyone.
 
-ArkaOS isn't a replacement for Linux — it's a better way to experience
+Nizho isn't a replacement for Linux — it's a better way to experience
 Linux: it builds on Linux's proven foundation while removing unnecessary
 complexity and making powerful security and privacy features available by
 default. The OS ships as an
 immutable image — updates are atomic, rollback is built in, and the root
-filesystem is read-only at runtime. A system daemon (arkad) continuously
+filesystem is read-only at runtime. A system daemon (nizhod) continuously
 enforces privacy invariants (randomized MAC, encrypted DNS, generic hostname,
 IPv6 privacy addresses) and shows you what it did, in plain language, on a
 privacy dashboard. The browser wrapper hides the real home except Downloads,
@@ -32,8 +32,8 @@ every app.
 ## What's in Developer Preview 1
 
 - Immutable bootc/composefs foundation on Fedora 42, KDE Plasma desktop
-  with the ArkaOS shell layout (top bar, floating dock, full-screen launcher)
-- arkad privacy daemon + Dashboard with privacy score, event timeline, and
+  with the Nizho shell layout (top bar, floating dock, full-screen launcher)
+- nizhod privacy daemon + Dashboard with privacy score, event timeline, and
   weekly privacy report
 - Sandboxed Firefox, permission manager, encrypted DNS out of the box
 - Complete brand identity: boot animation, login theme, icons, cursor,
@@ -62,7 +62,7 @@ QEMU/KVM with UEFI (OVMF), 4 GB RAM minimum (6 GB recommended), 20 GB disk.
 
 ## Reporting issues
 
-Open a GitHub issue with: the version (`cat /usr/lib/arkaos-release` or this
+Open a GitHub issue with: the version (`cat /usr/lib/nizho-release` or this
 file's version), what you did, what you expected, what happened, and the
 output of `systemctl --failed` and `journalctl -b -p err` if relevant.
 

@@ -1,4 +1,0 @@
-[D-BUS Service]
-Name=org.arkaos.Wheel
-Exec=/usr/bin/arka-wheel
-SystemdService=arka-wheel.service

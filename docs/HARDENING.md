@@ -1,4 +1,4 @@
-# ArkaOS hardening plan
+# Nizho hardening plan
 
 Research and source review: 2026-10-04. The immediate target is a reliable,
 inspectable developer preview with truthful protection status. Completion is
@@ -6,15 +6,15 @@ proved by tests of the deployed image as well as source tests.
 
 ## Lessons from other operating systems
 
-These are engineering recommendations for ArkaOS, derived from official
-documentation. They are not claims that ArkaOS already implements those systems'
+These are engineering recommendations for Nizho, derived from official
+documentation. They are not claims that Nizho already implements those systems'
 protections.
 
-| Reference | Mechanism documented by the project | Application to ArkaOS |
+| Reference | Mechanism documented by the project | Application to Nizho |
 | --- | --- | --- |
 | [Fedora Silverblue](https://fedoraproject.org/atomic-desktops/silverblue/) | Atomic OS updates take effect on reboot; previous versions can be restored; development tools can live in Toolbx. | Retain the bootc/Plasma foundation. Verify upgrade, rollback and user-data preservation using disposable disk files. Keep build dependencies outside the running desktop image. |
 | [GrapheneOS](https://grapheneos.org/features) | Reduces attack surface, strengthens app isolation and uses verified boot to limit persistence. | Remove setup-only root privileges after onboarding. Validate each advertised control against its mechanism. Treat a read-only filesystem and cryptographic verification as separate properties. |
-| [Qubes OS](https://doc.qubes-os.org/en/latest/developer/system/security-design-goals.html) | Separates activities into security domains. | Document the actual browser/home/socket boundary and test denied access. ArkaOS's browser sandbox does not provide Qubes-style VM isolation. |
+| [Qubes OS](https://doc.qubes-os.org/en/latest/developer/system/security-design-goals.html) | Separates activities into security domains. | Document the actual browser/home/socket boundary and test denied access. Nizho's browser sandbox does not provide Qubes-style VM isolation. |
 | [NixOS](https://nixos.org/manual/nixos/stable/) | Declarative system configuration describes packages, services and users, with system generations available for rollback. | Make image inputs and versions traceable, use committed dependency locks, and minimize hidden first-login configuration. Preserve a tested recovery generation. |
 | [ChromiumOS](https://www.chromium.org/chromium-os/chromiumos-design-docs/firmware-boot-and-recovery/) | Boot and recovery are designed together, including alternative firmware paths and verification decisions. | Test the failed-update and failed-boot paths before releasing an image. Plan signing and verification end to end, without changing the development host's firmware or bootloader. |
 | [Ubuntu Core](https://documentation.ubuntu.com/core/explanation/recovery-modes/) | Distinguishes ordinary operation, recovery, installation and factory reset, with different data effects. | Give recovery operations clear consequences. Confirm user-data preservation independently of OS rollback. Keep destructive installation out of ordinary desktop actions. |
@@ -40,7 +40,7 @@ protections.
   Rust lockfiles. Build artifacts are excluded from version control and local
   credential files are excluded from the image build context.
 
-These are source changes. They do not change an already installed ArkaOS image.
+These are source changes. They do not change an already installed Nizho image.
 If account creation succeeds but a later setup step fails, the partial account
 is preserved and cannot have its password reset by retrying setup. Recovery of
 that partial setup requires an explicit administrator operation. A resumable,
@@ -48,7 +48,7 @@ transactional first-run flow remains future work.
 
 ## Second source hardening pass
 
-- arkad checks every control on each bounded retry interval. It serializes manual
+- nizhod checks every control on each bounded retry interval. It serializes manual
   and periodic enforcement, propagates failed operations, bounds subprocesses
   and verification, and only records recovery after verification succeeds.
 - DNS requires the resolved stub path and strict TLS on every reported DNS
@@ -74,7 +74,7 @@ transactional first-run flow remains future work.
   outside the GTK thread with deadlines. WiFi credentials use stdin rather than
   argv, and escaped SSIDs retain their actual names.
 - Settings use Plasma's SDDM/screen-lock modules and wallpaper helper. The
-  console utility updates ArkaOS's SDDM drop-in, validates the regular account
+  console utility updates Nizho's SDDM drop-in, validates the regular account
   and reports failures. Other SDDM configuration can override that preference.
 - Model traffic is restricted to loopback HTTP, with localhost pinned, proxies
   disabled and redirects disabled. Answers use canonical tool facts, including
@@ -144,12 +144,12 @@ next guest image. A complete dependency advisory scan was not run. The updated
 
 ```sh
 python3 scripts/test-oobe-apply.py
-bash -n arkaos-oobe-apply
-bash -n arkaos-firstboot
-cargo test --locked --manifest-path arkad/Cargo.toml
-cargo test --locked --manifest-path arka-pulse/Cargo.toml --features dbus
-cargo test --locked --manifest-path arka-agent/Cargo.toml
-cargo test --locked --manifest-path arka-shell/Cargo.toml -p arka-shell-common -p arka-privacy-tray
+bash -n nizho-oobe-apply
+bash -n nizho-firstboot
+cargo test --locked --manifest-path nizhod/Cargo.toml
+cargo test --locked --manifest-path nizho-pulse/Cargo.toml --features dbus
+cargo test --locked --manifest-path nizho-agent/Cargo.toml
+cargo test --locked --manifest-path nizho-shell/Cargo.toml -p nizho-shell-common -p nizho-privacy-tray
 ```
 
 The setup harness substitutes temporary paths and fake account/service
@@ -162,11 +162,11 @@ and disposable image files. It must never use a physical host disk as a target.
 
 ## 2026-10-05 work-item verification
 
-- arkad exposes read-only `LastCheck`, Unix seconds of the last completed
+- nizhod exposes read-only `LastCheck`, Unix seconds of the last completed
   reconcile. Completed failures also advance it; cancellation does not. The
   tray polls every 30 seconds, requires age <90 seconds, and uses a neutral
   unknown icon when the timestamp is missing, zero, future or expired.
-- `arka-update::status::parse_status` parses bootc v1 JSON without commands or
+- `nizho-update::status::parse_status` parses bootc v1 JSON without commands or
   UI changes. It preserves unknown version metadata, distinguishes staged
   downloads from restart-ready updates, handles queued rollback, and rejects
   malformed/non-bootc input. Rollback availability is not boot-success proof.

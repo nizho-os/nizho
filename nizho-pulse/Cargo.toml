@@ -1,0 +1,39 @@
+[package]
+name = "nizho-pulse"
+version = "0.0.1"
+edition = "2021"
+description = "Nizho reliability engine (experimental foundation: MONITOR + DETECT, read-only)"
+
+[lib]
+name = "nizho_pulse"
+path = "src/lib.rs"
+
+[[bin]]
+name = "nizho-pulse"
+path = "src/main.rs"
+
+# The read-only D-Bus daemon. Only built with `--features dbus`, so the default
+# build (lib + nizho-pulse CLI + tests) stays zero-dependency.
+[[bin]]
+name = "nizho-pulsed"
+path = "src/bin/pulsed.rs"
+required-features = ["dbus"]
+
+# The deterministic core reads /proc and /sys with std only — zero dependencies,
+# zero-footprint, trivially auditable, matching nizhod's discipline. The optional
+# `dbus` feature adds a read-only D-Bus surface (org.nizho.pulse) so the desktop
+# can consume reliability state the same way it consumes nizhod's privacy state;
+# it pulls zbus + a minimal tokio, and nothing in the safety-critical core
+# depends on it. An AI explanation layer, if it ever ships, stays separate too.
+[dependencies]
+zbus = { version = "4", features = ["tokio"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"], optional = true }
+
+[features]
+dbus = ["dep:zbus", "dep:tokio"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

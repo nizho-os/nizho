@@ -11,15 +11,15 @@ this list. Each section is verified in a booted VM built by the gated pipeline
 - [ ] `build-manifest.json` generated; artifact sha256 recorded
 
 ## Boot
-- [ ] Plymouth splash (triangles → ARKA → progress line)
-- [ ] SDDM login (arkaos theme)
+- [ ] Plymouth splash (triangles → NIZHO → progress line)
+- [ ] SDDM login (nizho theme)
 - [ ] OOBE welcome wizard (first boot only, never again)
 - [ ] Desktop reaches idle
 - [ ] `systemctl --failed` is empty
-- [ ] arkad active and enforcing
+- [ ] nizhod active and enforcing
 
 ## Desktop
-- [ ] Wallpaper · icons · cursor · Inter fonts · ArkaOS color scheme
+- [ ] Wallpaper · icons · cursor · Inter fonts · Nizho color scheme
 - [ ] Top bar (36px) and floating dock present after first login
 
 ## Core apps (launch + basic function)
@@ -28,7 +28,7 @@ this list. Each section is verified in a booted VM built by the gated pipeline
 ## Privacy
 - [ ] Privacy Score reported over D-Bus
 - [ ] Browser sandbox proof passes (sentinel unreadable, /etc allowlisted)
-- [ ] DoT active (resolvectl) · MAC randomization conf present · hostname `arka`
+- [ ] DoT active (resolvectl) · MAC randomization conf present · hostname `nizho`
 - [ ] Weekly report renders on Dashboard
 
 ## UX
@@ -42,7 +42,7 @@ this list. Each section is verified in a booted VM built by the gated pipeline
 
 ## QA
 - [ ] Boot loop: 100/100 clean (qa-boot-loop.sh)
-- [ ] Memory budgets met (arkad ≤ 30 MB · desktop idle ≤ 2.5 GB)
+- [ ] Memory budgets met (nizhod ≤ 30 MB · desktop idle ≤ 2.5 GB)
 - [ ] Boot time ≤ 20 s in VM
 - [ ] Known issues documented in CHANGELOG
 

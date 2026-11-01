@@ -1,8 +1,8 @@
 name: Image
 
-# Builds the ArkaOS bootc image, splits it into many small layers so an update
+# Builds the Nizho bootc image, splits it into many small layers so an update
 # downloads only what changed, signs it, and publishes it to
-# ghcr.io/thulasiramk-2310/arka. Installed systems only accept images signed
+# ghcr.io/nizho-os/nizho. Installed systems only accept images signed
 # with the key whose public half is cosign.pub (see containers/).
 
 on:
@@ -27,7 +27,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE: ghcr.io/thulasiramk-2310/arka
+  IMAGE: ghcr.io/nizho-os/nizho
 
 jobs:
   build:
@@ -40,7 +40,7 @@ jobs:
           SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
         run: |
           if [ -z "$SIGNING_SECRET" ]; then
-            echo "::error::SIGNING_SECRET is not set; an unsigned image would be rejected by ArkaOS"
+            echo "::error::SIGNING_SECRET is not set; an unsigned image would be rejected by Nizho"
             exit 1
           fi
 
@@ -58,7 +58,7 @@ jobs:
           sudo podman build --pull=newer \
             --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
             --label org.opencontainers.image.revision=${{ github.sha }} \
-            -t localhost/arka:build .
+            -t localhost/nizho:build .
 
       - name: Split into small layers
         run: |
@@ -66,10 +66,10 @@ jobs:
             -v /var/lib/containers:/var/lib/containers \
             quay.io/fedora/fedora-bootc:44 \
             rpm-ostree compose build-chunked-oci --bootc --format-version=1 \
-              --from=localhost/arka:build \
-              --output=containers-storage:localhost/arka:chunked
-          sudo podman rmi localhost/arka:build
-          sudo podman image inspect localhost/arka:chunked --format '{{len .RootFS.Layers}} layers'
+              --from=localhost/nizho:build \
+              --output=containers-storage:localhost/nizho:chunked
+          sudo podman rmi localhost/nizho:build
+          sudo podman image inspect localhost/nizho:chunked --format '{{len .RootFS.Layers}} layers'
 
       - name: Push
         if: github.ref == 'refs/heads/master'
@@ -78,9 +78,9 @@ jobs:
         run: |
           echo "$TOKEN" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
           ver=44.$(date -u +%Y%m%d)
-          sudo podman push --digestfile digest localhost/arka:chunked "docker://$IMAGE:latest"
-          sudo podman push localhost/arka:chunked "docker://$IMAGE:$ver"
-          sudo podman push localhost/arka:chunked "docker://$IMAGE:sha-${GITHUB_SHA::7}"
+          sudo podman push --digestfile digest localhost/nizho:chunked "docker://$IMAGE:latest"
+          sudo podman push localhost/nizho:chunked "docker://$IMAGE:$ver"
+          sudo podman push localhost/nizho:chunked "docker://$IMAGE:sha-${GITHUB_SHA::7}"
           echo "DIGEST=$(sudo cat digest)" >> "$GITHUB_ENV"
 
       - uses: sigstore/cosign-installer@v3

@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh Nizho update status when system versions change
+
+[Path]
+# Staging an update or selecting a rollback changes the deployments here.
+PathChanged=/ostree/deploy/default/deploy
+Unit=nizho-bootc-status.service
+
+[Install]
+WantedBy=paths.target

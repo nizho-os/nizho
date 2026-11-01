@@ -1,6 +1,6 @@
 # Release and hardware validation
 
-ArkaOS aims for an immutable system image, privacy controls users can inspect,
+Nizho aims for an immutable system image, privacy controls users can inspect,
 and a usable desktop across modest and powerful PCs. These are acceptance
 criteria, not a claim that the current source has passed them all.
 
@@ -11,7 +11,7 @@ criteria, not a claim that the current source has passed them all.
   isolated setup tests. Two live-model tests were skipped.
 - All 13 desktop workspace members passed `cargo check --locked`; the
   dashboard still emits two pre-existing GTK deprecation warnings.
-- `arkad` and `arka-pulsed` passed static musl release builds in rootless
+- `nizhod` and `nizho-pulsed` passed static musl release builds in rootless
   containers with committed lockfiles and a 3 GB memory limit.
 - The complete image build was stopped during Fedora desktop-builder dependency
   installation to preserve disk space while another VM build was active. No
@@ -55,8 +55,8 @@ Behavior references: [WirePlumber wpctl](https://pipewire.pages.freedesktop.org/
 ### Recovery failure reported 2026-10-11
 
 The failed-update VM test supersedes the earlier untested recovery status.
-The healthy baseline was `arkaos:dev`, digest prefix `cf305fb9`, with
-`boot_success=1`. A deliberately broken `arkaos:rollback-test` update was
+The healthy baseline was `nizho:dev`, digest prefix `cf305fb9`, with
+`boot_success=1`. A deliberately broken `nizho:rollback-test` update was
 downloaded and booted. Required health checks detected failure on three boot
 attempts and initiated restarts, but recovery never selected the good image.
 The reported journal message was:
@@ -95,9 +95,9 @@ Before accepting a mitigation, repeat these checks in a disposable guest:
 
 The image now disables `greenboot-healthcheck.service` and
 `greenboot-set-rollback-trigger.service`, removes greenboot's
-`08_greenboot.cfg` GRUB rule, and runs `arka-health-report` instead. It runs the
+`08_greenboot.cfg` GRUB rule, and runs `nizho-health-report` instead. It runs the
 same required/wanted check scripts, records the result in the journal (tag
-`arka-health`), `/run/arkaos/health.json` and `/etc/motd.d/arka-health`, clears
+`nizho-health`), `/run/nizho/health.json` and `/etc/motd.d/nizho-health`, clears
 a leftover `boot_counter`, and never restarts or selects a deployment.
 
 The checklist above was repeated in a disposable QEMU guest installed from the
@@ -105,7 +105,7 @@ new image (good digest prefix `32794de3`). The broken update (prefix `5dd3aca1`)
 was the same failing check plus marker as before, served as one extra layer by
 a minimal test registry; bootc reused the 160 base layers and fetched 10.2 kB.
 
-1. Baseline: both greenboot units disabled, `arka-health-report` enabled and
+1. Baseline: both greenboot units disabled, `nizho-health-report` enabled and
    healthy, no greenboot rule in `grub.cfg`, empty GRUB environment.
 2. The update staged and finalized; the next boot ran the broken image.
 3. Left alone for five minutes: no further boot, empty GRUB environment, no
@@ -121,7 +121,7 @@ a minimal test registry; bootc reused the 160 base layers and fetched 10.2 kB.
    cleared the counter, and the next boot returned to the chosen good entry.
 
 Limits: a VM, not hardware. The migration case escaped only because the forced
-entry also contained `arka-health-report`. A system whose deployments all
+entry also contained `nizho-health-report`. A system whose deployments all
 predate it stays trapped until `sudo grub2-editenv - unset boot_counter` is
 run. Upgraded systems keep the old rule in `/boot/grub2/grub.cfg` (bootc does
 not rewrite it); it is inert while no counter is set.
@@ -137,10 +137,10 @@ is on upstream `main`. Related upstream report with the same symptom but a
 different cause (variable renamed between versions):
 [fedora-iot/greenboot-rs#217](https://github.com/fedora-iot/greenboot-rs/issues/217).
 
-Fix: drop-in `10-arkaos-stop-at-shutdown.conf` adds `Conflicts=final.target`
+Fix: drop-in `10-nizho-stop-at-shutdown.conf` adds `Conflicts=final.target`
 and `Before=final.target` (as `ostree-finalize-staged.service` has); the
 upstream `After=ostree-finalize-staged.service` makes it stop first, while the
-update is still staged. The report-only `arka-health-report` was removed: it
+update is still staged. The report-only `nizho-health-report` was removed: it
 cleared `boot_counter`, which greenboot needs. greenboot units and its GRUB
 rule are back to stock.
 
@@ -172,8 +172,8 @@ greenboot. Reproduced with an update whose kernel arguments point `init=` at a
 missing file: it stopped at the initramfs emergency prompt and waited there
 indefinitely (`kernel.panic=0`, emergency shell enabled).
 
-Fix: `kernel/20-arkaos-recovery.toml` adds `panic=10 rd.shell=0
-rd.emergency=reboot`, and `arka-arm-boot-counter` (a second `ExecStop` in the
+Fix: `kernel/20-nizho-recovery.toml` adds `panic=10 rd.shell=0
+rd.emergency=reboot`, and `nizho-arm-boot-counter` (a second `ExecStop` in the
 trigger drop-in) sets `boot_counter=GREENBOOT_MAX_BOOT_ATTEMPTS` (3) and
 `boot_success=0` once greenboot has recorded the staged update, so GRUB's
 greenboot rule counts boots of the new version from its first boot.
@@ -201,7 +201,7 @@ user who needs it can remove the option from the GRUB entry for one boot.
 `anaconda-iso`) with `installer/config.toml`. Problems found and fixed during
 the VM runs, each confirmed in a fresh install afterwards:
 
-- Anaconda set `graphical.target`, so ArkaOS setup never ran and the login
+- Anaconda set `graphical.target`, so Nizho setup never ran and the login
   screen had no account: kickstart `skipx` keeps the console default.
 - Anaconda's default btrfs layout mounted an empty `/home` subvolume over
   bootc's `/var/home`, hiding the setup account's home: `autopart
@@ -209,19 +209,19 @@ the VM runs, each confirmed in a fresh install afterwards:
   home at boot whatever the layout.
 - The fstab line for `/` made `systemd-remount-fs` fail ("overlay: No changes
   allowed in reconfigure"; `/` is composefs): removed in `%post`.
-- Anaconda added `ssh` to the ArkaOS firewall zone and arkad reported the
+- Anaconda added `ssh` to the Nizho firewall zone and nizhod reported the
   firewall as needing attention: `firewall --use-system-defaults`.
 
 Final run (QEMU, empty 40 GB disk): install with the default encryption,
-LUKS2 + XFS root, no failed units, all ArkaOS kernel arguments present
-(`rd.luks.uuid` added by Anaconda), ArkaOS setup with all six settings
+LUKS2 + XFS root, no failed units, all Nizho kernel arguments present
+(`rd.luks.uuid` added by Anaconda), Nizho setup with all six settings
 Configured, then the desktop. A broken update rolled back automatically to the
 exact installed digest (`8d5d82f4`); each of the four boots needed the
 passphrase. Test-file hashes unchanged.
 
 Open: Fedora branding in the installer; the passphrase is asked twice (once at
 start, again after choosing the disk); the unlock prompt names the disk
-`luks-<uuid>`; updates track `localhost/arkaos:dev` until a public registry
+`luks-<uuid>`; updates track `localhost/nizho:dev` until a public registry
 exists; the 6.7 GB ISO exceeds GitHub's 2 GB release-asset limit; no hardware
 test.
 
@@ -231,7 +231,7 @@ test.
 if `ostree admin finalize-staged` fails after the trigger ran, the host boots
 its unchanged default, and greenboot reads the stale
 `greenboot_next_deployment_id` as a GRUB fallback and rolls back. Fix:
-`arka-stale-trigger-check` (`ExecStartPre=-` on `greenboot-healthcheck`) clears
+`nizho-stale-trigger-check` (`ExecStartPre=-` on `greenboot-healthcheck`) clears
 the trigger, `fallback` and `boot_counter` when the booted digest differs from
 the recorded one and the booted deployment is the default
 (`rollbackQueued` false). A real GRUB fallback boots the non-default entry and
@@ -270,7 +270,7 @@ new consumers show missing timestamp properties as unavailable.
 
 Forward path: build and tag a separate candidate image, retain the previous
 image and disk snapshot, then boot a disposable copy and run the gates below.
-Only after passing should an installed ArkaOS guest test a bootc upgrade.
+Only after passing should an installed Nizho guest test a bootc upgrade.
 Rollback path: use the retained guest deployment/snapshot and verify account
 data independently. OS rollback does not itself roll back user data.
 
@@ -281,7 +281,7 @@ alone does not make the entire image reproducible.
 
 ### Automatic recovery on one real laptop, 2026-10-12
 
-Laptop: Nokia PureBook, Intel Core i5-10210U. ArkaOS ran from a USB stick flashed
+Laptop: Nokia PureBook, Intel Core i5-10210U. Nizho ran from a USB stick flashed
 with the image whose base digest is `684ffa4a`; the internal Windows disk was not
 used. A test registry on a second laptop served a one-layer update (10 KB) over
 Wi-Fi, and no base layer was requested. The laptop sent its journals back after
@@ -324,7 +324,7 @@ reduce privacy controls automatically on smaller machines.
 These are proposed test configurations, not measured minimum requirements.
 Fedora generally recommends 4 GB RAM and 40 GB storage:
 [Fedora KDE downloads](https://fedoraproject.org/kde/download/).
-ArkaOS must measure additional space for retained deployments and updates.
+Nizho must measure additional space for retained deployments and updates.
 Record cold boot time, time to usable desktop, idle RSS, swap usage, memory
 pressure, UI stalls and workload completion. Repeat with software graphics and
 representative Intel, AMD and NVIDIA hardware before claiming support.
@@ -368,7 +368,7 @@ those properties or prevent persistence in writable user/configuration data.
 
 The [saved Nokia journals](NOKIA-USB-DIAGNOSIS.md) prove repeated serial-getty
 crashes in a Fedora 42 image. A working splash or active graphical target is
-insufficient. In the disposable ArkaOS guest, capture these read-only checks:
+insufficient. In the disposable Nizho guest, capture these read-only checks:
 
 ```sh
 rpm -q util-linux-core systemd kernel-core

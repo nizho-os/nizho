@@ -1,4 +1,4 @@
-/* The ArkaOS film (43 s). One file, nothing from other sites. It plays only when
+/* The Nizho film (43 s). One file, nothing from other sites. It plays only when
    the visitor asks for it (any element with data-film), and has a Skip button. */
 (function () {
   'use strict';
@@ -74,7 +74,7 @@
   var ROWS = [
     ['Encrypted DNS', 'Requires system DNS lookups to be encrypted.'],
     ['Private network address', 'Uses a random hardware address on network connections.'],
-    ['Generic device name', 'Uses the generic network name "arka" instead of yours.'],
+    ['Generic device name', 'Uses the generic network name "nizho" instead of yours.'],
     ['Temporary IPv6 addresses', 'Uses temporary IPv6 addresses that change over time.'],
     ['Sandboxed browser', 'Opens Firefox in a sandbox that sees only your Downloads folder.'],
     ['Firewall', 'Rejects connections other computers try to open to this one.']
@@ -83,7 +83,7 @@
   var PILE = [{ x: -300, y: -110, r: -7 }, { x: 250, y: -150, r: 5 }, { x: -140, y: 50, r: 3 }, { x: 290, y: 80, r: -4 }, { x: -20, y: -40, r: -1 }];
 
   var html = '<div class="bg" data-k="bg"></div>';
-  html += '<div class="a" data-k="brand" style="left:120px;top:88px;display:flex;align-items:center;gap:16px;font-size:34px;font-weight:600">' + MARK(52, 'bm') + 'ArkaOS</div>';
+  html += '<div class="a" data-k="brand" style="left:120px;top:88px;display:flex;align-items:center;gap:16px;font-size:34px;font-weight:600">' + MARK(52, 'bm') + 'Nizho</div>';
   /* scene 1 */
   html += '<div data-k="s1">';
   PILE.forEach(function (p, i) {
@@ -99,7 +99,7 @@
   /* scene 3 */
   html += '<div data-k="s3"><div class="a c" data-k="intro1" style="top:215px;font-size:52px;color:#4a505b">Introducing</div>';
   html += '<div class="a" data-k="bigmark" style="left:810px;top:300px">' + MARK(300, 'bg3') + '</div>';
-  html += '<div class="a c" data-k="wm" style="top:660px;font-size:130px;font-weight:600;letter-spacing:-.03em">ArkaOS</div></div>';
+  html += '<div class="a c" data-k="wm" style="top:660px;font-size:130px;font-weight:600;letter-spacing:-.03em">Nizho</div></div>';
   /* scene 4 + 5 */
   html += '<div data-k="s4"><div class="a c serif big" data-k="t4a" style="top:370px;font-size:112px"></div><div class="a c serif big" data-k="t4b" style="top:520px;font-size:112px"></div></div>';
   html += '<div data-k="s5"><div class="a c serif big" data-k="t5" style="top:330px;font-size:112px">Built on</div>';
@@ -109,7 +109,7 @@
   html += '<div data-k="s6"><div class="a serif" data-k="h6" style="left:120px;top:330px;font-size:92px;line-height:1.08;letter-spacing:-.02em;font-weight:300"></div>';
   html += '<div class="a" data-k="h6s" style="left:124px;top:600px;font-size:34px;color:#4a505b;white-space:normal;width:520px;line-height:1.4"></div>';
   html += '<div class="a tag" data-k="h6t" style="left:124px;top:700px"></div>';
-  html += '<div class="a win" data-k="win"><div class="wbar">' + MARK(30, 'wm2') + '<b data-k="wt">ArkaOS Setup</b><span data-k="wstep">Step 5 of 5</span></div><div class="wbody"><div class="side" data-k="side"><div class="on">Overview</div><div>Activity</div><div>Health</div><div>Updates &amp; recovery</div></div><div class="main"><h3 data-k="ptitle"></h3><p class="sub" data-k="psub"></p><div data-k="rows">';
+  html += '<div class="a win" data-k="win"><div class="wbar">' + MARK(30, 'wm2') + '<b data-k="wt">Nizho Setup</b><span data-k="wstep">Step 5 of 5</span></div><div class="wbody"><div class="side" data-k="side"><div class="on">Overview</div><div>Activity</div><div>Health</div><div>Updates &amp; recovery</div></div><div class="main"><h3 data-k="ptitle"></h3><p class="sub" data-k="psub"></p><div data-k="rows">';
   ROWS.forEach(function (r) { html += '<div class="row"><s></s><div><p>' + esc(r[0]) + '</p><em>' + esc(r[1]) + '</em></div><b class="st">Checking</b></div>'; });
   html += '</div><p class="note" data-k="pnote"></p></div></div></div></div>';
   /* scene 8 */
@@ -137,7 +137,7 @@ function launch() {
   host.style.cssText = 'position:fixed;inset:0;z-index:99999';
   var shadow = host.attachShadow({ mode: 'open' });
   var root = document.createElement('div');
-  root.id = 'ai'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', 'ArkaOS intro');
+  root.id = 'ai'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', 'Nizho intro');
   var st = document.createElement('style'); st.textContent = css; root.appendChild(st);
   var stage = document.createElement('div'); stage.className = 's'; stage.innerHTML = html; root.appendChild(stage);
   var skip = document.createElement('button'); skip.className = 'skip'; skip.type = 'button'; skip.textContent = 'Skip intro (Esc)'; root.appendChild(skip);
@@ -308,12 +308,12 @@ function launch() {
       K.win.style.opacity = eo(Math.min(1, win * 1.5));
       var sidew = dash ? eo(seg(t, 21.0, 21.8)) * 236 : 0;
       K.side.style.width = sidew + 'px';
-      K.wt.textContent = dash ? 'Privacy Dashboard' : 'ArkaOS Setup'; K.wstep.textContent = dash ? '' : 'Step 5 of 5';
+      K.wt.textContent = dash ? 'Privacy Dashboard' : 'Nizho Setup'; K.wstep.textContent = dash ? '' : 'Step 5 of 5';
       K.ptitle.textContent = dash ? 'Privacy' : 'Your privacy settings';
-      K.psub.textContent = dash ? "What ArkaOS has set up on this computer. Covers only what's listed here." : "ArkaOS sets these up on its own. Here's how they stand right now.";
+      K.psub.textContent = dash ? "What Nizho has set up on this computer. Covers only what's listed here." : "Nizho sets these up on its own. Here's how they stand right now.";
       rowsAt(t, 15.5, .3, dash);
       var noteP = seg(t, 18.0, 18.5);
-      if (!dash) { K.pnote.textContent = "Checked just now. This shows what ArkaOS has set up, and covers only what's listed here."; K.pnote.style.opacity = eo(noteP); }
+      if (!dash) { K.pnote.textContent = "Checked just now. This shows what Nizho has set up, and covers only what's listed here."; K.pnote.style.opacity = eo(noteP); }
       else { var secs = Math.round(44 * seg(t, 21.8, 24.2)); K.pnote.textContent = 'Checked ' + secs + ' s ago.'; K.pnote.style.opacity = 1; }
       var outw = seg(t, 24.75, 25.1); K.win.style.opacity *= 1 - outw;
       /* headline */
@@ -425,7 +425,7 @@ function launch() {
   skip.addEventListener('click', finish);
   K.pill.addEventListener('click', function () { finish(); });
   addEventListener('keydown', onKey);
-  window.ArkaIntro = { seek: function (t) { now = t; render(t); }, duration: DUR, skip: finish };
+  window.NizhoIntro = { seek: function (t) { now = t; render(t); }, duration: DUR, skip: finish };
   render(0);
   if (mode !== 'seek') {
     var imgs = [].slice.call(stage.querySelectorAll('img')), go = false;

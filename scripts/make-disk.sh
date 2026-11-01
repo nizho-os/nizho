@@ -1,5 +1,5 @@
 #!/bin/bash
-# make-disk.sh — install localhost/arkaos:dev into a raw disk image.
+# make-disk.sh — install localhost/nizho:dev into a raw disk image.
 #
 #   scripts/make-disk.sh OUT.raw [SIZE] [--serial]
 #
@@ -11,7 +11,7 @@
 # VM debugging image.
 #
 # The installed system takes its updates from the signed public image
-# (ghcr.io/thulasiramk-2310/arka:latest), not from this machine's local tag.
+# (ghcr.io/nizho-os/nizho:latest), not from this machine's local tag.
 set -euo pipefail
 
 OUT=${1:?usage: $0 OUT.raw [SIZE] [--serial]}
@@ -39,8 +39,8 @@ mdir="/var$dir"
 podman machine ssh podman-machine-default \
     "podman run --rm --privileged --pid=host --security-opt label=type:unconfined_t \
        -v /var/lib/containers:/var/lib/containers -v /dev:/dev -v '$mdir':/output \
-       localhost/arkaos:dev bootc install to-disk --via-loopback --generic-image \
-       --target-imgref ghcr.io/thulasiramk-2310/arka:latest \
+       localhost/nizho:dev bootc install to-disk --via-loopback --generic-image \
+       --target-imgref ghcr.io/nizho-os/nizho:latest \
        --filesystem xfs ${KARGS[*]} '/output/$file'"
 echo "make-disk: wrote $out_abs ($( [ -n "$SERIAL" ] && echo 'with' || echo 'without') serial console)"
 cat <<EOF

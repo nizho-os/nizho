@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ArkaOS Documentation — Developer Preview</title>
-<meta name="description" content="ArkaOS documentation — what runs today, what's being validated, and what does not exist yet.">
+<title>Nizho Documentation — Developer Preview</title>
+<meta name="description" content="Nizho documentation — what runs today, what's being validated, and what does not exist yet.">
 <style>
   html { scroll-behavior: smooth; }
   body { margin: 0; background: #06070C; color: #EEF1F6; font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -28,15 +28,15 @@
     <nav aria-label="Primary" style="max-width:1280px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
       <a href="../" style="display:flex;align-items:center;gap:10px;color:#EEF1F6">
         <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 22 21H2L12 2.5Z" fill="none" stroke="#16C784" stroke-width="1.6"/><path d="M12 10.5 16.8 19H7.2L12 10.5Z" fill="#16C784"/></svg>
-        <span style="font-size:15px;font-weight:600">ArkaOS</span>
+        <span style="font-size:15px;font-weight:600">Nizho</span>
       </a>
       <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8B93A3;border-left:1px solid #1C2230;padding-left:16px">docs</span>
       <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:#EAB94A;border:1px solid rgba(234,185,74,.35);border-radius:4px;padding:5px 9px">DEVELOPER PREVIEW</span>
       <div style="display:flex;gap:20px;margin-left:auto;font-size:13.5px;align-items:center;flex-wrap:wrap">
         <a class="nl" href="../#architecture" style="color:#8B93A3">Architecture</a>
         <a class="nl" href="../#status" style="color:#8B93A3">Status</a>
-        <a class="nl" href="https://github.com/thulasiramk-2310/Arka" rel="noopener" style="color:#8B93A3">GitHub</a>
-        <a class="btnp" href="../#try" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#06070C;background:#16C784;padding:9px 16px;border-radius:6px;font-weight:700;white-space:nowrap">Try ArkaOS</a>
+        <a class="nl" href="https://github.com/nizho-os/nizho" rel="noopener" style="color:#8B93A3">GitHub</a>
+        <a class="btnp" href="../#try" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#06070C;background:#16C784;padding:9px 16px;border-radius:6px;font-weight:700;white-space:nowrap">Try Nizho</a>
       </div>
     </nav>
   </header>
@@ -51,8 +51,8 @@
       <div style="display:flex;flex-direction:column;gap:10px;border-top:1px solid #1C2230;padding-top:22px">
         <p style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;color:#8B93A3">REFERENCE</p>
         <ul style="display:flex;flex-direction:column;gap:9px;font-size:13.5px">
-          <li><a class="nl" href="#arkad" style="color:#8B93A3">arkad reference</a></li>
-          <li><a class="nl" href="#pulse" style="color:#8B93A3">arka-pulse reference</a></li>
+          <li><a class="nl" href="#nizhod" style="color:#8B93A3">nizhod reference</a></li>
+          <li><a class="nl" href="#pulse" style="color:#8B93A3">nizho-pulse reference</a></li>
           <li><a class="nl" href="#updates" style="color:#8B93A3">Updates &amp; rollback</a></li>
           <li><a class="nl" href="#faq" style="color:#8B93A3">FAQ</a></li>
         </ul>
@@ -63,7 +63,7 @@
     <main style="padding:44px 0 96px;min-width:0;max-width:78ch">
 
       <p style="font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:.16em;color:#8B93A3">DOCUMENTATION</p>
-      <h1 style="margin-top:14px;font-size:clamp(32px,4.4vw,46px);font-weight:700;letter-spacing:-.025em;line-height:1.08">ArkaOS, documented as it actually is.</h1>
+      <h1 style="margin-top:14px;font-size:clamp(32px,4.4vw,46px);font-weight:700;letter-spacing:-.025em;line-height:1.08">Nizho, documented as it actually is.</h1>
       <p style="margin-top:18px;font-size:17px;line-height:1.65;color:#8B93A3;text-wrap:pretty">This is a Developer Preview. These pages describe what runs today, what we are still validating, and what does not exist yet. Where a claim cannot be demonstrated, it is labelled rather than softened.</p>
       <div style="margin-top:24px;display:flex;gap:10px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px">
         <span style="border:1px solid rgba(22,199,132,.4);color:#16C784;border-radius:4px;padding:6px 10px">● CONFIGURED</span>
@@ -71,25 +71,25 @@
         <span style="border:1px solid #2A3244;color:#8B93A3;border-radius:4px;padding:6px 10px">○ NOT YET</span>
       </div>
 
-      <section id="what-is-arkaos" style="margin-top:64px;border-top:1px solid #1C2230;padding-top:36px">
+      <section id="what-is-nizho" style="margin-top:64px;border-top:1px solid #1C2230;padding-top:36px">
         <p style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;color:#16C784">01</p>
-        <h2 style="margin-top:12px;font-size:30px;font-weight:700;letter-spacing:-.02em">What is ArkaOS?</h2>
-        <p style="margin-top:18px;font-size:16px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">ArkaOS is an independent Linux desktop built on the Fedora bootc immutable image foundation. System image files are read-only at runtime. Updates are staged atomically and a retained deployment can be selected for rollback; this does not guarantee a successful boot or restore personal files. On top of that foundation it adds two system services of its own — <code style="color:#16C784">arkad</code> for privacy enforcement and <code style="color:#54D6C6">arka-pulse</code> for reliability monitoring — and ships a KDE Plasma desktop.</p>
+        <h2 style="margin-top:12px;font-size:30px;font-weight:700;letter-spacing:-.02em">What is Nizho?</h2>
+        <p style="margin-top:18px;font-size:16px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">Nizho is an independent Linux desktop built on the Fedora bootc immutable image foundation. System image files are read-only at runtime. Updates are staged atomically and a retained deployment can be selected for rollback; this does not guarantee a successful boot or restore personal files. On top of that foundation it adds two system services of its own — <code style="color:#16C784">nizhod</code> for privacy enforcement and <code style="color:#54D6C6">nizho-pulse</code> for reliability monitoring — and ships a KDE Plasma desktop.</p>
         <p style="margin-top:16px;font-size:16px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">The premise is narrow on purpose. Privacy settings that a careful user would configure by hand are applied by default and re-checked while the system runs. The system can describe its own state, and it can be returned to a known-good one.</p>
 
         <div style="margin-top:28px;background:#0E1119;border:1px solid #1C2230;border-left:2px solid #16C784;border-radius:10px;padding:24px">
           <p style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;color:#16C784">WHY NOT JUST FEDORA KDE?</p>
-          <pre style="margin-top:14px;font-size:12.5px;line-height:1.9;color:#EEF1F6;white-space:pre-wrap">ArkaOS
+          <pre style="margin-top:14px;font-size:12.5px;line-height:1.9;color:#EEF1F6;white-space:pre-wrap">Nizho
 = proven Linux foundation
 + opinionated privacy enforcement
 + reliability layer
 + recoverable system
-+ Arka-specific desktop experience
++ Nizho-specific desktop experience
 + transparent verification</pre>
-          <p style="margin-top:14px;font-size:14.5px;line-height:1.65;color:#8B93A3">ArkaOS packages privacy defaults and periodic checks with a desktop status surface. Settings can fail or conflict with local configuration; the project records these limits and tests each image.</p>
+          <p style="margin-top:14px;font-size:14.5px;line-height:1.65;color:#8B93A3">Nizho packages privacy defaults and periodic checks with a desktop status surface. Settings can fail or conflict with local configuration; the project records these limits and tests each image.</p>
         </div>
 
-        <h3 style="margin-top:36px;font-size:19px;font-weight:600">What ArkaOS is not</h3>
+        <h3 style="margin-top:36px;font-size:19px;font-weight:600">What Nizho is not</h3>
         <ul style="margin-top:16px;display:flex;flex-direction:column;gap:12px;font-size:15px;line-height:1.6;color:#8B93A3">
           <li style="display:flex;gap:12px"><span style="color:#8B93A3;font-family:'JetBrains Mono',monospace">○</span><span>It is not anonymity software. It does not route your traffic, and it cannot make you untrackable.</span></li>
           <li style="display:flex;gap:12px"><span style="color:#8B93A3;font-family:'JetBrains Mono',monospace">○</span><span>It is not a hardened security distribution or a replacement for threat-model-specific tooling.</span></li>
@@ -108,11 +108,11 @@
         <pre style="margin-top:16px;background:#0E1119;border:1px solid #1C2230;border-radius:9px;padding:18px;font-size:12.5px;line-height:1.8;color:#EEF1F6;overflow-x:auto">qemu-system-x86_64 \
   -enable-kvm -m 4096 -smp 4 \
   -bios /usr/share/OVMF/OVMF_CODE.fd \
-  -drive file=arkaos-preview.qcow2,if=virtio</pre>
+  -drive file=nizho-preview.qcow2,if=virtio</pre>
 
         <h3 style="margin-top:40px;font-size:19px;font-weight:600;display:flex;align-items:center;gap:10px">Boot from USB <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#EAB94A;border:1px solid rgba(234,185,74,.4);border-radius:4px;padding:4px 8px">PREVIEW TESTING</span></h3>
         <p style="margin-top:12px;font-size:15px;line-height:1.65;color:#8B93A3">For development testing only. Real-hardware testing has begun, but the set of validated machines is small. Wi-Fi firmware, discrete GPUs, suspend/resume and display scaling are all known to vary. Assume you may need a wired connection and a second machine to read logs.</p>
-        <pre style="margin-top:16px;background:#0E1119;border:1px solid #1C2230;border-radius:9px;padding:18px;font-size:12.5px;line-height:1.8;color:#EEF1F6;overflow-x:auto">sudo dd if=arkaos-preview.raw of=/dev/sdX \
+        <pre style="margin-top:16px;background:#0E1119;border:1px solid #1C2230;border-radius:9px;padding:18px;font-size:12.5px;line-height:1.8;color:#EEF1F6;overflow-x:auto">sudo dd if=nizho-preview.raw of=/dev/sdX \
   bs=4M status=progress conv=fsync &amp;&amp;
   sudo sgdisk -e /dev/sdX &amp;&amp;
   sudo sgdisk -v /dev/sdX &amp;&amp; sync</pre>
@@ -120,14 +120,14 @@
 
         <h3 style="margin-top:40px;font-size:19px;font-weight:600;display:flex;align-items:center;gap:10px">Build from source <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#54D6C6;border:1px solid rgba(84,214,198,.4);border-radius:4px;padding:4px 8px">CONTRIBUTORS</span></h3>
         <p style="margin-top:12px;font-size:15px;line-height:1.65;color:#8B93A3">The image is a container build. The build recipe and resulting image can be inspected; building locally also lets you test source changes.</p>
-        <pre style="margin-top:16px;background:#0E1119;border:1px solid #1C2230;border-radius:9px;padding:18px;font-size:12.5px;line-height:1.8;color:#EEF1F6;overflow-x:auto">git clone https://github.com/thulasiramk-2310/Arka
-cd Arka
-podman build -t arkaos:dev .
-bootc-image-builder --type qcow2 arkaos:dev</pre>
+        <pre style="margin-top:16px;background:#0E1119;border:1px solid #1C2230;border-radius:9px;padding:18px;font-size:12.5px;line-height:1.8;color:#EEF1F6;overflow-x:auto">git clone https://github.com/nizho-os/nizho
+cd Nizho
+podman build -t nizho:dev .
+bootc-image-builder --type qcow2 nizho:dev</pre>
 
         <div style="margin-top:32px;background:#0E1119;border:1px solid #1C2230;border-radius:10px;padding:22px">
           <p style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;color:#54D6C6">FIRST RUN</p>
-          <p style="margin-top:12px;font-size:14.5px;line-height:1.65;color:#8B93A3">A graphical first-run setup is being developed and validated. In the current preview, expect to confirm some settings from a terminal. <code style="color:#EEF1F6">arkad</code> attempts to apply privacy settings during startup; check its current status for failures.</p>
+          <p style="margin-top:12px;font-size:14.5px;line-height:1.65;color:#8B93A3">A graphical first-run setup is being developed and validated. In the current preview, expect to confirm some settings from a terminal. <code style="color:#EEF1F6">nizhod</code> attempts to apply privacy settings during startup; check its current status for failures.</p>
         </div>
       </section>
 
@@ -142,22 +142,22 @@ bootc-image-builder --type qcow2 arkaos:dev</pre>
           </div>
           <div id="proofRows"></div>
         </div>
-        <p style="margin-top:22px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#8B93A3;line-height:1.8">ArkaOS reduces what your local machine leaks by default.<br>It does not make you anonymous, untrackable, or immune to attack.</p>
+        <p style="margin-top:22px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#8B93A3;line-height:1.8">Nizho reduces what your local machine leaks by default.<br>It does not make you anonymous, untrackable, or immune to attack.</p>
       </section>
 
       <section id="how-it-works" style="margin-top:72px;border-top:1px solid #1C2230;padding-top:36px">
         <p style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;color:#16C784">04</p>
-        <h2 style="margin-top:12px;font-size:30px;font-weight:700;letter-spacing:-.02em">How ArkaOS works</h2>
-        <p style="margin-top:18px;font-size:16px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">Seven layers. The lower five are upstream Linux infrastructure; ArkaOS owns the two in the middle and the experience above them.</p>
+        <h2 style="margin-top:12px;font-size:30px;font-weight:700;letter-spacing:-.02em">How Nizho works</h2>
+        <p style="margin-top:18px;font-size:16px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">Seven layers. The lower five are upstream Linux infrastructure; Nizho owns the two in the middle and the experience above them.</p>
 
         <figure style="margin:28px 0 0;background:#0E1119;border:1px solid #1C2230;border-radius:12px;padding:26px">
           <pre style="font-size:12.5px;line-height:2;color:#C6CCD8;overflow-x:auto;margin:0">You
  ↓
-<span style="color:#16C784">ArkaOS Desktop</span>          KDE Plasma session
+<span style="color:#16C784">Nizho Desktop</span>          KDE Plasma session
  ↓
 <span style="color:#16C784">Applications + Sandbox</span>  Firefox · bubblewrap
  ↓
-<span style="color:#54D6C6">arkad + arka-pulse</span>     the Arka layer
+<span style="color:#54D6C6">nizhod + nizho-pulse</span>     the Nizho layer
  ↓
 <span style="color:#EAB94A">Fedora bootc + composefs</span>  read-only root
  ↓
@@ -167,10 +167,10 @@ Hardware                x86_64 · UEFI</pre>
           <figcaption style="margin-top:16px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#8B93A3">The interactive version of this stack lives on the <a href="../#architecture">homepage</a>.</figcaption>
         </figure>
 
-        <h3 id="arkad" style="margin-top:44px;font-size:21px;font-weight:600;color:#16C784">arkad · privacy daemon</h3>
-        <p style="margin-top:14px;font-size:15.5px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">A system service that applies a fixed privacy state at boot and re-checks it while the machine runs. If something resets a setting, arkad puts it back and records that it did.</p>
-        <pre style="margin-top:18px;background:#0E1119;border:1px solid #1C2230;border-radius:9px;padding:18px;font-size:12.5px;line-height:1.9;color:#EEF1F6;overflow-x:auto">$ arkactl status
-arkad                  enforcing
+        <h3 id="nizhod" style="margin-top:44px;font-size:21px;font-weight:600;color:#16C784">nizhod · privacy daemon</h3>
+        <p style="margin-top:14px;font-size:15.5px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">A system service that applies a fixed privacy state at boot and re-checks it while the machine runs. If something resets a setting, nizhod puts it back and records that it did.</p>
+        <pre style="margin-top:18px;background:#0E1119;border:1px solid #1C2230;border-radius:9px;padding:18px;font-size:12.5px;line-height:1.9;color:#EEF1F6;overflow-x:auto">$ nizhoctl status
+nizhod                  enforcing
 mac-address            randomized
 dns                    dot · 9.9.9.9 (quad9)
 hostname               masked
@@ -179,18 +179,18 @@ browser-sandbox        bubblewrap · firefox
 last re-check          14s ago</pre>
         <p style="margin-top:14px;font-size:14.5px;line-height:1.65;color:#8B93A3">What this does not do: it does not hide your IP address from sites you visit, and DNS-over-TLS moves your resolution to Quad9 rather than making it unobservable.</p>
 
-        <h3 id="pulse" style="margin-top:44px;font-size:21px;font-weight:600;color:#54D6C6">arka-pulse · reliability layer</h3>
+        <h3 id="pulse" style="margin-top:44px;font-size:21px;font-weight:600;color:#54D6C6">nizho-pulse · reliability layer</h3>
         <p style="margin-top:14px;font-size:15.5px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">Local reliability monitoring and prediction. Currently focused on telemetry, detection, prediction and verification; recovery actions remain constrained and experimental. Nothing is sent off the device.</p>
         <ul style="margin-top:18px;display:flex;flex-direction:column;gap:12px;font-size:15px;line-height:1.6;color:#8B93A3">
           <li style="display:flex;gap:12px"><span style="color:#16C784;font-family:'JetBrains Mono',monospace">●</span><span><strong style="color:#EEF1F6;font-weight:600">Telemetry</strong> — disk, memory, thermals, service failures, journal patterns, collected locally.</span></li>
           <li style="display:flex;gap:12px"><span style="color:#16C784;font-family:'JetBrains Mono',monospace">●</span><span><strong style="color:#EEF1F6;font-weight:600">Detection</strong> — degradation surfaced with the signal that triggered it.</span></li>
           <li style="display:flex;gap:12px"><span style="color:#54D6C6;font-family:'JetBrains Mono',monospace">◐</span><span><strong style="color:#EEF1F6;font-weight:600">Prediction</strong> — early warning ahead of failure. Thresholds are still being calibrated.</span></li>
           <li style="display:flex;gap:12px"><span style="color:#54D6C6;font-family:'JetBrains Mono',monospace">◐</span><span><strong style="color:#EEF1F6;font-weight:600">Verification</strong> — confirming the system is in the state it reports.</span></li>
-          <li style="display:flex;gap:12px"><span style="color:#8B93A3;font-family:'JetBrains Mono',monospace">○</span><span><strong style="color:#8B93A3;font-weight:600">Autonomous recovery</strong> — not shipped. arka-pulse recommends; you decide.</span></li>
+          <li style="display:flex;gap:12px"><span style="color:#8B93A3;font-family:'JetBrains Mono',monospace">○</span><span><strong style="color:#8B93A3;font-weight:600">Autonomous recovery</strong> — not shipped. nizho-pulse recommends; you decide.</span></li>
         </ul>
 
         <h3 id="updates" style="margin-top:44px;font-size:21px;font-weight:600;color:#EAB94A">Updates &amp; rollback</h3>
-        <p style="margin-top:14px;font-size:15.5px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">The OS is delivered as a container-native image. An update fetches a new image and stages it for the next boot; updates never restart the computer on their own. After you restart into it, greenboot runs start-up checks. If they fail, or the new version fails before the desktop starts (a kernel panic or an early-boot error), the computer restarts, and after three failed boots it goes back to the previous version by itself. ArkaOS adds two fixes to greenboot 0.16.4: upstream never recorded which version to go back to, because the unit that records it was not stopped at shutdown; and GRUB's boot counter is armed as soon as an update is staged, so an early failure restarts and falls back instead of waiting at a recovery screen. Tested in a VM on 11 October 2026: a deliberately broken update went back after three failed boots with nobody touching the computer, an update that could not start went back within about 30 seconds, a healthy update stayed installed across restarts, an update that failed to apply at shutdown left the current version in place instead of rolling it back, bootc rollback still went back by hand, and the test files in /home and /var were unchanged. This was tested in a VM, not on real hardware.</p>
+        <p style="margin-top:14px;font-size:15.5px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">The OS is delivered as a container-native image. An update fetches a new image and stages it for the next boot; updates never restart the computer on their own. After you restart into it, greenboot runs start-up checks. If they fail, or the new version fails before the desktop starts (a kernel panic or an early-boot error), the computer restarts, and after three failed boots it goes back to the previous version by itself. Nizho adds two fixes to greenboot 0.16.4: upstream never recorded which version to go back to, because the unit that records it was not stopped at shutdown; and GRUB's boot counter is armed as soon as an update is staged, so an early failure restarts and falls back instead of waiting at a recovery screen. Tested in a VM on 11 October 2026: a deliberately broken update went back after three failed boots with nobody touching the computer, an update that could not start went back within about 30 seconds, a healthy update stayed installed across restarts, an update that failed to apply at shutdown left the current version in place instead of rolling it back, bootc rollback still went back by hand, and the test files in /home and /var were unchanged. This was tested in a VM, not on real hardware.</p>
         <pre style="margin-top:18px;background:#0E1119;border:1px solid #1C2230;border-radius:9px;padding:18px;font-size:12.5px;line-height:1.9;color:#EEF1F6;overflow-x:auto">$ bootc upgrade          # stage the next image
 $ systemctl reboot       # boot into it
 $ bootc rollback         # go back to the previous version at the next boot</pre>
@@ -199,7 +199,7 @@ $ bootc rollback         # go back to the previous version at the next boot</pre
       <section id="status" style="margin-top:72px;border-top:1px solid #1C2230;padding-top:36px">
         <p style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;color:#16C784">05</p>
         <h2 style="margin-top:12px;font-size:30px;font-weight:700;letter-spacing:-.02em">Project status</h2>
-        <p style="margin-top:18px;font-size:16px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">ArkaOS is in Developer Preview. It is suitable for a VM, for reading, and for contributing. It is not suitable as your only machine.</p>
+        <p style="margin-top:18px;font-size:16px;line-height:1.7;color:#C6CCD8;text-wrap:pretty">Nizho is in Developer Preview. It is suitable for a VM, for reading, and for contributing. It is not suitable as your only machine.</p>
         <div id="statusCols" style="margin-top:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px"></div>
       </section>
 
@@ -215,7 +215,7 @@ $ bootc rollback         # go back to the previous version at the next boot</pre
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <a class="btnp" href="#getting-started" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#06070C;background:#16C784;padding:11px 18px;border-radius:6px;font-weight:700">Getting started →</a>
-          <a class="btng" href="../" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#EEF1F6;border:1px solid #1C2230;padding:11px 18px;border-radius:6px">Back to arkaos home</a>
+          <a class="btng" href="../" style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#EEF1F6;border:1px solid #1C2230;padding:11px 18px;border-radius:6px">Back to nizho home</a>
         </div>
       </div>
     </main>
@@ -223,11 +223,11 @@ $ bootc rollback         # go back to the previous version at the next boot</pre
 
   <footer style="border-top:1px solid #1C2230;background:#080A11">
     <div style="max-width:1280px;margin:0 auto;padding:40px 24px;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;align-items:center">
-      <p style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8B93A3;line-height:1.7">ArkaOS · Developer Preview documentation<br>Not affiliated with Fedora or the KDE project.</p>
+      <p style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8B93A3;line-height:1.7">Nizho · Developer Preview documentation<br>Not affiliated with Fedora or the KDE project.</p>
       <div style="display:flex;gap:22px;font-size:13.5px">
         <a class="nl" href="../" style="color:#EEF1F6">Home</a>
         <a class="nl" href="../#prove" style="color:#EEF1F6">What we prove</a>
-        <a class="nl" href="https://github.com/thulasiramk-2310/Arka" rel="noopener" style="color:#EEF1F6">GitHub</a>
+        <a class="nl" href="https://github.com/nizho-os/nizho" rel="noopener" style="color:#EEF1F6">GitHub</a>
       </div>
     </div>
   </footer>
@@ -239,10 +239,10 @@ $ bootc rollback         # go back to the previous version at the next boot</pre
 
   // ── sidebar nav + scroll-spy ──
   var NAV = [
-    { label: "What is ArkaOS?", href: "#what-is-arkaos" },
+    { label: "What is Nizho?", href: "#what-is-nizho" },
     { label: "Getting Started", href: "#getting-started" },
     { label: "What We Prove / Don't", href: "#prove" },
-    { label: "How ArkaOS Works", href: "#how-it-works" },
+    { label: "How Nizho Works", href: "#how-it-works" },
     { label: "Project Status", href: "#status" }
   ];
   var navEl = document.getElementById("docNav");
@@ -264,7 +264,7 @@ $ bootc rollback         # go back to the previous version at the next boot</pre
       a.style.borderLeftColor = on ? "#16C784" : "transparent";
     });
   }
-  setActive("#what-is-arkaos");
+  setActive("#what-is-nizho");
   if (window.IntersectionObserver) {
     var ids = NAV.map(function (n) { return n.href.slice(1); });
     var els = ids.map(function (id) { return document.getElementById(id); }).filter(Boolean);
@@ -291,7 +291,7 @@ $ bootc rollback         # go back to the previous version at the next boot</pre
     { mech: "Firefox in bubblewrap", note: "A real containment boundary with a restricted filesystem view. Not complete isolation.", tag: "configured" },
     { mech: "Read-only runtime root", note: "System image files are read-only at runtime. Writable state remains; composefs alone does not establish verified boot.", tag: "configured" },
     { mech: "Atomic update + rollback", note: "Updates are staged and wait for a restart. In a VM test on 11 October 2026 a broken update went back to the previous version on its own after three failed boots, an update that could not start went back too, and a healthy update stayed. On 12 October 2026 a broken update and a healthy update were also tried on one real laptop with the same results; an update that fails before the system starts has not been tried on hardware. Personal files are not rolled back.", tag: "experimental" },
-    { mech: "arka-pulse prediction", note: "Early warning models and thresholds are still being calibrated against real failures.", tag: "experimental" },
+    { mech: "nizho-pulse prediction", note: "Early warning models and thresholds are still being calibrated against real failures.", tag: "experimental" },
     { mech: "Bare-metal hardware support", note: "Testing has begun on a small set of machines. Wi-Fi, GPU and suspend vary.", tag: "experimental" },
     { mech: "Graphical first-run setup", note: "Being developed and validated. Expect terminal steps in the current preview.", tag: "experimental" },
     { mech: "Full-disk encryption by default", note: "The installer ISO encrypts the disk (LUKS2) by default; tested in a VM on 12 October 2026. The VM and USB disk images are not encrypted.", tag: "experimental" },
@@ -312,9 +312,9 @@ $ bootc rollback         # go back to the previous version at the next boot</pre
 
   // ── status columns ──
   var STATUS = [
-    { head: "WORKS TODAY", color: "#16C784", items: ["Immutable bootc image, read-only root", "Atomic updates (previous image kept on disk)", "KDE Plasma session", "arkad privacy enforcement", "Firefox in a bubblewrap sandbox", "arka-pulse telemetry and detection"] },
+    { head: "WORKS TODAY", color: "#16C784", items: ["Immutable bootc image, read-only root", "Atomic updates (previous image kept on disk)", "KDE Plasma session", "nizhod privacy enforcement", "Firefox in a bubblewrap sandbox", "nizho-pulse telemetry and detection"] },
     { head: "BEING VALIDATED", color: "#54D6C6", items: ["Broader bare-metal validation", "Reliability calibration", "Display and scaling refinement", "Graphical first-run UX", "Additional privacy UX"] },
-    { head: "PLANNED NEXT", color: "#2A3244", accent: "#8B93A3", items: ["Publishing the installer", "Unlocking with the TPM", "Stronger measured-boot coverage", "Installer evolution", "ArkaWM exploration", "Agentic system interfaces (research)"] }
+    { head: "PLANNED NEXT", color: "#2A3244", accent: "#8B93A3", items: ["Publishing the installer", "Unlocking with the TPM", "Stronger measured-boot coverage", "Installer evolution", "NizhoWM exploration", "Agentic system interfaces (research)"] }
   ];
   var sc = document.getElementById("statusCols");
   STATUS.forEach(function (c) {
@@ -328,12 +328,12 @@ $ bootc rollback         # go back to the previous version at the next boot</pre
 
   // ── FAQ accordion ──
   var FAQS = [
-    { q: "Does ArkaOS make me anonymous?", a: "No. It reduces what your machine leaks by default — randomized MAC address, masked hostname, encrypted DNS, IPv6 privacy addresses. Your IP address is still visible to the sites you visit, and nothing here is a substitute for anonymity tooling." },
+    { q: "Does Nizho make me anonymous?", a: "No. It reduces what your machine leaks by default — randomized MAC address, masked hostname, encrypted DNS, IPv6 privacy addresses. Your IP address is still visible to the sites you visit, and nothing here is a substitute for anonymity tooling." },
     { q: "Can I use it as my daily driver?", a: "Not yet. This is a Developer Preview: the installer is new and only tested in a VM, and hardware support is still being validated. Run it in a VM, or on a machine you can afford to reinstall." },
-    { q: "What happens if an update breaks my system?", a: "Updates are atomic — a new image is staged and booted rather than applied in place — and the image you came from stays on disk. After you restart into a new version, start-up checks run. If they fail, or the new version does not start at all, ArkaOS restarts to try again and, after three failed boots, goes back to the previous version by itself. You can also go back yourself with sudo bootc rollback and a restart. In a VM test on 11 October 2026, a deliberately broken update was rolled back without anyone touching it, a healthy update stayed, and the test files in /home and /var were unchanged. The same two cases also ran on one real laptop on 12 October 2026; an update that fails before the system starts has not been tried on hardware." },
-    { q: "Is arka-pulse self-healing?", a: "No. It collects local telemetry, detects degradation, and is being validated for prediction and verification. Recovery actions are constrained and experimental. It recommends; you act." },
-    { q: "Why Fedora bootc instead of building your own base?", a: "Because the parts underneath already work. Kernel, drivers, composefs, systemd and KDE Plasma come from upstream, and ArkaOS spends its effort on the privacy and reliability layers above them." },
-    { q: "Is my data sent anywhere?", a: "arka-pulse telemetry stays on the device. ArkaOS has no account system and collects no usage analytics. DNS queries go to Quad9 over TLS, which means Quad9 sees your resolution requests instead of your ISP." }
+    { q: "What happens if an update breaks my system?", a: "Updates are atomic — a new image is staged and booted rather than applied in place — and the image you came from stays on disk. After you restart into a new version, start-up checks run. If they fail, or the new version does not start at all, Nizho restarts to try again and, after three failed boots, goes back to the previous version by itself. You can also go back yourself with sudo bootc rollback and a restart. In a VM test on 11 October 2026, a deliberately broken update was rolled back without anyone touching it, a healthy update stayed, and the test files in /home and /var were unchanged. The same two cases also ran on one real laptop on 12 October 2026; an update that fails before the system starts has not been tried on hardware." },
+    { q: "Is nizho-pulse self-healing?", a: "No. It collects local telemetry, detects degradation, and is being validated for prediction and verification. Recovery actions are constrained and experimental. It recommends; you act." },
+    { q: "Why Fedora bootc instead of building your own base?", a: "Because the parts underneath already work. Kernel, drivers, composefs, systemd and KDE Plasma come from upstream, and Nizho spends its effort on the privacy and reliability layers above them." },
+    { q: "Is my data sent anywhere?", a: "nizho-pulse telemetry stays on the device. Nizho has no account system and collects no usage analytics. DNS queries go to Quad9 over TLS, which means Quad9 sees your resolution requests instead of your ISP." }
   ];
   var faqList = document.getElementById("faqList");
   FAQS.forEach(function (f) {
