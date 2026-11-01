@@ -10,7 +10,7 @@
 // second setup.
 //
 // NIZHO_OOBE_PREVIEW=<page> opens it windowed at a page for design review
-// (hello, look, accent, name, password, computer, zone, signin, privacy, wheel, working, bye) and never
+// (hello, look, accent, name, password, computer, zone, language, signin, privacy, wheel, working, bye) and never
 // creates an account or reboots. Setup opens in the dark look so the first
 // screens are not a full-brightness white panel in a dim room (reported on real
 // hardware); NIZHO_OOBE_THEME=light previews the light look.
@@ -51,7 +51,7 @@ fn main() {
 // ("vara", "git" or "vara,git") plus the name and email for commits. `zone` is the time
 // zone the user picked, a tz database name such as Europe/Berlin. `accent` is "green" or "blue".
 fn create_account(user: &str, pass: &str, autologin: bool, dark: bool, host: &str,
-                  dev: Option<(String, String, String)>, zone: &str, accent: &str) -> Result<(), String> {
+                  dev: Option<(String, String, String)>, zone: &str, accent: &str, locale: &str, keyboard: &str) -> Result<(), String> {
     use std::io::Write;
     let mut args = vec![
         "-n".to_string(),
@@ -69,6 +69,8 @@ fn create_account(user: &str, pass: &str, autologin: bool, dark: bool, host: &st
     }
     args.push(zone.to_string());
     args.push(accent.to_string());
+    args.push(locale.to_string());
+    args.push(keyboard.to_string());
     let mut child = std::process::Command::new("sudo")
         .args(&args)
         .stdin(std::process::Stdio::piped())
@@ -211,6 +213,63 @@ async fn read_privacy() -> Option<Privacy> {
 // Editorial and quiet: flat canvas, serif headings, one solid action colour.
 // No cards, gradients, glows or blurred shapes. Every colour used is set here
 // (both looks), so nothing from the host theme can leak through.
+/// The languages the setup offers, as (name in that language, locale, keyboard layout to suggest).
+/// Indian languages suggest the US layout: the "in" layout types Devanagari unless a variant is chosen,
+/// and variants can be added in Settings.
+const LANGUAGES: &[(&str, &str, &str)] = &[
+    ("English (United States)", "en_US.UTF-8", "us"),
+    ("English (United Kingdom)", "en_GB.UTF-8", "gb"),
+    ("English (India)", "en_IN.UTF-8", "us"),
+    ("தமிழ் (Tamil)", "ta_IN.UTF-8", "us"),
+    ("हिन्दी (Hindi)", "hi_IN.UTF-8", "us"),
+    ("Deutsch (German)", "de_DE.UTF-8", "de"),
+    ("Français (French)", "fr_FR.UTF-8", "fr"),
+    ("Español (Spanish)", "es_ES.UTF-8", "es"),
+    ("Português (Brasil)", "pt_BR.UTF-8", "br"),
+    ("Italiano (Italian)", "it_IT.UTF-8", "it"),
+    ("Nederlands (Dutch)", "nl_NL.UTF-8", "nl"),
+    ("Polski (Polish)", "pl_PL.UTF-8", "pl"),
+    ("Русский (Russian)", "ru_RU.UTF-8", "ru"),
+    ("日本語 (Japanese)", "ja_JP.UTF-8", "jp"),
+    ("한국어 (Korean)", "ko_KR.UTF-8", "kr"),
+    ("简体中文 (Chinese)", "zh_CN.UTF-8", "cn"),
+];
+
+/// A locale as the helper accepts it: `ta_IN.UTF-8`.
+fn valid_locale(l: &str) -> bool {
+    let Some((lc, rest)) = l.split_once('_') else { return false };
+    let Some((cc, enc)) = rest.split_once('.') else { return false };
+    (2..=3).contains(&lc.len()) && lc.bytes().all(|b| b.is_ascii_lowercase())
+        && cc.len() == 2 && cc.bytes().all(|b| b.is_ascii_uppercase()) && enc == "UTF-8"
+}
+
+/// A keyboard layout code as the helper accepts it: two to eight lower-case letters.
+fn valid_layout(k: &str) -> bool {
+    (2..=8).contains(&k.len()) && k.bytes().all(|b| b.is_ascii_lowercase())
+}
+
+/// The layouts in the system's own list (the `! layout` section of evdev.lst), as (code, name), sorted by name.
+fn parse_layouts(lst: &str) -> Vec<(String, String)> {
+    let mut on = false;
+    let mut out = Vec::new();
+    for line in lst.lines() {
+        if let Some(h) = line.strip_prefix("! ") { on = h.trim() == "layout"; continue; }
+        if !on { continue; }
+        let t = line.trim();
+        if let Some((code, name)) = t.split_once(char::is_whitespace) {
+            if valid_layout(code) { out.push((code.to_string(), name.trim().to_string())); }
+        }
+    }
+    out.sort_by(|a, b| a.1.cmp(&b.1));
+    out
+}
+
+fn load_layouts() -> Vec<(String, String)> {
+    let mut l = parse_layouts(&std::fs::read_to_string("/usr/share/X11/xkb/rules/evdev.lst").unwrap_or_default());
+    if l.is_empty() { l.push(("us".to_string(), "English (US)".to_string())); }
+    l
+}
+
 fn css(dark: bool) -> String {
     let (bg, fg, muted, faint, line, hover, pfg, phover, off) = if dark {
         ("#101114", "#f1f1f1", "#a6a6a6", "#8c8c8c", "#3b3e45", "#1c1e22", "#101114", "#d6d6d6", "#3b3e45")
@@ -853,6 +912,49 @@ fn build_ui(app: &adw::Application) {
         Some("zone"),
     );
 
+    // language and keyboard: both the user's own choice from lists on this computer. Nothing is looked up.
+    // Picking a language suggests a keyboard layout; the keyboard can still be changed on its own.
+    let lang_labels: Vec<&str> = LANGUAGES.iter().map(|l| l.0).collect();
+    let lang_drop = gtk4::DropDown::from_strings(&lang_labels);
+    lang_drop.add_css_class("oobe-field");
+    let layouts = Rc::new(load_layouts());
+    let layout_labels: Vec<String> = layouts.iter().map(|(c, n)| format!("{n} ({c})")).collect();
+    let layout_refs: Vec<&str> = layout_labels.iter().map(|s| s.as_str()).collect();
+    let kb_drop = gtk4::DropDown::from_strings(&layout_refs);
+    kb_drop.set_enable_search(true);
+    kb_drop.set_search_match_mode(gtk4::StringFilterMatchMode::Substring);
+    kb_drop.set_expression(Some(gtk4::PropertyExpression::new(
+        gtk4::StringObject::static_type(), None::<gtk4::Expression>, "string")));
+    kb_drop.add_css_class("oobe-field");
+    let pick_layout: Rc<dyn Fn(&str)> = {
+        let (kb_drop, layouts) = (kb_drop.clone(), layouts.clone());
+        Rc::new(move |code: &str| if let Some(i) = layouts.iter().position(|(c, _)| c == code) { kb_drop.set_selected(i as u32); })
+    };
+    pick_layout("us");
+    {
+        let pick = pick_layout.clone();
+        lang_drop.connect_selected_notify(move |d| if let Some(l) = LANGUAGES.get(d.selected() as usize) { pick(l.2) });
+    }
+    let language_value: Rc<dyn Fn() -> String> = {
+        let d = lang_drop.clone();
+        Rc::new(move || LANGUAGES.get(d.selected() as usize).map(|l| l.1).unwrap_or("en_US.UTF-8").to_string())
+    };
+    let keyboard_value: Rc<dyn Fn() -> String> = {
+        let (d, layouts) = (kb_drop.clone(), layouts.clone());
+        Rc::new(move || layouts.get(d.selected() as usize).map(|l| l.0.clone()).unwrap_or_else(|| "us".to_string()))
+    };
+    let lang_body = gtk4::Box::new(gtk4::Orientation::Vertical, 14);
+    lang_body.append(&label("Language", "oobe-row-title"));
+    lang_body.append(&lang_drop);
+    lang_body.append(&label("Keyboard layout", "oobe-row-title"));
+    lang_body.append(&kb_drop);
+    lang_body.append(&label("Both apply from your first sign-in, and you can change them later in Settings. How much of the desktop is translated depends on the language.", "oobe-note"));
+    pages.add_named(
+        &page(&label("Language and keyboard", "oobe-title"),
+              &label("Choose what you read and what you type. Nothing is looked up: you choose.", "oobe-sub"), &lang_body),
+        Some("language"),
+    );
+
     // sign-in choice
     let choice = |title: &str, sub: &str| -> gtk4::CheckButton {
         let col = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
@@ -1035,7 +1137,7 @@ fn build_ui(app: &adw::Application) {
     root.add_named(&frame, Some("setup"));
 
     // ── navigation ────────────────────────────────────────────────────────
-    const ORDER: &[&str] = &["look", "accent", "name", "password", "computer", "zone", "signin", "privacy", "wheel", "working"];
+    const ORDER: &[&str] = &["look", "accent", "name", "password", "computer", "zone", "language", "signin", "privacy", "wheel", "working"];
     let cur = Rc::new(Cell::new(0usize));
 
     // Privacy rows: Checking… while nizhod is asked (it may still be starting),
@@ -1184,7 +1286,7 @@ fn build_ui(app: &adw::Application) {
 
             let animate = motion_on && shown_once.get() && i != from && motion::animations_enabled();
             shown_once.set(true);
-            ridge.go_to(i.min(8), animate);
+            ridge.go_to(i.min(9), animate);
             let my = show_gen.get().wrapping_add(1);
             show_gen.set(my);
 
@@ -1195,6 +1297,7 @@ fn build_ui(app: &adw::Application) {
                     (pages.clone(), name_entry.clone(), pass_entry.clone(), light_tile.clone(), dark_tile.clone(), dark.clone(), next.clone());
                 let (check_privacy, host_refresh) = (check_privacy.clone(), host_refresh.clone());
                 let (zone_drop, zone_refresh) = (zone_drop.clone(), zone_refresh.clone());
+                let lang_drop = lang_drop.clone();
                 let (accent_green, accent_blue) = (accent_green.clone(), accent_blue.clone());
                 move || {
                     let parts = if animate { pages.child_by_name(name).map(|p| motion::prepare(p.upcast_ref())) } else { None };
@@ -1206,6 +1309,7 @@ fn build_ui(app: &adw::Application) {
                         "password" => { pass_entry.grab_focus(); }
                         "computer" => { host_refresh(); }
                         "zone" => { zone_refresh(); zone_drop.grab_focus(); }
+                        "language" => { lang_drop.grab_focus(); }
                         "accent" => { if accent_blue.is_active() { accent_blue.grab_focus() } else { accent_green.grab_focus() }; }
                         "privacy" => {
                             check_privacy();
@@ -1257,6 +1361,7 @@ fn build_ui(app: &adw::Application) {
         let (name_entry, pass_entry, conf_entry, ask, dark, host_name) =
             (name_entry.clone(), pass_entry.clone(), conf_entry.clone(), ask.clone(), dark.clone(), host_name.clone());
         let zone_name = zone_name.clone();
+        let (language_value, keyboard_value) = (language_value.clone(), keyboard_value.clone());
         let accent_name = accent_name.clone();
         let (vara_cb, git_cb, commit_name, commit_email) =
             (vara_cb.clone(), git_cb.clone(), commit_name.clone(), commit_email.clone());
@@ -1285,24 +1390,28 @@ fn build_ui(app: &adw::Application) {
             "zone" => {
                 if valid_zone(&zone_name()) { show(6) } else { fail("Choose a time zone from the list.") }
             }
+            "language" => {
+                if valid_locale(&language_value()) && valid_layout(&keyboard_value()) { show(7) } else { fail("Choose a language and a keyboard layout from the lists.") }
+            }
             "signin" => {
                 if !(vara_cb.is_active() || git_cb.is_active()) {
-                    show(7)
+                    show(8)
                 } else if !nizho_shell_common::commit_identity::valid_name(&commit_name.text()) {
                     fail("Enter the name to put on your commits.")
                 } else if !nizho_shell_common::commit_identity::valid_email(commit_email.text().trim()) {
                     fail("Enter an email for your commits, like you@example.com.")
                 } else {
-                    show(7)
+                    show(8)
                 }
             }
-            "privacy" => show(8),
+            "privacy" => show(9),
             "wheel" => {
                 if busy.replace(true) { return; }
                 next_btn.set_sensitive(false);
-                show(9);
+                show(10);
                 let host = host_name();
                 let zone = zone_name();
+                let (locale, keyboard) = (language_value(), keyboard_value());
                 let accent = accent_name();
                 let user = name_entry.text().to_string();
                 let (u, p, autologin, d) = (user.clone(), pass_entry.text().to_string(), !ask.is_active(), dark.get());
@@ -1318,7 +1427,7 @@ fn build_ui(app: &adw::Application) {
                     let res = if preview {
                         Ok(())
                     } else {
-                        gio::spawn_blocking(move || create_account(&u, &p, autologin, d, &host, dev, &zone, accent))
+                        gio::spawn_blocking(move || create_account(&u, &p, autologin, d, &host, dev, &zone, accent, &locale, &keyboard))
                             .await
                             .unwrap_or_else(|_| Err("account helper crashed".into()))
                     };
@@ -1326,7 +1435,7 @@ fn build_ui(app: &adw::Application) {
                         Ok(()) => finish(user),
                         Err(e) => {
                             busy.set(false);
-                            show(8);
+                            show(9);
                             fail(&format!("Couldn't create the account: {e}"));
                         }
                     }
@@ -1524,6 +1633,34 @@ mod zone_tests {
         if std::path::Path::new("/usr/share/zoneinfo/Europe/Berlin").exists() {
             let t = super::local_time_in("Europe/Berlin").expect("a time");
             assert!(t.contains(':'), "{t}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod language_tests {
+    const LST: &str = "! model\n  pc105  Generic 105-key PC\n\n! layout\n  us   English (US)\n  de   German\n  in   Indian\n\n! variant\n  intl  us: English (US, intl.)\n";
+
+    #[test]
+    fn layouts_are_read_from_the_layout_section_only() {
+        let l = super::parse_layouts(LST);
+        assert_eq!(l, vec![("us".to_string(), "English (US)".to_string()), ("de".to_string(), "German".to_string()),
+                           ("in".to_string(), "Indian".to_string())]);
+    }
+
+    #[test]
+    fn locale_and_layout_names_follow_the_helper_rule() {
+        for ok in ["en_US.UTF-8", "ta_IN.UTF-8", "fil_PH.UTF-8"] { assert!(super::valid_locale(ok), "{ok}"); }
+        for bad in ["", "en_US", "EN_us.UTF-8", "en_US.UTF-8;reboot", "../x", "C", "en_US.UTF-8 "] { assert!(!super::valid_locale(bad), "{bad}"); }
+        for ok in ["us", "de", "latam"] { assert!(super::valid_layout(ok), "{ok}"); }
+        for bad in ["", "US", "u", "de us", "us;x", "-us", "abcdefghi"] { assert!(!super::valid_layout(bad), "{bad}"); }
+    }
+
+    #[test]
+    fn every_listed_language_is_a_valid_locale_with_a_valid_layout() {
+        for (name, locale, layout) in super::LANGUAGES {
+            assert!(super::valid_locale(locale), "{name}");
+            assert!(super::valid_layout(layout), "{name}");
         }
     }
 }
