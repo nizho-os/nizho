@@ -23,7 +23,7 @@
 # list of vara and git, each set up with the name and email for commits.
 set -euo pipefail
 
-if [ "$#" -lt 2 ] || [ "$#" -gt 9 ] || [ "$#" -eq 5 ] || [ "$#" -eq 6 ]; then
+if [ "$#" -lt 2 ] || [ "$#" -gt 11 ] || [ "$#" -eq 5 ] || [ "$#" -eq 6 ]; then
     echo "nizho-oobe-apply: expected username, autologin flag, optional look, computer name, version control, time zone and accent" >&2
     exit 2
 fi
@@ -36,6 +36,8 @@ commit_name="${6:-}"
 commit_email="${7:-}"
 zone="${8:-}"
 accent="${9:-green}"
+locale="${10:-}"
+keyboard="${11:-}"
 
 # Serialize account creation, including retries from the graphical and TUI paths.
 exec 9>/run/nizho-oobe.lock
@@ -78,6 +80,21 @@ fi
 if [ -n "$zone" ]; then
     if [[ ! "$zone" =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+){0,2}$ ]] || [ ! -f "/usr/share/zoneinfo/$zone" ]; then
         echo "nizho-oobe-apply: invalid time zone" >&2
+        exit 2
+    fi
+fi
+
+# A language is a glibc locale such as ta_IN.UTF-8: lower-case language, upper-case country, UTF-8 only.
+if [ -n "$locale" ] && [[ ! "$locale" =~ ^[a-z]{2,3}_[A-Z]{2}\.UTF-8$ ]]; then
+    echo "nizho-oobe-apply: invalid language" >&2
+    exit 2
+fi
+
+# A keyboard layout must be one the system's own list names (the "! layout" section).
+if [ -n "$keyboard" ]; then
+    if [[ ! "$keyboard" =~ ^[a-z]{2,8}$ ]] ||
+       ! awk -v k="$keyboard" '/^! /{on=($2=="layout");next} on&&$1==k{f=1} END{exit !f}' /usr/share/X11/xkb/rules/evdev.lst; then
+        echo "nizho-oobe-apply: invalid keyboard layout" >&2
         exit 2
     fi
 fi
@@ -179,6 +196,22 @@ if [ -n "$zone" ]; then
     timedatectl set-timezone "$zone" ||
         ln -sfn "/usr/share/zoneinfo/$zone" /etc/localtime ||
         echo "nizho-oobe-apply: warning: could not set the time zone" >&2
+fi
+
+# The language and keyboard the user chose. Failures are reported but do not stop setup:
+# both can be changed later in Settings. The keyboard is set for the login screen
+# (localectl) and for the user's own desktop session (kxkbrc).
+if [ -n "$locale" ]; then
+    localectl set-locale "LANG=$locale" || echo "nizho-oobe-apply: warning: could not set the language" >&2
+fi
+if [ -n "$keyboard" ]; then
+    localectl set-x11-keymap "$keyboard" || echo "nizho-oobe-apply: warning: could not set the keyboard layout" >&2
+    runuser -u "$user" -- bash -c '
+        f=$1/.config/kxkbrc
+        kwriteconfig6 --file "$f" --group Layout --key Use true &&
+        kwriteconfig6 --file "$f" --group Layout --key LayoutList "$2"
+    ' nizho-setup-keyboard "/home/$user" "$keyboard" ||
+        echo "nizho-oobe-apply: warning: could not set the keyboard for the desktop" >&2
 fi
 
 # A computer name other than the default goes into nizhod's settings, so nizhod sets it

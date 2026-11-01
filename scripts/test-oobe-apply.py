@@ -52,6 +52,10 @@ class ApplyTests(unittest.TestCase):
             fake = self.root / 'usr/share/zoneinfo' / zone
             fake.parent.mkdir(parents=True, exist_ok=True)
             fake.write_text('TZif')
+        xkb = self.root / 'usr/share/X11/xkb/rules/evdev.lst'
+        xkb.parent.mkdir(parents=True, exist_ok=True)
+        xkb.write_text('! model\n  pc105  Generic 105-key PC\n\n! layout\n  us   English (US)\n  de   German\n'
+                       '  in   Indian\n  fr   French\n\n! variant\n  intl  us: English (US, intl.)\n')
         scheme = self.root / 'usr/share/color-schemes/NizhoBlue.colors'
         scheme.parent.mkdir(parents=True, exist_ok=True)
         scheme.write_text('blue-scheme')
@@ -63,33 +67,39 @@ class ApplyTests(unittest.TestCase):
             'NIZHO_OOBE_HELPER_SOURCE',
             Path(__file__).resolve().parents[1] / 'system' / 'nizho-oobe-apply',
         )).read_text()
-        for prefix in ('/run/', '/etc/', '/var/lib/', '/home/', '/usr/share/zoneinfo/', '/usr/share/color-schemes/'):
+        for prefix in ('/run/', '/etc/', '/var/lib/', '/home/', '/usr/share/zoneinfo/', '/usr/share/color-schemes/', '/usr/share/X11/'):
             source = source.replace(prefix, str(self.root) + prefix)
         self.helper = self.root / 'helper'
         self.helper.write_text(source)
-        for name in ('id', 'useradd', 'chpasswd', 'chown', 'systemctl', 'runuser', 'vara', 'git', 'timedatectl', 'kwriteconfig6'):
+        for name in ('id', 'useradd', 'chpasswd', 'chown', 'systemctl', 'runuser', 'vara', 'git', 'timedatectl', 'localectl', 'kwriteconfig6'):
             command = self.root / 'bin' / name
             command.write_text(MOCK_COMMAND)
             command.chmod(0o755)
         self.env = dict(os.environ, OOBE_TEST_ROOT=str(self.root))
         self.env['PATH'] = str(self.root / 'bin') + os.pathsep + '/usr/bin:/bin'
 
-    def run_helper(self, user='alice', autologin='1', password='test-password\n', look=None, dev=None, host=None, zone=None, accent=None):
+    def run_helper(self, user='alice', autologin='1', password='test-password\n', look=None, dev=None, host=None, zone=None,
+                   accent=None, locale=None, keyboard=None):
         args = ['bash', str(self.helper), user, autologin]
-        if look is None and (host is not None or dev is not None or zone is not None or accent is not None):
+        later = (host, dev, zone, accent, locale, keyboard)
+        if look is None and any(a is not None for a in later):
             look = 'dark'          # later arguments are positional: the look must come first
         if look is not None:
             args.append(look)
-        if host is not None or dev is not None or zone is not None or accent is not None:
+        if any(a is not None for a in later):
             args.append(host or 'nizho')
         if dev is not None:
             args.extend(dev)
-        elif zone is not None or accent is not None:
+        elif any(a is not None for a in (zone, accent, locale, keyboard)):
             args.extend(['', '', ''])      # no version control, then the time zone
-        if zone is not None or accent is not None:
+        if any(a is not None for a in (zone, accent, locale, keyboard)):
             args.append(zone or '')
-        if accent is not None:
-            args.append(accent)
+        if any(a is not None for a in (accent, locale, keyboard)):
+            args.append(accent or 'green')
+        if any(a is not None for a in (locale, keyboard)):
+            args.append(locale or '')
+        if keyboard is not None:
+            args.append(keyboard)
         return subprocess.run(
             args, input=password,
             text=True, capture_output=True, env=self.env, timeout=5,
@@ -292,6 +302,65 @@ class ApplyTests(unittest.TestCase):
         import json
         calls = [json.loads(line) for line in (self.root / 'calls').read_text().splitlines()]
         return [c for c in calls if c[0] == 'timedatectl']
+
+    def calls_to(self, name):
+        import json
+        calls = [json.loads(line) for line in (self.root / 'calls').read_text().splitlines()]
+        return [c for c in calls if c[0] == name]
+
+    def test_a_chosen_language_is_set_for_the_whole_system(self):
+        result = self.run_helper(look='dark', locale='ta_IN.UTF-8')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls_to('localectl'), [['localectl', 'set-locale', 'LANG=ta_IN.UTF-8']])
+
+    def test_a_chosen_keyboard_is_set_for_the_login_screen_and_for_the_user(self):
+        result = self.run_helper(look='dark', keyboard='de')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(['localectl', 'set-x11-keymap', 'de'], self.calls_to('localectl'))
+        writes = [c for c in self.calls_to('kwriteconfig6') if any(a.endswith('/.config/kxkbrc') for a in c)]
+        keys = {c[c.index('--key') + 1]: c[-1] for c in writes}
+        self.assertEqual(keys.get('LayoutList'), 'de')
+        self.assertEqual(keys.get('Use'), 'true')
+
+    def test_language_and_keyboard_come_with_the_zone_and_the_accent(self):
+        result = self.run_helper(look='dark', zone='Europe/Berlin', accent='blue', locale='de_DE.UTF-8', keyboard='de')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.zone_calls(), [['timedatectl', 'set-timezone', 'Europe/Berlin']])
+        self.assertEqual((self.root / 'home/alice/.config/nizho-accent').read_text(), 'blue\n')
+        self.assertIn(['localectl', 'set-locale', 'LANG=de_DE.UTF-8'], self.calls_to('localectl'))
+        self.assertIn(['localectl', 'set-x11-keymap', 'de'], self.calls_to('localectl'))
+
+    def test_a_bad_language_is_refused_before_any_change(self):
+        for bad in ('en_US', 'ta_IN.UTF-8; reboot', '../etc/passwd', 'EN_us.UTF-8', 'C', 'ta_IN.UTF-8 ', '-x.UTF-8'):
+            with self.subTest(locale=bad):
+                result = self.run_helper(look='dark', locale=bad)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assert_no_account_changes()
+
+    def test_a_keyboard_the_system_does_not_list_is_refused(self):
+        for bad in ('zz', 'de;reboot', '../us', 'US', 'de us', '-us'):
+            with self.subTest(keyboard=bad):
+                result = self.run_helper(look='dark', keyboard=bad)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assert_no_account_changes()
+
+    def test_leaving_language_and_keyboard_out_changes_nothing(self):
+        result = self.run_helper(look='dark', zone='Europe/Berlin')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls_to('localectl'), [])
+
+    def test_a_failing_localectl_does_not_stop_the_account_being_made(self):
+        self.env['OOBE_TEST_FAIL'] = 'localectl'
+        result = self.run_helper(look='dark', locale='ta_IN.UTF-8', keyboard='de')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('warning', result.stderr)
+        self.assertTrue((self.root / 'var/lib/nizho-firstboot-done').exists())
+
+    def test_twelve_arguments_are_one_too_many(self):
+        result = subprocess.run(['bash', str(self.helper), 'alice', '1', 'dark', 'nizho', '', '', '', '', 'green', 'ta_IN.UTF-8', 'de', 'extra'],
+                                input='x\n', text=True, capture_output=True, env=self.env, timeout=5)
+        self.assertEqual(result.returncode, 2)
+        self.assert_no_account_changes()
 
     def test_a_chosen_time_zone_is_set(self):
         result = self.run_helper(look='dark', zone='Europe/Berlin')
