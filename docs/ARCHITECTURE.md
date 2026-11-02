@@ -100,7 +100,7 @@ missing, zero, future or older timestamps display a neutral unknown state.
 ## Desktop branding pipeline (build → first login)
 
 1. **Build time (Containerfile):** Nizho.colors (Plasma scheme), kdeglobals in
-   /etc/skel (scheme, accent 22,199,132, Inter, icons=Nizho, sounds=Nizho,
+   /etc/skel (scheme, accent 77,180,145, Inter, icons=Nizho, sounds=Nizho,
    cursor via kcminputrc), SDDM theme, Plymouth theme + initramfs rebuild,
    wallpaper + icons + cursor + sounds generated/copied, KWin effects config.
 2. **First boot (nizho-firstboot):** user creation, optional SDDM autologin,
