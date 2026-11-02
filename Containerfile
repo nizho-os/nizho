@@ -69,6 +69,11 @@ COPY system/nizho-stale-trigger-check /usr/libexec/nizho-stale-trigger-check
 COPY system/autostart/nizho-privacy-dots.desktop /etc/xdg/autostart/nizho-privacy-dots.desktop
 COPY desktop/crystal-dock/nizho-dock.desktop /etc/xdg/autostart/nizho-dock.desktop
 COPY desktop/crystal-dock/nizho-dock-start /usr/libexec/nizho-dock-start
+# Meta+D: KDE's own Show Desktop hides the dock too, so a small KWin script minimizes the windows instead,
+# and a login step hands it the key.
+COPY desktop/kwin-scripts/nizho-showdesktop /usr/share/kwin/scripts/nizho-showdesktop
+COPY desktop/kwin-scripts/nizho-showdesktop-keys /usr/libexec/nizho-showdesktop-keys
+COPY system/autostart/nizho-showdesktop-keys.desktop /etc/xdg/autostart/nizho-showdesktop-keys.desktop
 COPY desktop/crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/KDE/panel_1.conf
 COPY desktop/crystal-dock/appearance.conf /etc/skel/.config/crystal-dock/KDE/appearance.conf
 COPY desktop/crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/generic/panel_1.conf
