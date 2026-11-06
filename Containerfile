@@ -83,9 +83,6 @@ COPY archon-service/org.nizho.Archon1.conf /usr/share/dbus-1/system.d/org.nizho.
 COPY archon-service/org.nizho.Archon1.service /usr/share/dbus-1/system-services/org.nizho.Archon1.service
 COPY archon-service/org.nizho.archon.policy /usr/share/polkit-1/actions/org.nizho.archon.policy
 COPY archon-service/nizho-archon.conf /usr/lib/tmpfiles.d/nizho-archon.conf
-COPY archon-service/owner/trust.py /usr/libexec/nizho-archon-owner-trust
-COPY archon-service/owner/nizho-owner-init.service archon-service/owner/nizho-owner-registry.service /usr/lib/systemd/system/
-COPY archon-service/owner/registry.yaml /usr/share/nizho/owner-registry.yaml
 COPY integrations/archon/source-revision /usr/share/nizho/archon-source-revision
 COPY integrations/archon/flathub.flatpakrepo /usr/share/nizho/flathub.flatpakrepo
 COPY system/firewalld/nizho.xml /usr/lib/firewalld/zones/nizho.xml
@@ -642,8 +639,6 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
 # Git, offered next to VARA in setup's Advanced options.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q git-core
-# Runtime-only tools for the explicitly provisioned machine-owner repository.
-# Private keys are generated on the installed machine, never in this image.
 COPY --from=files / /
 RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf && \
     grep -q '^DefaultZone=nizho' /etc/firewalld/firewalld.conf && \

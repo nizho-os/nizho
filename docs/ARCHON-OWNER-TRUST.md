@@ -1,11 +1,12 @@
 # Machine-owner image trust
 
-The machine owner selected a separate local signing key and local image
-repository. Official Nizho release keys remain independent. No private release
-key is included in an installed system or supplied to a build container.
+Machine-owner image signing is future work. The official Nizho release keys
+remain independent; this experimental design does not place private release keys
+in an image or package build container.
 
-The source includes explicit owner-trust setup and loopback registry units.
-They remain dormant and no GPG/skopeo/registry tooling is installed by default.
+The repository retains experimental owner-trust setup and loopback registry
+source files for future development. They are not copied into the Nizho image,
+and no GPG/skopeo/registry tooling is installed for this unsupported feature.
 Provisioning generates a 3072-bit RSA signing key in the root-only
 `/var/lib/nizho-owner/private` directory. The public key is installed at
 `/etc/pki/containers/nizho-owner.gpg`. Native containers/image `signedBy`
@@ -25,41 +26,19 @@ verification remains independent of TLS authentication. Registry storage is not
 a source of authorization to sign or deploy an image. The TLS configuration uses
 [Distribution's documented client authentication settings](https://distribution.github.io/distribution/about/configuration/#tls).
 
-Provisioning deliberately refuses existing owner keys, conflicting policy scopes,
-or partial initialization. It does not silently rotate keys or weaken policy.
-If setup is interrupted, retain the state and inspect `journalctl -u
-nizho-owner-init.service`, `policy.before.json`, the public key, and the current
-container policy before repairing it. Never delete the signing key while a
-deployment still depends on it. Key rotation, certificate renewal and trust
-removal are not implemented yet.
+The prototype trust configuration code and units remain in the source tree for
+future work, but are not installed into Nizho. There is no setup command or
+supported owner repository in the current image.
 
-On an installed disposable Nizho test VM, an administrator can provision with:
-
-```sh
-systemctl start nizho-owner-init.service
-systemctl enable --now nizho-owner-registry.service
-journalctl -u nizho-owner-init.service -u nizho-owner-registry.service
-```
-
-These commands are not host setup instructions. The GTK application does not
-execute them. Provisioning is not currently exposed as a package capability.
-The init unit is not automatically enabled, so shipping these files alone does
-not change an existing machine's image trust.
-
-Validation so far: five policy/filesystem unit tests pass, and the native GPG
+Prototype-only validation: five policy/filesystem tests pass, and the native GPG
 test generates an isolated key, verifies with only the public key, rejects
-modified content, and checks private file permissions. Run:
+modified content, and checks private file permissions. These tests do not mean
+machine-owner signing is shipped. Run:
 
 ```sh
 python3 -m unittest discover -s archon-service/owner -v
 python3 scripts/test-archon-owner-key.py
-PODMAN="$HOME/.cache/nizho-build-tools/podman" bash scripts/test-archon-owner-repository.sh
 ```
-
-An earlier disposable-container test passed TLS client-certificate rejection,
-GPG image signing, verification by manifest digest, and rejection of missing or
-corrupted signatures. Its synthetic empty image is only a cryptographic fixture,
-not a bootc deployment. The test is not part of the shipped package workflow.
 
 **Still incomplete:** installed-unit provisioning, actual isolated Archon RPM
 image builds, authorized signing/staging orchestration, activation correlation
