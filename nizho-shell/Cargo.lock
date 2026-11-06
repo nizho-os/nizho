@@ -1039,6 +1039,7 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "nizho-shell-common",
+ "serde_json",
 ]
 
 [[package]]

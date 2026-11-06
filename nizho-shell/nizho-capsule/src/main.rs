@@ -1,4 +1,6 @@
 mod install;
+mod archon;
+mod packages;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -198,6 +200,8 @@ fn build_ui(app: &adw::Application) {
     // ── Tab 1: Apps ─────────────────────────────────────────────────────────
     let apps_page = build_apps_tab(&installed, &favorites);
     stack.add_titled(&apps_page, Some("apps"), "Apps");
+    stack.add_titled(&packages::page(), Some("packages"), "Packages");
+    stack.set_visible_child_name("packages");
 
     // ── Tab 2: Running ──────────────────────────────────────────────────────
     let (running_page, running_list) = build_running_tab();
@@ -910,3 +914,6 @@ fn launch(exec: &str) {
     if parts.is_empty() { return; }
     let _ = std::process::Command::new(parts[0]).args(&parts[1..]).spawn();
 }
+
+#[cfg(test)]
+mod packages_tests;

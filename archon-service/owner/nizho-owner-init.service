@@ -1,0 +1,25 @@
+[Unit]
+Description=Provision machine-owner image trust for Nizho
+ConditionPathExists=/usr/lib/nizho-release
+ConditionPathExists=!/var/lib/nizho-owner/identity.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /usr/libexec/nizho-archon-owner-trust
+User=root
+UMask=0077
+StateDirectory=nizho-owner
+StateDirectoryMode=0700
+ProtectSystem=strict
+ReadWritePaths=/etc/containers /etc/pki/containers /var/lib/nizho-owner
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+TimeoutStartSec=300

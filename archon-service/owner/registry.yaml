@@ -1,0 +1,17 @@
+version: 0.1
+log:
+  level: info
+storage:
+  filesystem:
+    rootdirectory: /var/lib/nizho-owner-registry
+  delete:
+    enabled: false
+http:
+  addr: 127.0.0.1:30070
+  tls:
+    certificate: /etc/containers/certs.d/localhost:30070/server.crt
+    key: /run/credentials/nizho-owner-registry.service/tls.key
+    clientcas:
+      - /etc/containers/certs.d/localhost:30070/ca.crt
+    clientauth: require-and-verify-client-cert
+    minimumtls: tls1.2

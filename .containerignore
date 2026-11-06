@@ -16,3 +16,7 @@ tokens
 .nizho_pat
 *.pat
 .aws/
+
+# Archon is fetched by exact pin + reviewed patch in its own builder
+integrations/archon/source
+**/__pycache__/
