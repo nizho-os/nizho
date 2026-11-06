@@ -76,9 +76,11 @@ The Flathub configuration and public signing key are stored as a checksummed
 it does not replace an administrator's existing remote or disabled trust policy.
 Changing this configuration/key requires review and an updated checksum.
 
-The x86_64 Fedora, Rust, Go and bootc base images are digest-pinned. RPM
-repository snapshots are not pinned, so the image is not yet a bit-for-bit
-reproducible release. Crystal Dock's source RPM is pinned
+The builder base images use Fedora 44, Rust Alpine and Go Alpine tags; the
+bootc base uses `quay.io/fedora/fedora-bootc:44`, matching the image's
+`--pull=newer` update workflow. Weekly builds pull updated base layers and RPM
+security fixes. RPM repository snapshots are not pinned, so this is not a
+bit-for-bit reproducible release. Crystal Dock's source RPM is pinned
 to `2.16.0-1.fc44` and must pass a trusted signature check before import. The
 previous `--nosignature` import was removed. Source metadata downloads disable
 zchunk optimization and retain signature checks.
@@ -216,7 +218,10 @@ logs. Initial failures included missing Podman, a cached-tool refresh conflict,
 Fedora source metadata download errors, and a service source-path transition
 between builds. No failed attempt is counted as a successful image build.
 
-The first complete image succeeded on 2026-11-06:
+An earlier image attempt referenced a bootc digest that was unavailable; it is
+replaced with the maintained Fedora 44 tag. Image builds now run on pull requests
+and on the existing weekly scheduled workflow. The first complete image
+succeeded on 2026-11-06:
 `ec904159419d35e7fa85dbf5440500d81372b75ae95a1064e2330627ee1b5c24`.
 `build-20261106T073801Z.log` records `Successfully tagged
 localhost/nizho:archon-test`; bootc lint reported 10 passed checks, 1 skipped and

@@ -4,8 +4,8 @@ The machine owner selected a separate local signing key and local image
 repository. Official Nizho release keys remain independent. No private release
 key is included in an installed system or supplied to a build container.
 
-The image now includes an explicitly invoked `nizho-owner-init.service`, a
-loopback-only TLS registry unit, and the native GPG/skopeo/registry tools.
+The source includes explicit owner-trust setup and loopback registry units.
+They remain dormant and no GPG/skopeo/registry tooling is installed by default.
 Provisioning generates a 3072-bit RSA signing key in the root-only
 `/var/lib/nizho-owner/private` directory. The public key is installed at
 `/etc/pki/containers/nizho-owner.gpg`. Native containers/image `signedBy`
@@ -56,20 +56,10 @@ python3 scripts/test-archon-owner-key.py
 PODMAN="$HOME/.cache/nizho-build-tools/podman" bash scripts/test-archon-owner-repository.sh
 ```
 
-The real registry test ran in a disposable rootless Nizho container with Fedora's
-native registry package. It passed TLS client-certificate rejection, GPG image
-signing, verification by exact manifest digest, and missing/corrupted signature
-rejection under the unchanged production verification policy. Its synthetic empty
-image is a cryptographic fixture, not a bootc deployment. Logs are in
-`output/archon-validation/owner-repository-mtls.log`. The reusable command above
-requires the new image's installed registry tools.
-
-The service binary also has `--image-worker`, restricted to root within a
-rootless container, never a live bootc root. It invokes the existing Archon DNF
-bridge, validates resolved plans and protected components, compares execution
-against the stored full plan, and durably acknowledges native checkpoints. Its
-namespace/protocol/protected-package tests pass. It is not yet connected to
-the D-Bus commit path or advertised as a supported capability.
+An earlier disposable-container test passed TLS client-certificate rejection,
+GPG image signing, verification by manifest digest, and rejection of missing or
+corrupted signatures. Its synthetic empty image is only a cryptographic fixture,
+not a bootc deployment. The test is not part of the shipped package workflow.
 
 **Still incomplete:** installed-unit provisioning, actual isolated Archon RPM
 image builds, authorized signing/staging orchestration, activation correlation

@@ -1,11 +1,6 @@
 ARG FEDORA_VERSION=44
-# Reviewed x86_64 build inputs. Update digests alongside release validation.
-ARG FEDORA_BUILD_IMAGE=docker.io/library/fedora@sha256:b189269dfee735c54ebcd3b4e43ff2dc0d4a4b07855468970217c9df57968eb0
-ARG RUST_BUILD_IMAGE=docker.io/library/rust@sha256:2c83bf1a38975801abfd05e92387242ab4d5f96fe05131e2a279f3009ad16393
-ARG GO_BUILD_IMAGE=docker.io/library/golang@sha256:78c9e40f10516d7070156948a1747347cc5093022f06deeff3c9decd5faa3af7
-ARG BOOTC_BASE_IMAGE=quay.io/fedora/fedora-bootc@sha256:f424a0e63e6e50434ceb5d382848655e791affc27502d01484a60cc4ae4d76ca
 # Stage 1: build nizhod as a static musl binary
-FROM ${RUST_BUILD_IMAGE} AS builder
+FROM docker.io/library/rust:alpine AS builder
 RUN apk add --no-cache musl-dev
 COPY nizhod/ /build/
 COPY nizho-shell/nizho-shell-common/ /nizho-shell/nizho-shell-common/
@@ -21,14 +16,14 @@ RUN cargo build --locked --release --target x86_64-unknown-linux-musl \
       --features dbus --manifest-path /nizho-pulse/Cargo.toml
 
 # Stage 2: build the nizho-shell GTK4 apps (glibc required, not musl)
-FROM ${FEDORA_BUILD_IMAGE} AS shell-builder
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS shell-builder
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q gtk4-devel gtk4-layer-shell-devel libadwaita-devel rust cargo gcc pkgconf-pkg-config
 COPY nizho-shell/ /build/
 WORKDIR /build
 RUN cargo build --locked --release
 
 # Archon remains an independent source project, checked out at an exact revision.
-FROM ${FEDORA_BUILD_IMAGE} AS archon-builder
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS archon-builder
 RUN dnf install -y rust cargo gcc git pkgconf-pkg-config
 COPY integrations/archon/source-revision integrations/archon/nizho-integration.patch integrations/archon/source-patch.sha256 integrations/archon/flathub.flatpakrepo integrations/archon/flathub.sha256 /integration/
 RUN cd /integration && sha256sum -c source-patch.sha256 flathub.sha256 && \
@@ -47,14 +42,14 @@ RUN cargo build --locked --release --manifest-path /service/Cargo.toml
 # crystal-dock/nizho-look.patch (blurred background, label bubble, divider
 # before Trash) and nizho-per-user.patch (one dock per account, not per
 # computer).
-FROM ${FEDORA_BUILD_IMAGE} AS dock-builder
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS dock-builder
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q rpm-build 'dnf-command(builddep)' 'dnf-command(download)'
 COPY desktop/crystal-dock/nizho-look.patch desktop/crystal-dock/nizho-per-user.patch desktop/crystal-dock/build-rpm.sh /build/
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked sh /build/build-rpm.sh
 
 # Stage 2c: the format wheel (convert/wheel), a small Qt Quick program that
 # waits in the session and shows a ring of formats at the cursor.
-FROM ${FEDORA_BUILD_IMAGE} AS wheel-builder
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS wheel-builder
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q cmake gcc-c++ extra-cmake-modules qt6-qtbase-devel qt6-qtdeclarative-devel kf6-kglobalaccel-devel kf6-kwindowsystem-devel layer-shell-qt-devel
 COPY convert/wheel/ /build/
 RUN cmake -S /build -B /build/out -DCMAKE_BUILD_TYPE=Release && cmake --build /build/out -j"$(nproc)"
@@ -66,7 +61,7 @@ RUN cmake -S /build-edit -B /build-edit/out -DCMAKE_BUILD_TYPE=Release && cmake 
 # from its v0.4.4 release, with the web files of its Hub. The checkout must be
 # exactly the release commit, so a moved tag fails the build instead of
 # changing what ships. Pure Go, static.
-FROM ${GO_BUILD_IMAGE} AS vara-builder
+FROM docker.io/library/golang:alpine AS vara-builder
 RUN apk add --no-cache git
 ARG VARA_TAG=v0.4.4
 ARG VARA_COMMIT=33098ed279a8bb731a049f2512f0ef04836058fb
@@ -174,7 +169,7 @@ COPY --from=vara-builder /out/vara /usr/bin/vara
 COPY --from=vara-builder /out/hub /usr/share/vara/hub
 
 # Stage 3: bootc image
-FROM ${BOOTC_BASE_IMAGE}
+FROM quay.io/fedora/fedora-bootc:${FEDORA_VERSION}
 
 RUN mkdir -p /etc/NetworkManager/conf.d && \
     printf '[device]\nwifi.scan-rand-mac-address=yes\n\n[connection]\nwifi.cloned-mac-address=random\nethernet.cloned-mac-address=random\n' \
@@ -649,8 +644,6 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q git-core
 # Runtime-only tools for the explicitly provisioned machine-owner repository.
 # Private keys are generated on the installed machine, never in this image.
-RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q gnupg2 skopeo podman docker-distribution openssl python3-libdnf5 && \
-    test -x /usr/bin/registry && mkdir -p /etc/containers/certs.d /etc/pki/containers
 COPY --from=files / /
 RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf && \
     grep -q '^DefaultZone=nizho' /etc/firewalld/firewalld.conf && \
@@ -687,7 +680,7 @@ RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf 
     printf '\n# Nizho: also ask these time servers by address. With a dead clock battery the date\n# starts wrong, DNS then rejects every answer, and a time service that needs DNS\n# can never fix the date. Cloudflare and Google answer on fixed addresses.\nserver 162.159.200.1 iburst\nserver 162.159.200.123 iburst\nserver 216.239.35.0 iburst\nserver 216.239.35.4 iburst\n' >> /etc/chrony.conf && \
     mkdir -p /usr/share/nizho/nizhosetup && \
     cp -a /var/home/nizhosetup/.bash_profile /var/home/nizhosetup/.hushlogin /usr/share/nizho/nizhosetup/ && \
-    systemctl enable archon-service.service nizhod.service nizho-pulsed.service nizho-rtc-mode.service nizho-dns-after-clock.service
+    systemctl enable nizhod.service nizho-pulsed.service nizho-rtc-mode.service nizho-dns-after-clock.service
 
 # Built binaries go in LAST: they change on every Rust edit, and anything after
 # a changed layer rebuilds. Units and configs that reference them are installed

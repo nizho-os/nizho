@@ -97,14 +97,14 @@ fn readable_plan(raw: &str) -> String {
 }
 fn plan(parent: gtk4::Window, action: String, package: Package, status: gtk4::Label) {
     glib::MainContext::default().spawn_local(async move {
-        status.set_text("Resolving dependencies and checking repository policy…");
+        status.set_text("Checking the app and required components…");
         let result=call("PlanTransaction",Some(&(action.clone(),package.0.clone(),package.4.clone()).to_variant()),false).await;
         let value=match result {Ok(value)=>value,Err(e)=>{status.set_text(&format!("Could not plan transaction: {e}"));return}};
         let plan=value.get::<((String,u64,String,String),)>().map(|v|v.0);
         let Some((id,_,_,details))=plan else {status.set_text("Archon returned an unsupported plan format");return};
         let dialog=adw::MessageDialog::builder().transient_for(&parent).modal(true)
             .heading(format!("Review {action}"))
-            .body(format!("System Flatpak installation\n\n{}\n\nAdministrator authorization is required. This plan expires in five minutes.",readable_plan(&details))).build();
+            .body(format!("Apps from Flathub, a third-party app repository\n\n{}\n\nAdministrator approval is required. This review expires in five minutes.",readable_plan(&details))).build();
         dialog.add_responses(&[("cancel","Cancel"),("commit","Authorize and apply")]);
         dialog.set_response_appearance("commit",adw::ResponseAppearance::Suggested);
         dialog.set_default_response(Some("cancel"));dialog.set_close_response("cancel");
@@ -118,7 +118,7 @@ fn plan(parent: gtk4::Window, action: String, package: Package, status: gtk4::La
                 match call("CommitTransaction",Some(&(id,).to_variant()),true).await {
                     Ok(value)=>{
                         if let Some((id,))=value.get::<(String,)>() { ACTIVE.with(|active| *active.borrow_mut()=Some(id)); }
-                        status.set_text("Transaction started. Progress and results appear below.");
+                        status.set_text("App change started. Progress and results appear below.");
                     },
                     Err(e)=>status.set_text(&format!("Transaction was not started: {e}")),
                 }
@@ -272,7 +272,7 @@ fn list_page(kind: &'static str) -> gtk4::Box {
                 } else if kind == "updates" {
                     "Application updates · System deployment status is shown below"
                 } else {
-                    "System Flatpak applications · Signature verification required"
+                    "Apps from Flathub, a third-party repository · Signature verification required"
                 });
                 for package in rows {
                     let row = adw::ActionRow::builder()
@@ -383,7 +383,7 @@ fn information_page(history: bool) -> gtk4::Box {
                                     v.0.into_iter()
                                         .map(|r| {
                                             format!(
-                                                "{} · {}\n{}\nTransaction: {}\n{}\n{}",
+                                                "{} · {}\n{}\nApp change: {}\n{}\n{}",
                                                 r.3,
                                                 r.1,
                                                 r.2,
@@ -481,7 +481,7 @@ pub fn page() -> gtk4::Box {
                 if let Some(id) = id {
                     match call("CancelTransaction", Some(&(id,).to_variant()), false).await {
                         Ok(_) => progress
-                            .set_text("Cancellation requested; waiting for the native engine"),
+                            .set_text("Cancellation requested; waiting for the app manager"),
                         Err(e) => progress.set_text(&format!("Cancellation unavailable: {e}")),
                     }
                 } else {

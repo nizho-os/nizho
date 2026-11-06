@@ -24,7 +24,7 @@ pub fn page() -> gtk4::Box {
             match result {
                 Ok(value) => match value.get::<((String, String, String, String, String, bool, bool, bool, bool),)>() {
                     Some(((image, version, staged_image, staged_version, state, reboot, rollback, queued, read_only),)) => label.set_text(&format!(
-                        "Installed system: {version}\n{image}\nDeployment: {state} {staged_version}\n{staged_image}\nRestart required: {reboot} · Rollback available: {rollback}\nRollback queued: {queued} · Read-only medium: {read_only}")),
+                        "Installed system: {version}\n{image}\nDeployment: {state} {staged_version}\n{staged_image}\nRestart required: {reboot} · Rollback available: {rollback}\nRollback queued: {queued} · System image is read-only: {read_only}")),
                     None => label.set_text("Archon returned an unsupported status format."),
                 },
                 Err(error) => label.set_text(&format!("Archon system status unavailable: {error}")),

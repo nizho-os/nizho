@@ -1,5 +1,4 @@
 mod authorization;
-mod image_worker;
 mod manager;
 mod status;
 use archon_distro::{Backend, DnfBackend};
@@ -137,9 +136,6 @@ impl Archon {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
-    if args == ["--image-worker"] {
-        return image_worker::run().await;
-    }
     let (builder, production, state, installation) = match args.as_slice() {
         [] => (
             zbus::connection::Builder::system()?,

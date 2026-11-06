@@ -6,6 +6,14 @@ name: Image
 # with the key whose public half is cosign.pub (see system/containers/).
 
 on:
+  pull_request:
+    paths:
+      - "Containerfile"
+      - "archon-service/**"
+      - "integrations/archon/**"
+      - "nizho-shell/nizho-capsule/**"
+      - "scripts/vm/**"
+      - ".github/workflows/image.yml"
   push:
     # test/* branches are built and checked but never published.
     branches: [main, "test/**"]
