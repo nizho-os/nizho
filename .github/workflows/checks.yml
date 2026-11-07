@@ -33,6 +33,14 @@ on:
       - "scripts/test-flash-preflight.py"
       - "system/systemd/nizho-bootc-status.*"
       - ".github/workflows/checks.yml"
+      - "convert/**"
+      - "system/nizho-arm-boot-counter"
+      - "desktop/plymouth-theme-nizho/**"
+      - "scripts/test-nizho-convert.py"
+      - "scripts/test-wheel-formats.py"
+      - "scripts/test-edit-window.py"
+      - "scripts/test-arm-boot-counter.py"
+      - "scripts/qml/**"
   pull_request:
     paths:
       - "scripts/test-build-context.py"
@@ -65,6 +73,14 @@ on:
       - "scripts/test-flash-preflight.py"
       - "system/systemd/nizho-bootc-status.*"
       - ".github/workflows/checks.yml"
+      - "convert/**"
+      - "system/nizho-arm-boot-counter"
+      - "desktop/plymouth-theme-nizho/**"
+      - "scripts/test-nizho-convert.py"
+      - "scripts/test-wheel-formats.py"
+      - "scripts/test-edit-window.py"
+      - "scripts/test-arm-boot-counter.py"
+      - "scripts/qml/**"
   workflow_dispatch:
 
 permissions:
@@ -101,6 +117,8 @@ jobs:
         run: bash -n system/nizho-firefox && python3 scripts/test-firefox-wrapper.py
       - name: Test that the format wheel offers only what nizho-convert accepts
         run: python3 scripts/test-wheel-formats.py
+      - name: Test the boot counter's failure paths with fake commands
+        run: sh -n system/nizho-arm-boot-counter && python3 scripts/test-arm-boot-counter.py
       - name: Test nizho install (permission wording and the app list)
         run: python3 -I -m unittest discover -s apps -p 'test_*.py'
 
@@ -139,3 +157,30 @@ jobs:
           /tmp/sound-tests
           rustc --edition=2021 --test nizho-shell/nizho-update/src/operation.rs -o /tmp/update-tests
           /tmp/update-tests
+
+  convert:
+    runs-on: ubuntu-24.04
+    # The tools the image ships (ffmpeg, Pillow, mat2, tesseract, bubblewrap, Qt), so the converter, the
+    # wheel and the edit window are tested against the same versions. Privileged: nizho-convert runs every
+    # tool in a bubblewrap sandbox, which needs user namespaces inside the job's container.
+    container:
+      image: docker.io/library/fedora:44
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the converters and Qt
+        run: |
+          dnf install -y -q ffmpeg-free python3-pillow poppler-utils ghostscript bubblewrap mat2 \
+            tesseract tesseract-langpack-eng cmake gcc-c++ extra-cmake-modules qt6-qtbase-devel \
+            qt6-qtdeclarative-devel qt6-qtmultimedia kf6-kglobalaccel-devel kf6-kwindowsystem-devel \
+            layer-shell-qt-devel dbus-daemon
+      - name: Test nizho-convert with real files in the real sandbox
+        run: python3 scripts/test-nizho-convert.py
+      - name: Test the wheel's slots against nizho-convert
+        run: python3 scripts/test-wheel-formats.py
+      - name: Test the wheel's QML
+        run: QT_QPA_PLATFORM=offscreen /usr/lib64/qt6/bin/qmltestrunner -input scripts/qml/tst_format_wheel.qml
+      - name: Build the edit window and the wheel
+        run: cmake -S convert -B /tmp/convert-build -DCMAKE_BUILD_TYPE=Release && cmake --build /tmp/convert-build -j"$(nproc)"
+      - name: Drive the edit window and check what it saves
+        run: NIZHO_EDIT=/tmp/convert-build/edit/nizho-edit python3 scripts/test-edit-window.py
