@@ -38,10 +38,13 @@ There is no live-root RPM mutation or ad-hoc bootc command in the new client.
 
 ## Independent, pinned source
 
-Upstream commit: `914572cffd58c9c2712beaf9b110b829e2d495ec`.
-`integrations/archon/nizho-integration.patch` contains the reviewed Nizho guard,
-Flatpak adapter and CLI routing changes. The source pin and patch stay separate
-from the OS tree; the entire Archon repository is not merged into Nizho.
+Archon remains a separate repository at `https://github.com/nizho-os/archon.git`.
+The Nizho guard, Flatpak adapter and CLI routing are maintained there as regular
+Archon commits. Nizho builds the organization-owned tag
+`nizho-integration-v1.0.0`, pinned to commit
+`407cde4e328440c17d740561e843ea7f979a9612`. The image build verifies that the
+tag resolves to that exact commit before building with Cargo.lock; it does not
+apply a downstream patch. The full Archon repository is not merged into Nizho.
 
 Prepare a fresh checkout before building the service:
 
@@ -50,26 +53,19 @@ python3 scripts/prepare-archon-source.py
 ```
 
 This creates an ignored link at `integrations/archon/source` to an external cache
-named with the exact upstream revision and patch SHA-256. The image builder
-independently fetches the exact commit, checks its identity and patch/config
-checksums, applies the patch and builds with Cargo.lock. The generated source
-link is excluded from the image context. No local sibling checkout is copied into
-the image. The service's path dependency therefore works across checkout layouts.
+named with the tag and exact commit. The image builder independently fetches the
+tag from the Nizho organization, checks its identity, and builds with Cargo.lock.
+The generated source link is excluded from the image context. No local sibling
+checkout is copied into the image. The service's path dependency therefore works
+across checkout layouts.
 
-To change the integration in the independent development checkout:
-
-```sh
-# Work in your separate Archon checkout; preserve its existing changes.
-python3 scripts/update-archon-patch.py /absolute/path/to/archon
-python3 scripts/check-archon-source.py
-python3 scripts/prepare-archon-source.py
-```
-
-The patch updater refuses a source HEAD different from the recorded revision.
-Review and publish a new upstream commit before changing the pin. Update the
-source revision, patch and checksum together, then regenerate the service lockfile
-with Cargo if dependencies changed. Never edit the prepared cache as development
-source. Neither source preparation nor these commands commit or push user work.
+To update the integration, make and review normal commits in the independent
+Archon repository, publish a new organization-owned tag after the commits are
+accepted, then update `integrations/archon/source-tag` and
+`integrations/archon/source-revision` together. Run
+`python3 scripts/check-archon-source.py` before building. Regenerate the service
+lockfile with Cargo if dependencies changed. Never edit the prepared cache as
+development source.
 
 The Flathub configuration and public signing key are stored as a checksummed
 `.flatpakrepo` file. Service startup registers that system remote if absent;

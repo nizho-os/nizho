@@ -25,14 +25,13 @@ RUN cargo build --locked --release
 # Archon remains an independent source project, checked out at an exact revision.
 FROM docker.io/library/fedora:${FEDORA_VERSION} AS archon-builder
 RUN dnf install -y rust cargo gcc git pkgconf-pkg-config
-COPY integrations/archon/source-revision integrations/archon/nizho-integration.patch integrations/archon/source-patch.sha256 integrations/archon/flathub.flatpakrepo integrations/archon/flathub.sha256 /integration/
-RUN cd /integration && sha256sum -c source-patch.sha256 flathub.sha256 && \
+COPY integrations/archon/source-tag integrations/archon/source-revision integrations/archon/flathub.flatpakrepo integrations/archon/flathub.sha256 /integration/
+RUN cd /integration && sha256sum -c flathub.sha256 && \
     git init /archon && cd /archon && \
-    git remote add origin https://github.com/ravindran-dev/archon.git && \
-    git fetch --depth 1 origin "$(cat /integration/source-revision)" && \
+    git remote add origin https://github.com/nizho-os/archon.git && \
+    git fetch --depth 1 origin "refs/tags/$(cat /integration/source-tag)" && \
     git checkout --detach FETCH_HEAD && \
     test "$(git rev-parse HEAD)" = "$(cat /integration/source-revision)" && \
-    git apply /integration/nizho-integration.patch && \
     cargo build --locked --release -p archon-cli --bin archon
 COPY archon-service/ /service/
 RUN mkdir -p /integrations/archon && ln -s /archon /integrations/archon/source
@@ -84,6 +83,7 @@ COPY archon-service/org.nizho.Archon1.service /usr/share/dbus-1/system-services/
 COPY archon-service/org.nizho.archon.policy /usr/share/polkit-1/actions/org.nizho.archon.policy
 COPY archon-service/nizho-archon.conf /usr/lib/tmpfiles.d/nizho-archon.conf
 COPY integrations/archon/source-revision /usr/share/nizho/archon-source-revision
+COPY integrations/archon/source-tag /usr/share/nizho/archon-source-tag
 COPY integrations/archon/flathub.flatpakrepo /usr/share/nizho/flathub.flatpakrepo
 COPY system/firewalld/nizho.xml /usr/lib/firewalld/zones/nizho.xml
 COPY system/kernel/10-nizho-hardening.toml /usr/lib/bootc/kargs.d/10-nizho-hardening.toml

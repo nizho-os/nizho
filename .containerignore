@@ -17,6 +17,6 @@ tokens
 *.pat
 .aws/
 
-# Archon is fetched by exact pin + reviewed patch in its own builder
+# Archon is fetched by its exact organization-owned tag in its own builder
 integrations/archon/source
 **/__pycache__/
