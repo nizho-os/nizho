@@ -52,7 +52,7 @@ FROM docker.io/library/fedora:${FEDORA_VERSION} AS wheel-builder
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q cmake gcc-c++ extra-cmake-modules qt6-qtbase-devel qt6-qtdeclarative-devel kf6-kglobalaccel-devel kf6-kwindowsystem-devel layer-shell-qt-devel
 COPY convert/wheel/ /build/
 RUN cmake -S /build -B /build/out -DCMAKE_BUILD_TYPE=Release && cmake --build /build/out -j"$(nproc)"
-# The edit window (convert/edit): crop, black out, background, trim.
+# The edit window (convert/edit): crop, black out, annotate, background, trim, split, beep.
 COPY convert/edit/ /build-edit/
 RUN cmake -S /build-edit -B /build-edit/out -DCMAKE_BUILD_TYPE=Release && cmake --build /build-edit/out -j"$(nproc)"
 
@@ -105,6 +105,8 @@ COPY desktop/crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/generic/pa
 COPY desktop/crystal-dock/appearance.conf /etc/skel/.config/crystal-dock/generic/appearance.conf
 COPY system/nizho-rtc-mode /usr/libexec/nizho-rtc-mode
 COPY system/systemd/nizho-rtc-mode.service /usr/lib/systemd/system/nizho-rtc-mode.service
+COPY system/nizho-hide-system-image /usr/libexec/nizho-hide-system-image
+COPY system/systemd/nizho-hide-system-image.service /usr/lib/systemd/system/nizho-hide-system-image.service
 COPY system/nizho-dns-after-clock /usr/libexec/nizho-dns-after-clock
 COPY system/systemd/nizho-dns-after-clock.service /usr/lib/systemd/system/nizho-dns-after-clock.service
 COPY system/tmpfiles/nizho-nizhosetup.conf /usr/lib/tmpfiles.d/nizho-nizhosetup.conf
@@ -118,6 +120,7 @@ COPY convert/nizho-convert-image.desktop /usr/share/kio/servicemenus/nizho-conve
 COPY convert/nizho-convert-pdf.desktop /usr/share/kio/servicemenus/nizho-convert-pdf.desktop
 COPY convert/nizho-convert-office.desktop /usr/share/kio/servicemenus/nizho-convert-office.desktop
 COPY convert/nizho-smaller.desktop /usr/share/kio/servicemenus/nizho-smaller.desktop
+COPY convert/nizho-zip.desktop /usr/share/kio/servicemenus/nizho-zip.desktop
 COPY convert/nizho-convert-audio.desktop /usr/share/kio/servicemenus/nizho-convert-audio.desktop
 COPY convert/nizho-convert-video.desktop /usr/share/kio/servicemenus/nizho-convert-video.desktop
 COPY convert/nizho-wheel-servicemenu.desktop /usr/share/kio/servicemenus/nizho-wheel.desktop
@@ -126,6 +129,8 @@ COPY convert/nizho-edit-image.desktop /usr/share/kio/servicemenus/nizho-edit-ima
 COPY convert/nizho-edit-pdf.desktop /usr/share/kio/servicemenus/nizho-edit-pdf.desktop
 COPY convert/nizho-edit-pdf-merge.desktop /usr/share/kio/servicemenus/nizho-edit-pdf-merge.desktop
 COPY convert/nizho-edit-media.desktop /usr/share/kio/servicemenus/nizho-edit-media.desktop
+COPY convert/nizho-edit-video.desktop /usr/share/kio/servicemenus/nizho-edit-video.desktop
+COPY convert/nizho-edit-media-join.desktop /usr/share/kio/servicemenus/nizho-edit-media-join.desktop
 COPY convert/org.nizho.edit.desktop /usr/share/applications/org.nizho.edit.desktop
 COPY convert/org.nizho.wheel.desktop /usr/share/applications/org.nizho.wheel.desktop
 COPY convert/nizho-wheel-autostart.desktop /etc/xdg/autostart/nizho-wheel.desktop
@@ -634,15 +639,15 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked --mount=type=bin
 # The format wheel (nizho-wheel) needs Qt Quick, KGlobalAccel, KWindowSystem and
 # LayerShellQt, which Plasma already brings; listed so they stay.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
-    dnf install --setopt=keepcache=True -y -q ffmpeg-free python3-pillow poppler-utils mat2 \
-      qt6-qtdeclarative kf6-kglobalaccel kf6-kwindowsystem layer-shell-qt
+    dnf install --setopt=keepcache=True -y -q ffmpeg-free python3-pillow poppler-utils mat2 tesseract tesseract-langpack-eng \
+      qt6-qtdeclarative qt6-qtmultimedia kf6-kglobalaccel kf6-kwindowsystem layer-shell-qt
 # Git, offered next to VARA in setup's Advanced options.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q git-core
 COPY --from=files / /
 RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf && \
     grep -q '^DefaultZone=nizho' /etc/firewalld/firewalld.conf && \
-    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-dns-after-clock /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
+    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
     mkdir -p /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d && \
     printf '[Service]\nExecStart=\nExecStart=/usr/bin/bootc upgrade --quiet\n' \
       > /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d/10-nizho-no-auto-reboot.conf && \
@@ -675,7 +680,7 @@ RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf 
     printf '\n# Nizho: also ask these time servers by address. With a dead clock battery the date\n# starts wrong, DNS then rejects every answer, and a time service that needs DNS\n# can never fix the date. Cloudflare and Google answer on fixed addresses.\nserver 162.159.200.1 iburst\nserver 162.159.200.123 iburst\nserver 216.239.35.0 iburst\nserver 216.239.35.4 iburst\n' >> /etc/chrony.conf && \
     mkdir -p /usr/share/nizho/nizhosetup && \
     cp -a /var/home/nizhosetup/.bash_profile /var/home/nizhosetup/.hushlogin /usr/share/nizho/nizhosetup/ && \
-    systemctl enable nizhod.service nizho-pulsed.service nizho-rtc-mode.service nizho-dns-after-clock.service
+    systemctl enable nizhod.service nizho-pulsed.service nizho-rtc-mode.service nizho-hide-system-image.service nizho-dns-after-clock.service
 
 # Built binaries go in LAST: they change on every Rust edit, and anything after
 # a changed layer rebuilds. Units and configs that reference them are installed
