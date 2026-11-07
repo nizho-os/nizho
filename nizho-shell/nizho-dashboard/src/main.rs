@@ -28,11 +28,15 @@ fn build_window(app: &adw::Application) {
 
     dbus::start_worker(tx.clone());
 
+    // Design review only: DASH_SIZE=1920x1080 opens the window at that size, to see wide screens.
+    let (width, height) = std::env::var("DASH_SIZE").ok()
+        .and_then(|v| v.split_once('x').and_then(|(w, h)| Some((w.parse().ok()?, h.parse().ok()?))))
+        .unwrap_or((1100, 740));
     let window = adw::ApplicationWindow::builder()
         .application(app)
         .title("Privacy Dashboard")
-        .default_width(980)
-        .default_height(680)
+        .default_width(width)
+        .default_height(height)
         .build();
 
     let updater = ui::build(&window, tx);
@@ -44,6 +48,14 @@ fn build_window(app: &adw::Application) {
         }
         glib::ControlFlow::Continue
     });
+
+    // Esc closes the dashboard, as it does the launcher and other read-only panels.
+    let keys = gtk4::EventControllerKey::new();
+    let w = window.clone();
+    keys.connect_key_pressed(move |_, key, _, _| {
+        if key == gtk4::gdk::Key::Escape { w.close(); glib::Propagation::Stop } else { glib::Propagation::Proceed }
+    });
+    window.add_controller(keys);
 
     window.present();
     nizho_shell_common::theme::preview_shot(&window);
