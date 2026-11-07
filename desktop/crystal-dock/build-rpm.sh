@@ -4,8 +4,17 @@
 # the RPM lands in /build/out/.
 set -eu
 cd /build
-dnf download -q --source crystal-dock
-rpm -i --nosignature crystal-dock-*.src.rpm
+dnf --setopt=zchunk=False --setopt=retries=10 download -q --source crystal-dock-2.16.0-1.fc44
+# The Fedora keyring is provisioned by the signed base image/repository packages.
+# Download-only commands do not enforce source-RPM signatures themselves.
+for source in crystal-dock-*.src.rpm; do
+    verification=$(rpmkeys --checksig --verbose "$source")
+    printf '%s\n' "$verification"
+    printf '%s\n' "$verification" | grep -Eiq 'signature.*: OK' || {
+        echo 'Source RPM has no valid trusted signature' >&2; exit 1;
+    }
+    rpm -i "$source"
+done
 cp nizho-look.patch nizho-per-user.patch ~/rpmbuild/SOURCES/
 spec=~/rpmbuild/SPECS/crystal-dock.spec
 sed -i -e 's/^Release:\( *\)\([^%]*\)/Release:\1\2.nizho2/' \

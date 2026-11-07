@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Install Apps
-Comment=Install additional applications via Flatpak
+Name=Archon Package Center
+Comment=Discover, plan and manage applications through Archon
 Exec=nizho-capsule
 Icon=nizho-capsule
 Keywords=capsule;install;apps;software;flatpak;store;package;

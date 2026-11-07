@@ -1,0 +1,11 @@
+[package]
+name = "nizho-archon-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+archon-distro = { path = "../integrations/archon/source/crates/archon-distro", version = "=0.2.1" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+zbus = { version = "4", features = ["tokio"] }
