@@ -21,11 +21,15 @@
   --mono: "JetBrains Mono", "Noto Sans Mono", ui-monospace, monospace;
 }
 @media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand .mk-l { display: none; }
+  :root:not([data-theme="light"]) .brand .mk-d { display: block; }
   :root:not([data-theme="light"]) {
     --bg: #111317; --bg-2: #181b20; --ink: #eef0f3; --ink-2: #a8afba; --line: #2a2e35;
     --accent: #3ad19a; --warn: #f0b860; --pill-bg: #eef0f3; --pill-fg: #111317;
   }
 }
+:root[data-theme="dark"] .brand .mk-l { display: none; }
+:root[data-theme="dark"] .brand .mk-d { display: block; }
 :root[data-theme="dark"] {
   --bg: #111317; --bg-2: #181b20; --ink: #eef0f3; --ink-2: #a8afba; --line: #2a2e35;
   --accent: #3ad19a; --warn: #f0b860; --pill-bg: #eef0f3; --pill-fg: #111317;
@@ -44,6 +48,7 @@ header.site .wrap { display: flex; align-items: center; gap: 24px; height: 64px;
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; text-decoration: none; }
 .brand svg { width: 22px; height: 22px; }
 .brand img { height: 22px; width: auto; display: block; }
+.brand .mk-d { display: none; }
 nav.main { margin-left: auto; display: flex; gap: 22px; font-size: 15px; }
 nav.main a { text-decoration: none; color: var(--ink-2); }
 nav.main a:hover { color: var(--ink); }
@@ -149,7 +154,7 @@ button.pill { border: 0; font: inherit; font-weight: 600; cursor: pointer; }
 <header class="site">
   <div class="wrap">
     <a class="brand" href="./" aria-label="Nizho home">
-      <img src="img/nizho-mark.png" alt="" width="27" height="22">
+      <img class="mk-l" src="img/nizho-mark.png" alt="" width="27" height="22"><img class="mk-d" src="img/nizho-mark-on-dark.png" alt="" width="27" height="22">
       Nizho
     </a>
     <nav class="main" aria-label="Main">
