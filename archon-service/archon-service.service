@@ -1,0 +1,33 @@
+[Unit]
+Description=Nizho Archon package transaction service
+After=dbus.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/usr/lib/nizho-release
+
+[Service]
+Type=dbus
+BusName=org.nizho.Archon1
+ExecStartPre=/usr/bin/flatpak remote-add --system --if-not-exists flathub /usr/share/nizho/flathub.flatpakrepo
+ExecStart=/usr/libexec/nizho-archon-service
+User=root
+StateDirectory=nizho-archon
+StateDirectoryMode=0700
+ReadWritePaths=/var/lib/flatpak
+ReadWritePaths=/var/lib/nizho-archon
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+MemoryMax=512M
+TasksMax=128
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

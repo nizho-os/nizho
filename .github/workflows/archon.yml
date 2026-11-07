@@ -1,0 +1,41 @@
+name: Archon source and native integration
+on:
+  push:
+    paths:
+      - archon-service/**
+      - integrations/archon/**
+      - nizho-shell/nizho-capsule/**
+      - scripts/*archon*
+      - .github/workflows/archon.yml
+  pull_request:
+    paths:
+      - archon-service/**
+      - integrations/archon/**
+      - nizho-shell/nizho-capsule/**
+      - scripts/*archon*
+      - .github/workflows/archon.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-native-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Native build and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev pkg-config flatpak gir1.2-flatpak-1.0 python3-gi xvfb dbus-daemon gnupg bubblewrap
+          rustup toolchain install 1.99.1 --profile minimal --component clippy,rustfmt
+          rustup override set 1.99.1
+      - name: Initialize the ephemeral runner's native installation
+        run: |
+          (cd integrations/archon && sha256sum -c flathub.sha256)
+          sudo flatpak remote-add --system --if-not-exists flathub "$GITHUB_WORKSPACE/integrations/archon/flathub.flatpakrepo"
+      - name: Exact source and native GTK/service tests
+        env:
+          XVFB: Xvfb
+        run: scripts/test-archon-integration.sh

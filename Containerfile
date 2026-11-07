@@ -1,6 +1,6 @@
 ARG FEDORA_VERSION=44
 # Stage 1: build nizhod as a static musl binary
-FROM docker.io/rust:alpine AS builder
+FROM docker.io/library/rust:alpine AS builder
 RUN apk add --no-cache musl-dev
 COPY nizhod/ /build/
 COPY nizho-shell/nizho-shell-common/ /nizho-shell/nizho-shell-common/
@@ -16,24 +16,39 @@ RUN cargo build --locked --release --target x86_64-unknown-linux-musl \
       --features dbus --manifest-path /nizho-pulse/Cargo.toml
 
 # Stage 2: build the nizho-shell GTK4 apps (glibc required, not musl)
-FROM docker.io/fedora:${FEDORA_VERSION} AS shell-builder
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS shell-builder
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q gtk4-devel gtk4-layer-shell-devel libadwaita-devel rust cargo gcc pkgconf-pkg-config
 COPY nizho-shell/ /build/
 WORKDIR /build
 RUN cargo build --locked --release
 
+# Archon remains an independent source project, checked out at an exact revision.
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS archon-builder
+RUN dnf install -y rust cargo gcc git pkgconf-pkg-config
+COPY integrations/archon/source-tag integrations/archon/source-revision integrations/archon/flathub.flatpakrepo integrations/archon/flathub.sha256 /integration/
+RUN cd /integration && sha256sum -c flathub.sha256 && \
+    git init /archon && cd /archon && \
+    git remote add origin https://github.com/nizho-os/archon.git && \
+    git fetch --depth 1 origin "refs/tags/$(cat /integration/source-tag)" && \
+    git checkout --detach FETCH_HEAD && \
+    test "$(git rev-parse HEAD)" = "$(cat /integration/source-revision)" && \
+    cargo build --locked --release -p archon-cli --bin archon
+COPY archon-service/ /service/
+RUN mkdir -p /integrations/archon && ln -s /archon /integrations/archon/source
+RUN cargo build --locked --release --manifest-path /service/Cargo.toml
+
 # Stage 2b: the dock. Fedora's crystal-dock source package rebuilt with
 # crystal-dock/nizho-look.patch (blurred background, label bubble, divider
 # before Trash) and nizho-per-user.patch (one dock per account, not per
 # computer).
-FROM docker.io/fedora:${FEDORA_VERSION} AS dock-builder
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS dock-builder
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q rpm-build 'dnf-command(builddep)' 'dnf-command(download)'
 COPY desktop/crystal-dock/nizho-look.patch desktop/crystal-dock/nizho-per-user.patch desktop/crystal-dock/build-rpm.sh /build/
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked sh /build/build-rpm.sh
 
 # Stage 2c: the format wheel (convert/wheel), a small Qt Quick program that
 # waits in the session and shows a ring of formats at the cursor.
-FROM docker.io/fedora:${FEDORA_VERSION} AS wheel-builder
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS wheel-builder
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q cmake gcc-c++ extra-cmake-modules qt6-qtbase-devel qt6-qtdeclarative-devel kf6-kglobalaccel-devel kf6-kwindowsystem-devel layer-shell-qt-devel
 COPY convert/wheel/ /build/
 RUN cmake -S /build -B /build/out -DCMAKE_BUILD_TYPE=Release && cmake --build /build/out -j"$(nproc)"
@@ -45,7 +60,7 @@ RUN cmake -S /build-edit -B /build-edit/out -DCMAKE_BUILD_TYPE=Release && cmake 
 # from its v0.4.4 release, with the web files of its Hub. The checkout must be
 # exactly the release commit, so a moved tag fails the build instead of
 # changing what ships. Pure Go, static.
-FROM docker.io/library/golang:1.25-alpine AS vara-builder
+FROM docker.io/library/golang:alpine AS vara-builder
 RUN apk add --no-cache git
 ARG VARA_TAG=v0.4.4
 ARG VARA_COMMIT=33098ed279a8bb731a049f2512f0ef04836058fb
@@ -60,6 +75,16 @@ RUN git clone --quiet --depth 1 --branch "$VARA_TAG" https://github.com/thulasir
 # final stage takes each tree in ONE step instead of ~35. COPY into an empty
 # stage is near-instant.
 FROM scratch AS files
+COPY --from=archon-builder /archon/target/release/archon /usr/bin/archon
+COPY --from=archon-builder /service/target/release/nizho-archon-service /usr/libexec/nizho-archon-service
+COPY archon-service/archon-service.service /usr/lib/systemd/system/archon-service.service
+COPY archon-service/org.nizho.Archon1.conf /usr/share/dbus-1/system.d/org.nizho.Archon1.conf
+COPY archon-service/org.nizho.Archon1.service /usr/share/dbus-1/system-services/org.nizho.Archon1.service
+COPY archon-service/org.nizho.archon.policy /usr/share/polkit-1/actions/org.nizho.archon.policy
+COPY archon-service/nizho-archon.conf /usr/lib/tmpfiles.d/nizho-archon.conf
+COPY integrations/archon/source-revision /usr/share/nizho/archon-source-revision
+COPY integrations/archon/source-tag /usr/share/nizho/archon-source-tag
+COPY integrations/archon/flathub.flatpakrepo /usr/share/nizho/flathub.flatpakrepo
 COPY system/firewalld/nizho.xml /usr/lib/firewalld/zones/nizho.xml
 COPY system/kernel/10-nizho-hardening.toml /usr/lib/bootc/kargs.d/10-nizho-hardening.toml
 COPY system/kernel/60-nizho-hardening.conf /usr/lib/sysctl.d/60-nizho-hardening.conf
@@ -172,7 +197,7 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
     --setopt=max_parallel_downloads=10 --exclude=rootfiles \
     @kde-desktop-environment sddm \
     pipewire wireplumber pipewire-pulseaudio xorg-x11-server-Xwayland \
-    libadwaita flatpak xdg-user-dirs brightnessctl \
+    libadwaita flatpak flatpak-libs python3-gobject xdg-user-dirs brightnessctl \
     bluez bluez-tools zram-generator-defaults
 
 # Enable SDDM (started once firstboot flips the default to graphical.target).
@@ -417,8 +442,10 @@ RUN printf '[Mouse]\ncursorTheme=NizhoCursor\n' > /etc/skel/.config/kcminputrc
 # text ("details") whenever a serial console is present, so tell it to leave
 # serial consoles alone: splash on screen, boot log still on the serial port.
 RUN plymouth-set-default-theme nizho && \
+    mkdir -p /var/roothome && \
     KVER=$(ls /usr/lib/modules | head -1) && \
     dracut --force --no-hostonly /usr/lib/modules/$KVER/initramfs.img $KVER && \
+    rmdir /var/roothome && \
     mkdir -p /usr/lib/bootc/kargs.d && \
     printf 'kargs = ["rhgb", "quiet", "plymouth.ignore-serial-consoles"]\n' > /usr/lib/bootc/kargs.d/10-nizho-splash.toml
 

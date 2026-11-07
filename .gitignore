@@ -28,3 +28,12 @@ tokens
 # image signing: the private key lives outside the repository
 cosign.key
 *.key
+
+# Archon service build output
+archon-service/target/
+
+# Generated link to independent pinned Archon build source
+/integrations/archon/source
+
+# Python test caches
+__pycache__/

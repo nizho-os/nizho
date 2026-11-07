@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.nizho.Archon1
+Exec=/usr/bin/false
+User=root
+SystemdService=archon-service.service

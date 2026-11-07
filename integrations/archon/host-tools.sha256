@@ -1,0 +1,12 @@
+882948ffa97bdab28bf8e89b5335073149d42b68de91847b54cbcd8e64fd62b1  https://fastly.mirror.pkgbuild.com/extra/os/x86_64/catatonit-0.2.1-2-x86_64.pkg.tar.zst
+3cc9679725446c229735055f36d417cc0a00d38fd5c619cb7367faa54276caae  https://fastly.mirror.pkgbuild.com/extra/os/x86_64/conmon-1:2.2.1-1-x86_64.pkg.tar.zst
+40c769132c7bc100b73146fd40eee704e3be1bd8fa8a067d0deeca1ed250e4c6  https://fastly.mirror.pkgbuild.com/extra/os/x86_64/aardvark-dns-2.1.0-3-x86_64.pkg.tar.zst
+5da92f0f1a3aa627febe36ccdbb851f45acf4dd6ea2530f3de7587d61c329860  https://fastly.mirror.pkgbuild.com/extra/os/x86_64/netavark-2.1.0-3-x86_64.pkg.tar.zst
+74bdbfe0fcde6e42a52d678b4db121ed6ed923662d3d4c9c8a9182cf034fdee0  https://fastly.mirror.pkgbuild.com/extra/os/x86_64/containers-common-1:0.69.2-1-any.pkg.tar.zst
+890870683c10c494b26d2fae44f752631150768313caf21b0286f5532410c6c9  https://fastly.mirror.pkgbuild.com/extra/os/x86_64/python-protobuf-36.1-1-x86_64.pkg.tar.zst
+72ab16a96bb42f598afce2c2780884259699a2961b5ae4cc4b8c5e352f4861f6  https://fastly.mirror.pkgbuild.com/extra/os/x86_64/criu-4.2.1-1-x86_64.pkg.tar.zst
+feb57ea5ff1546b2bed4c5ffff9f523f6a394588cc696104f8c45c35ec09cbbd  https://fastly.mirror.pkgbuild.com/extra/os/x86_64/crun-1.30.1-1-x86_64.pkg.tar.zst
+66cb32c7bceeb4f24fa46444ef61f61183ffef9d08a27b0ade572bb645b7dc31  https://fastly.mirror.pkgbuild.com/extra/os/x86_64/passt-2026_10_02.cba3570-1-x86_64.pkg.tar.zst
+3a9f7ec293e7ac34d2a9eab9c5f72cd01f58aacc539c79da0a4c107eb375a6e2  https://fastly.mirror.pkgbuild.com/extra/os/x86_64/podman-6.1.4-1-x86_64.pkg.tar.zst
+52c6d0394109b0bdfd0e4d00dd8d89d7e38bfe7576d96145179f216480eb7564  https://fastly.mirror.pkgbuild.com/extra/os/x86_64/xorg-server-xvfb-21.1.25-2-x86_64.pkg.tar.zst
+9cc28d0c87a27fa52ad96eb2cbe7856f24025e2b236cef5e55bb27fc4bffff94  file:///var/cache/pacman/pkg/virtiofsd-1.14.0-1-x86_64.pkg.tar.zst

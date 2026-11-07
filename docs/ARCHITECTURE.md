@@ -136,3 +136,9 @@ Plasma Wayland session → nizhod already active (system service since early boo
   refused a request to enable fs-verity on a file ("Inappropriate ioctl for device"): the kernel has
   fs-verity, but XFS does not implement it. So composefs fixes the layout and keeps the root read-only, but
   nothing checks file contents by digest. Ext4 does support fs-verity; that route has not been tried.
+
+## Archon development integration
+
+See [Archon integration status](ARCHON-INTEGRATION.md) for the package transaction service,
+pinned source, Capsule status client, tests and unimplemented transaction work.
+Archon is not yet an operational default package manager.
