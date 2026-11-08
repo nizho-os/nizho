@@ -71,7 +71,7 @@
 #ai .prog{position:absolute;left:0;bottom:0;height:3px;width:0;background:var(--ac);z-index:3}';
 
   /* ---------- DOM ---------- */
-  var MARK = function (sz, k) { return '<svg data-k="' + k + '" width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24"><path data-k="' + k + 'o" pathLength="1" d="M12 3 L22 20 H2 Z" fill="none" stroke="#4db491" stroke-width="1.7" stroke-linejoin="round" stroke-dasharray="1" stroke-dashoffset="0"/><path data-k="' + k + 'i" d="M12 10 L17 18.5 H7 Z" fill="#4db491"/></svg>'; };
+  var MARK = function (sz, k) { return '<svg data-k="' + k + '" width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24">' + '<path data-k="' + k + 'o" pathLength="1" d="M0 0" fill="none" stroke="none" stroke-dasharray="1" stroke-dashoffset="0"/>' + '<image data-k="' + k + 'i" href="img/nizho-mark.png" x="0" y="2.3" width="24" height="19.4" preserveAspectRatio="xMidYMid meet"/></svg>'; };
   var ROWS = [
     ['Encrypted DNS', 'Requires system DNS lookups to be encrypted.'],
     ['Private network address', 'Uses a random hardware address on network connections.'],
