@@ -41,8 +41,8 @@ There is no live-root RPM mutation or ad-hoc bootc command in the new client.
 Archon remains a separate repository at `https://github.com/nizho-os/archon.git`.
 The Nizho guard, Flatpak adapter and CLI routing are maintained there as regular
 Archon commits. Nizho builds the organization-owned tag
-`nizho-integration-v1.0.0`, pinned to commit
-`407cde4e328440c17d740561e843ea7f979a9612`. The image build verifies that the
+`nizho-integration-v1.0.1`, pinned to commit
+`3626b93fda399cbda097016018a4170ee659225a`. The image build verifies that the
 tag resolves to that exact commit before building with Cargo.lock; it does not
 apply a downstream patch. The full Archon repository is not merged into Nizho.
 
