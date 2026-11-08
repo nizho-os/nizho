@@ -76,7 +76,17 @@ PlasmoidItem {
         onNewData: (source, data) => { root.accent = String(data["stdout"]).trim() === "blue" ? "blue" : "green" }
     }
 
-    Plasmoid.icon: root.accent === "blue" ? "nizho-start-blue" : "nizho-start"
+    // The mark's two grey side pieces vanish on the dark top bar, so the dark look uses a variant
+    // with lighter greys. The look is read from the Plasma setting nizho-apply-look writes.
+    property string look: "light"
+    P5Support.DataSource {
+        engine: "executable"
+        connectedSources: ["grep -q '^LookAndFeelPackage=org.nizho.dark.desktop' \"$HOME/.config/kdeglobals\" 2>/dev/null && echo dark || echo light"]
+        interval: 4000
+        onNewData: (source, data) => { root.look = String(data["stdout"]).trim() === "dark" ? "dark" : "light" }
+    }
+
+    Plasmoid.icon: (root.accent === "blue" ? "nizho-start-blue" : "nizho-start") + (root.look === "dark" ? "-dark" : "")
     toolTipMainText: Plasmoid.title
     toolTipSubText: ""
 
