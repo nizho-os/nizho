@@ -19,14 +19,31 @@ nizho-backup setup --to /run/media/you/MyDrive/nizho-backup
 nizho-backup now
 nizho-backup status
 nizho-backup list
+nizho-backup ls Documents
 nizho-backup restore Documents/report.odt --to ~/Restored
 nizho-backup tidy
 ```
 
+`ls` shows what is inside a folder of a saved backup, folders first. Without a folder it shows your home
+folder. `--snapshot ID` picks an older backup (the newest is the default) and `--json` prints a list for
+programs. `nizho-backup snapshots --json` lists the backups, newest first.
+
 `setup` prints a recovery key once. It also saves the key on this computer, in `~/.config/nizho/backup.key`
-(readable only by you). Write it down or keep a copy somewhere other than this computer.
+(readable only by you). Write it down or keep a copy somewhere other than this computer. The backup does
+not contain its own key, so a lost key cannot be found inside it.
 A daily timer runs `now` for you after setup, and does nothing when the drive is not plugged in.
 `setup` refuses a backup folder inside your home folder unless you add `--allow-home`.
+
+## Finding a file in Settings
+
+Get a file back opens a window that shows the files in the backup. Pick the backup from the list at the
+top (the newest is chosen, shown as for example Today 14:05). Click a folder to open it, and use Back to
+go up. Tick the box beside a file or folder and choose Restore selected, then choose an empty folder for
+the older copy. Arrow keys and Enter work in the list. If you do remember the path, Type a path instead
+still asks for it as before.
+
+This screen was built and its logic is covered by unit tests, but nobody has looked at it on a screen yet,
+so its layout and keyboard behaviour are not visually verified.
 
 ## What it does not do
 
@@ -41,8 +58,7 @@ A daily timer runs `now` for you after setup, and does nothing when the drive is
 - If you lose the recovery key and this computer, the backup cannot be opened. That is how the
   encryption works.
 - Backup progress is not shown while it runs, and nothing tells you when a scheduled backup fails.
-- Restoring one file at a time means typing its path, for example Documents/report.odt. There is no
-  list of saved files to browse yet.
+- You restore one file or folder at a time, because the restore folder must be empty.
 
 ## What we checked
 
