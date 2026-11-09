@@ -858,7 +858,7 @@ def _profiles_with(d, filename, src):
 
 
 def _guess_chromium(src, path):
-    text = (os.path.basename(src.rstrip(os.sep)) + "/" + os.path.relpath(path, src)).lower()
+    text = "/".join(src.rstrip(os.sep).split(os.sep)[-4:] + [os.path.relpath(path, src)]).lower()
     for key, name in (("edge", "Edge"), ("brave", "Brave"), ("vivaldi", "Vivaldi"), ("opera", "Opera"),
                       ("chromium", "Chromium"), ("chrome", "Chrome")):
         if key in text:
@@ -1051,7 +1051,8 @@ def cmd_bookmarks(args, out):
                 top.kids.append(sub)
         if top.kids:
             root.kids.append(top)
-    marks, folders = count_tree(root)
+    marks, _ = count_tree(root)
+    folders = total.folders
     names = [f.name for f in root.kids]
 
     if failed:
@@ -1065,9 +1066,9 @@ def cmd_bookmarks(args, out):
     print(f"Read {total.bookmarks} bookmarks and {total.folders} folders in all.", file=out)
     if skipped:
         why = ", ".join(f"{n} {w}" for w, n in sorted(total.skipped.items()))
-        print(f"Skipped {skipped} bookmarks: {why}.", file=out)
+        print(f"Skipped {skipped} entries: {why}.", file=out)
     else:
-        print("Skipped 0 bookmarks.", file=out)
+        print("Skipped 0 entries.", file=out)
 
     if not names:
         print("There were no bookmarks to write, so no file was created.", file=out)
