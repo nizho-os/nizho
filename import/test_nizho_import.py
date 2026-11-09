@@ -340,6 +340,94 @@ class Safety(Env):
         self.assertFalse(os.path.exists(self.h("Imported", "drive", "a.txt")))
         self.assertTrue(os.path.exists(self.h("Imported", "drive", "b.txt")))
 
+    def test_ctrl_c_midway_leaves_no_half_file(self):
+        write(os.path.join(self.src, "big.bin"), b"z" * 40)
+        real = ni.open_source
+
+        class Stop:
+            def __init__(self, f):
+                self.f, self.n = f, 0
+
+            def read(self, n):
+                self.n += 1
+                if self.n > 1:
+                    raise KeyboardInterrupt
+                return self.f.read(n)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                self.f.close()
+
+        calls = {}
+
+        def fake(path):
+            calls[path] = calls.get(path, 0) + 1
+            return Stop(real(path)) if calls[path] > 1 else real(path)
+
+        with mock.patch.object(ni, "open_source", fake), mock.patch.object(ni, "CHUNK", 8):
+            code, _, err = self.run_cli("files", self.src)
+        self.assertEqual(code, 1)
+        self.assertNotIn("Traceback", err)
+        left = []
+        for dp, _, fn in os.walk(self.home):
+            left += fn
+        self.assertEqual(left, [], "no half-written file or temp file is left in the home folder")
+
+    def test_file_that_changes_while_copied_is_not_imported(self):
+        path = os.path.join(self.src, "log.txt")
+        write(path, b"a" * 40)
+        real = ni.open_source
+        calls = {}
+
+        class Grow:
+            def __init__(self, f):
+                self.f, self.done = f, False
+
+            def read(self, n):
+                data = self.f.read(n)
+                if not self.done:
+                    self.done = True
+                    with open(path, "ab") as g:
+                        g.write(b"more")
+                return data
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                self.f.close()
+
+        def fake(p):
+            calls[p] = calls.get(p, 0) + 1
+            return Grow(real(p)) if calls[p] > 1 else real(p)
+
+        with mock.patch.object(ni, "open_source", fake), mock.patch.object(ni, "CHUNK", 8):
+            code, out, _ = self.run_cli("files", self.src)
+        self.assertEqual(code, 2)
+        self.assertIn("changed while", out)
+        self.assertFalse(os.path.exists(self.h("Imported", "drive", "log.txt")))
+        self.assertIn("Copied 0 files", out)
+
+    def test_names_that_are_not_utf8_do_not_crash_the_report(self):
+        write(os.path.join(self.src, "Documents", "report.txt"), b"1")
+        write(os.path.join(self.src, "Pictures", "x.jpg"), b"2")
+        bad = os.path.join(os.fsencode(self.src), b"Documents", b"caf\xe9.txt")
+        with open(bad, "wb") as f:
+            f.write(b"old windows name")
+        for args in (["files", self.src, "--dry-run"], ["files", self.src], ["scan", self.src]):
+            # a real strict UTF-8 stream, like a terminal, not a StringIO that accepts anything
+            raw = io.BytesIO()
+            out = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
+            code = ni.main(args, out)
+            out.flush()
+            self.assertEqual(code, 0, args)
+            if args[0] == "files" and "--dry-run" in args:
+                self.assertIn(b"caf\\xe9.txt", raw.getvalue())
+        self.assertEqual(rd(os.path.join(os.fsencode(self.home), b"Documents", b"caf\xe9.txt")),
+                         b"old windows name")
+
     def test_long_name_skipped(self):
         write(os.path.join(self.src, "ok.txt"), b"o")
         long = "n" * 250 + ".txt"

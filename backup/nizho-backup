@@ -17,9 +17,12 @@ Backups are encrypted with a recovery key kept in ~/.config/nizho/backup.key. If
 this computer and the key, the backup cannot be opened, so keep a copy of the key elsewhere.
 """
 import argparse
+import contextlib
 import datetime as dt
+import fcntl
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -49,11 +52,15 @@ def key_path():
 def load_config():
     try:
         with open(config_path()) as f:
-            return json.load(f)
+            cfg = json.load(f)
     except FileNotFoundError:
         return None
     except (OSError, ValueError) as e:
         raise Fail(f"The backup settings could not be read ({e}).")
+    if not isinstance(cfg, dict) or not isinstance(cfg.get("repo"), str) \
+            or not isinstance(cfg.get("paths"), list) or not all(isinstance(x, str) for x in cfg["paths"]):
+        raise Fail(f"The backup settings in {config_path()} are damaged. Move that file away to set up again.")
+    return cfg
 
 
 def save_config(cfg):
@@ -64,6 +71,29 @@ def save_config(cfg):
     os.replace(tmp, config_path())
 
 
+def lock_path():
+    return os.path.join(config_dir(), "backup.lock")
+
+
+class Busy(Fail):
+    pass
+
+
+@contextlib.contextmanager
+def exclusive():
+    """Only one command that changes the backup runs at a time (two timers, two clicks)."""
+    os.makedirs(config_dir(), mode=0o700, exist_ok=True)
+    fd = os.open(lock_path(), os.O_WRONLY | os.O_CREAT | os.O_CLOEXEC, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            raise Busy("Another nizho-backup is already running. Wait for it to finish.")
+        yield
+    finally:
+        os.close(fd)
+
+
 def restic_bin():
     path = os.environ.get("NIZHO_RESTIC") or shutil.which("restic")
     if not path:
@@ -71,15 +101,20 @@ def restic_bin():
     return path
 
 
-def run_restic(cfg, args, capture=False):
+def restic_process(cfg, args, capture=False, ok=(0,)):
     env = dict(os.environ, RESTIC_REPOSITORY=cfg["repo"], RESTIC_PASSWORD_FILE=key_path(), RESTIC_PROGRESS_FPS="0")
     try:
         p = subprocess.run([restic_bin()] + args, env=env, text=True, capture_output=capture, stdin=subprocess.DEVNULL)
     except OSError as e:
         raise Fail(f"restic could not be started ({e}).")
-    if p.returncode != 0:
+    if p.returncode not in ok:
         detail = ((p.stderr or "").strip().splitlines() or [""])[-1] if capture else ""
         raise Fail(f"restic stopped with an error (code {p.returncode}). {detail}".strip())
+    return p
+
+
+def run_restic(cfg, args, capture=False):
+    p = restic_process(cfg, args, capture)
     return p.stdout if capture else ""
 
 
@@ -99,24 +134,33 @@ def cmd_setup(a):
         raise Fail("Backups are already set up. The backup folder is " + load_config()["repo"] + ".")
     dest = os.path.abspath(os.path.expanduser(a.to))
     home = os.path.expanduser("~")
-    if dest == home or dest.startswith(home + os.sep) and not a.allow_home:
+    # Compare real paths, so a symlink to a folder in your home does not get around the check.
+    rdest, rhome = os.path.realpath(dest), os.path.realpath(home)
+    if rdest == rhome or rdest.startswith(rhome + os.sep) and not a.allow_home:
         raise Fail("The backup folder is inside your home folder, so it would go with your files if the disk fails. "
                    "Choose a folder on an external drive, or add --allow-home to do it anyway.")
     if os.path.exists(os.path.join(dest, "config")):
         raise Fail("That folder already holds a backup. Choose an empty folder.")
     os.makedirs(dest, exist_ok=True)
     os.makedirs(config_dir(), mode=0o700, exist_ok=True)
+    if os.path.lexists(key_path()):
+        raise Fail(f"A recovery key file already exists at {key_path()} but no backup is set up. "
+                   "It may belong to a backup you still need, so it was not touched. Move it somewhere safe, then try again.")
     key = secrets.token_urlsafe(24)
-    fd = os.open(key_path(), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write(key + "\n")
     cfg = {"repo": dest, "paths": [home], "created": dt.datetime.now().isoformat(timespec="seconds")}
     try:
+        fd = os.open(key_path(), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(key + "\n")
         run_restic(cfg, ["init"], capture=True)
-    except Fail:
-        os.unlink(key_path())
+        save_config(cfg)
+    except BaseException:
+        # Any failure or Ctrl+C: never leave a key behind for a backup that was not recorded.
+        try:
+            os.unlink(key_path())
+        except OSError:
+            pass
         raise
-    save_config(cfg)
     print("Backups are set up.")
     print(f"Backup folder: {dest}")
     print("Recovery key (write this down or keep a copy somewhere other than this computer):")
@@ -134,15 +178,29 @@ def cmd_now(a):
     args = ["backup", "--tag", "nizho", "--exclude-caches", "--one-file-system"]
     for e in EXCLUDES:
         args += ["--exclude", e]
-    out = run_restic(cfg, args + cfg["paths"], capture=True)
+    try:
+        p = restic_process(cfg, args + cfg["paths"], capture=True, ok=(0, 3))
+    except Fail:
+        if a.quiet and not drive_connected(cfg):
+            return  # the drive was unplugged during the run: same as "not connected", nothing marked
+        raise
+    # restic code 3 means the backup was saved but some files could not be read (a file that
+    # changed or vanished while it was read). The saved backup is real, so it counts.
+    partial = p.returncode == 3
     cfg["last_ok"] = dt.datetime.now().isoformat(timespec="seconds")
     save_config(cfg)
+    if partial:
+        print("nizho-backup: the backup was saved, but some files could not be read and are not in it.", file=sys.stderr)
     if not a.quiet:
-        print(out.strip().splitlines()[-1] if out.strip() else "Backup finished.")
+        lines = (p.stdout or "").strip().splitlines()
+        print(lines[-1] if lines else "Backup finished.")
 
 
 def snapshots(cfg):
-    return json.loads(run_restic(cfg, ["snapshots", "--json"], capture=True) or "[]")
+    try:
+        return json.loads(run_restic(cfg, ["snapshots", "--json"], capture=True) or "[]")
+    except ValueError:
+        raise Fail("restic gave an answer that could not be understood.")
 
 
 def ago(ts):
@@ -151,6 +209,8 @@ def ago(ts):
     except (TypeError, ValueError):
         return "unknown"
     s = int(d.total_seconds())
+    if s < -300:
+        return "unknown"  # the clock was set back; do not claim a recent backup
     if s < 90:
         return "just now"
     if s < 5400:
@@ -203,6 +263,10 @@ def cmd_restore(a):
     sub = os.path.normpath(os.path.join(home, a.path))
     if not (sub == home or sub.startswith(home + os.sep)):
         raise Fail("PATH must stay inside your home folder.")
+    if a.snapshot and not (a.snapshot == "latest" or re.fullmatch(r"[0-9a-fA-F]{4,64}", a.snapshot)):
+        raise Fail("The snapshot must be an id from 'nizho-backup list', or left out for the latest.")
+    if os.path.exists(target) and not os.path.isdir(target):
+        raise Fail("The restore folder is a file, not a folder. Choose an empty folder.")
     if os.path.exists(target) and os.listdir(target):
         raise Fail("The restore folder is not empty. Restoring never overwrites your files; choose an empty folder.")
     rel = os.path.relpath(sub, home)
@@ -211,7 +275,7 @@ def cmd_restore(a):
     os.makedirs(target, exist_ok=True)
     staging = tempfile.mkdtemp(prefix=".nizho-restore-", dir=target)
     try:
-        run_restic(cfg, ["restore", a.snapshot or "latest", "--target", staging, "--include", sub], capture=True)
+        run_restic(cfg, ["restore", a.snapshot or "latest", "--target", staging, "--include", glob_escape(sub)], capture=True)
         found = find_restored(staging, rel)
         if not found:
             raise Fail(f"{rel} was not found in that backup.")
@@ -222,6 +286,11 @@ def cmd_restore(a):
         shutil.rmtree(staging, ignore_errors=True)
     print(f"Restored to {dest}")
     print("Your existing files were not touched. Copy back what you need.")
+
+
+def glob_escape(path):
+    """restic reads --include as a pattern, so a name such as 'trip [2020]' must be escaped."""
+    return re.sub(r"([\\*?\[\]])", r"\\\1", path)
 
 
 def find_restored(staging, rel):
@@ -255,9 +324,24 @@ def main(argv=None):
     sub.add_parser("tidy").set_defaults(f=cmd_tidy)
     a = p.parse_args(argv)
     try:
-        a.f(a)
+        if a.cmd in ("setup", "now", "tidy", "restore"):
+            with exclusive():
+                a.f(a)
+        else:
+            a.f(a)
+    except Busy as e:
+        if a.cmd == "now" and a.quiet:
+            return 0
+        print(f"nizho-backup: {e}", file=sys.stderr)
+        return 1
     except Fail as e:
         print(f"nizho-backup: {e}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("nizho-backup: stopped.", file=sys.stderr)
+        return 130
+    except OSError as e:
+        print(f"nizho-backup: {e.strerror or e}" + (f": {e.filename}" if e.filename else ""), file=sys.stderr)
         return 1
     return 0
 

@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 loader = importlib.machinery.SourceFileLoader("nizho_backup", os.path.join(HERE, "nizho-backup"))
@@ -66,6 +67,77 @@ class Rules(Env):
         self.assertEqual(code, 1)
         self.assertIn("inside your home folder", err)
         self.assertFalse(os.path.exists(nb.key_path()))
+
+    def test_refuses_backup_folder_that_is_a_symlink_into_home(self):
+        os.makedirs(os.path.join(self.home, "real"))
+        link = os.path.join(self.drive, "link")
+        os.symlink(os.path.join(self.home, "real"), link)
+        code, _, err = self.run_cli("setup", "--to", os.path.join(link, "repo"))
+        self.assertEqual(code, 1)
+        self.assertIn("inside your home folder", err)
+        self.assertFalse(os.path.exists(nb.key_path()))
+
+    def test_key_removed_when_setup_is_interrupted_or_fails_late(self):
+        os.environ["NIZHO_RESTIC"] = "/bin/true"
+        for exc in (KeyboardInterrupt(), OSError("disk full")):
+            with mock.patch.object(nb, "save_config", side_effect=exc):
+                try:
+                    self.run_cli("setup", "--to", self.drive)
+                except (KeyboardInterrupt, OSError):
+                    pass
+            self.assertFalse(os.path.exists(nb.key_path()), repr(exc))
+
+    def test_existing_key_without_settings_is_kept(self):
+        os.makedirs(os.path.dirname(nb.key_path()), exist_ok=True)
+        with open(nb.key_path(), "w") as f:
+            f.write("precious\n")
+        code, _, err = self.run_cli("setup", "--to", self.drive)
+        self.assertEqual(code, 1)
+        self.assertIn("already exists", err)
+        with open(nb.key_path()) as f:
+            self.assertEqual(f.read(), "precious\n")
+
+    def test_second_instance_is_refused_while_one_runs(self):
+        import fcntl
+        nb.save_config({"repo": self.drive, "paths": [self.home]})
+        open(os.path.join(self.drive, "config"), "w").close()
+        fd = os.open(nb.lock_path(), os.O_WRONLY | os.O_CREAT, 0o600)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        try:
+            code, _, err = self.run_cli("now")
+            self.assertEqual(code, 1)
+            self.assertIn("already running", err)
+            self.assertEqual(self.run_cli("now", "--quiet"), (0, "", ""))
+            self.assertEqual(self.run_cli("status")[0], 0, "status does not need the lock")
+        finally:
+            os.close(fd)
+
+    def test_ordinary_mistakes_give_plain_errors_not_tracebacks(self):
+        nb.save_config({"repo": self.drive, "paths": [self.home]})
+        open(os.path.join(self.drive, "config"), "w").close()
+        afile = os.path.join(self.tmp, "afile")
+        open(afile, "w").close()
+        code, _, err = self.run_cli("restore", "a", "--to", afile)
+        self.assertEqual(code, 1)
+        self.assertNotIn("Traceback", err)
+        code, _, err = self.run_cli("restore", "a", "--to", os.path.join(self.tmp, "r"), "--snapshot=--password-file=x")
+        self.assertEqual(code, 1)
+        self.assertIn("snapshot", err)
+        os.makedirs(os.path.join(self.tmp, "ro"), mode=0o500)
+        if os.geteuid() != 0:
+            code, _, err = self.run_cli("restore", "a", "--to", os.path.join(self.tmp, "ro", "x"))
+            self.assertEqual(code, 1)
+            self.assertNotIn("Traceback", err)
+        with open(nb.config_path(), "w") as f:
+            f.write("[1, 2]")
+        for c in (["status"], ["now"], ["list"]):
+            code, _, err = self.run_cli(*c)
+            self.assertEqual(code, 1, c)
+            self.assertIn("damaged", err)
+
+    def test_a_backup_dated_in_the_future_is_not_called_recent(self):
+        future = (dt.datetime.now() + dt.timedelta(days=30)).isoformat()
+        self.assertEqual(nb.ago(future), "unknown")
 
     def test_missing_restic_is_said_plainly(self):
         os.environ["NIZHO_RESTIC"] = ""
@@ -182,6 +254,51 @@ class RealRestic(Env):
         code, _, err = self.run_cli("restore", ".", "--to", os.path.join(self.tmp, "r4"))
         self.assertEqual(code, 1)
         self.assertIn("not the whole home folder", err)
+
+    def test_unreadable_file_still_counts_but_says_so(self):
+        if os.geteuid() == 0:
+            self.skipTest("root can read everything")
+        self.run_cli("setup", "--to", self.repo)
+        secret = os.path.join(self.home, "Documents", "locked.txt")
+        with open(secret, "w") as f:
+            f.write("x")
+        os.chmod(secret, 0)
+        code, _, err = self.run_cli("now")
+        self.assertEqual(code, 0, err)
+        self.assertIn("some files could not be read", err)
+        _, out, _ = self.run_cli("status", "--json")
+        self.assertIsNotNone(json.loads(out)["last_ok"])
+        self.assertEqual(len(self.run_cli("list")[1].strip().splitlines()), 1)
+
+    def test_drive_unplugged_during_quiet_run_stays_quiet_and_unmarked(self):
+        self.run_cli("setup", "--to", self.repo)
+        fake = os.path.join(self.tmp, "fake-restic")
+        with open(fake, "w") as f:
+            f.write('#!/bin/sh\nrm -rf "$RESTIC_REPOSITORY"\necho boom >&2\nexit 1\n')
+        os.chmod(fake, 0o755)
+        os.environ["NIZHO_RESTIC"] = fake
+        self.assertEqual(self.run_cli("now", "--quiet"), (0, "", ""))
+        self.assertIsNone(nb.load_config().get("last_ok"))
+        code, _, err = self.run_cli("now")
+        self.assertEqual(code, 1, "without --quiet an unplugged drive is still reported")
+
+    def test_restoring_names_with_pattern_characters(self):
+        names = ["trip [2020]", "what?", "star*", "back\\slash", "-rf"]
+        for n in names:
+            os.makedirs(os.path.join(self.home, "Pictures", n))
+            with open(os.path.join(self.home, "Pictures", n, "a.txt"), "w") as f:
+                f.write("in " + n)
+        self.run_cli("setup", "--to", self.repo)
+        self.run_cli("now")
+        for i, n in enumerate(names):
+            target = os.path.join(self.tmp, "r%d" % i)
+            code, _, err = self.run_cli("restore", "Pictures/" + n, "--to", target)
+            self.assertEqual(code, 0, (n, err))
+            with open(os.path.join(target, "Pictures", n, "a.txt")) as f:
+                self.assertEqual(f.read(), "in " + n)
+        target = os.path.join(self.tmp, "only")
+        self.assertEqual(self.run_cli("restore", "Pictures/trip [2020]", "--to", target)[0], 0)
+        self.assertFalse(os.path.exists(os.path.join(target, "Pictures", "what?")))
 
     def test_second_setup_and_reused_folder_are_refused(self):
         self.run_cli("setup", "--to", self.repo)

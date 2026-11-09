@@ -169,6 +169,12 @@ class RedactCheck(Fake):
                     "aabbccdd-1111-2222-3333-444455556666", "0123456789abcdef0123", "Serial Number: 12345"]:
             self.assertTrue(hw.redact_scan("x " + bad + " y"), bad)
 
+    def test_scan_catches_forms_that_slipped_through(self):
+        for bad in ["2001:db8::", "fe80::", "1::", "gateway 10.0.0.1.", "mac aabbccddeeff here", "AABBCCDDEEFF",
+                    "aabb.ccdd.eeff", "{AABBCCDD-1111-2222-3333-444455556666}"]:
+            self.assertTrue(hw.redact_scan("x " + bad + " y"), bad)
+            self.assertNotEqual(hw.scrub(bad), bad, bad)
+
     def test_scan_ignores_normal_lines(self):
         ok = "- GPU: 8086:9b41, driver i915\n- Kernel: 6.12.0-225.el10.x86_64\n- BIOS date: 10/23/2020\n- mode 1920x1080@60.00*"
         self.assertEqual(hw.redact_scan(ok), [])
