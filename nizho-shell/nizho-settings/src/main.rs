@@ -5,6 +5,7 @@ use adw::prelude::*;
 use std::process::Command;
 
 mod backup;
+mod phone;
 mod restore_browser;
 
 const APP_ID: &str = "org.nizho.settings";
@@ -649,22 +650,26 @@ fn page_internet() -> gtk4::Widget {
     phone_group.set_title("Phone and other devices");
     let phone_row = adw::SwitchRow::new();
     phone_row.set_title("Link with your phone (KDE Connect)");
-    phone_row.set_subtitle(phone_subtitle(kdeconnect_running()));
-    phone_row.set_active(kdeconnect_running());
+    let (d0, r0) = (kdeconnect_running(), phone::rule_open());
+    phone_row.set_subtitle(phone::subtitle(d0, r0));
+    phone_row.set_active(phone::switch_on(d0, r0));
     phone_row.connect_active_notify(|row| {
         let want = row.is_active();
-        if want == kdeconnect_running() {
+        if want == phone::switch_on(kdeconnect_running(), phone::rule_open()) {
             return; // the result of a change made below, shown back to the switch
         }
         let row = row.clone();
         row.set_sensitive(false);
         glib::spawn_future_local(async move {
-            let ok = gtk4::gio::spawn_blocking(move || set_kdeconnect(want)).await.unwrap_or(false);
-            // The switch shows what is running now, not what was asked.
-            let now = kdeconnect_running();
-            row.set_active(now);
+            // Turning on asks for the administrator password first; turning off stops the daemon first.
+            let msg = gtk4::gio::spawn_blocking(move || phone::apply(want, phone::run_helper, set_kdeconnect))
+                .await
+                .unwrap_or_else(|_| Some("Couldn't change this. Open the KDE Connect app instead.".into()));
+            // The switch shows what is running and what the state file says now, not what was asked.
+            let (d, r) = (kdeconnect_running(), phone::rule_open());
+            row.set_active(phone::switch_on(d, r));
             row.set_sensitive(true);
-            row.set_subtitle(if ok { phone_subtitle(now) } else { "Couldn't change this. Open the KDE Connect app instead." });
+            row.set_subtitle(&msg.unwrap_or_else(|| phone::subtitle(d, r).to_string()));
         });
     });
     phone_group.add(&phone_row);
@@ -673,15 +678,6 @@ fn page_internet() -> gtk4::Widget {
     b.append(&dns_group);
     b.append(&phone_group);
     b.upcast()
-}
-
-fn phone_subtitle(on: bool) -> &'static str {
-    if on {
-        "On, and it starts at login. Phones and computers on the same network can find this computer. \
-         Pair them in the KDE Connect app."
-    } else {
-        "Off. KDE Connect isn't running and doesn't start at login. Opening the KDE Connect app starts it again."
-    }
 }
 
 fn kdeconnect_running() -> bool {
