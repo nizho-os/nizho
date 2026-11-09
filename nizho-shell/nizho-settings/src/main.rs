@@ -5,6 +5,7 @@ use adw::prelude::*;
 use std::process::Command;
 
 mod backup;
+mod restore_browser;
 
 const APP_ID: &str = "org.nizho.settings";
 
@@ -788,6 +789,45 @@ fn recovery_key_dialog(window: &adw::ApplicationWindow, key: &str, folder: &str)
     d
 }
 
+/// The old way: type the path of the file or folder. Returns None if they cancel or the path is not usable.
+async fn ask_typed_path(window: &adw::ApplicationWindow, status_row: &adw::ActionRow) -> Option<String> {
+    let entry = gtk4::Entry::new();
+    entry.set_placeholder_text(Some("Documents/report.odt"));
+    entry.set_activates_default(true);
+    let d = adw::MessageDialog::new(
+        Some(window),
+        Some("Get a file back"),
+        Some("Type the file or folder as it appears in your home folder. You will choose where the older copy goes."),
+    );
+    d.set_extra_child(Some(&entry));
+    d.add_response("cancel", "Cancel");
+    d.add_response("go", "Choose a folder");
+    d.set_response_appearance("go", adw::ResponseAppearance::Suggested);
+    d.set_default_response(Some("go"));
+    d.set_close_response("cancel");
+    if d.choose_future().await != "go" {
+        return None;
+    }
+    let path = entry.text().to_string();
+    if !backup::valid_restore_path(&path) {
+        status_row.set_subtitle("Write the file or folder as it appears in your home folder, for example Documents/report.odt.");
+        return None;
+    }
+    Some(path)
+}
+
+/// Asks for an empty folder, then restores `path` there (from one chosen backup, or the newest).
+async fn restore_into_folder(window: &adw::ApplicationWindow, status_row: &adw::ActionRow, path: String, snapshot: Option<String>) {
+    let dlg = gtk4::FileDialog::builder().title("Choose an empty folder for the older copy").build();
+    let Ok(folder) = dlg.select_folder_future(Some(window)).await else { return };
+    let Some(target) = folder.path() else { return };
+    status_row.set_subtitle("Restoring\u{2026}");
+    let res = gtk4::gio::spawn_blocking(move || backup::restore(&path, &target, snapshot.as_deref()))
+        .await
+        .unwrap_or_else(|_| Err("The restore did not finish.".into()));
+    status_row.set_subtitle(&match res { Ok(m) => m, Err(e) => e });
+}
+
 fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
     let b = page_box(
         "Backup",
@@ -902,38 +942,19 @@ fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
     {
         let (window, restore_row, status_row) = (window.clone(), restore_row.clone(), status_row.clone());
         restore_row.clone().connect_activated(move |_| {
-            let (window, status_row) = (window.clone(), status_row.clone());
-            glib::spawn_future_local(async move {
-                let entry = gtk4::Entry::new();
-                entry.set_placeholder_text(Some("Documents/report.odt"));
-                entry.set_activates_default(true);
-                let d = adw::MessageDialog::new(
-                    Some(&window),
-                    Some("Get a file back"),
-                    Some("Type the file or folder as it appears in your home folder. You will choose where the older copy goes."),
-                );
-                d.set_extra_child(Some(&entry));
-                d.add_response("cancel", "Cancel");
-                d.add_response("go", "Choose a folder");
-                d.set_response_appearance("go", adw::ResponseAppearance::Suggested);
-                d.set_default_response(Some("go"));
-                d.set_close_response("cancel");
-                if d.choose_future().await != "go" {
-                    return;
-                }
-                let path = entry.text().to_string();
-                if !backup::valid_restore_path(&path) {
-                    status_row.set_subtitle("Write the file or folder as it appears in your home folder, for example Documents/report.odt.");
-                    return;
-                }
-                let dlg = gtk4::FileDialog::builder().title("Choose an empty folder for the older copy").build();
-                let Ok(folder) = dlg.select_folder_future(Some(&window)).await else { return };
-                let Some(target) = folder.path() else { return };
-                status_row.set_subtitle("Restoring\u{2026}");
-                let res = gtk4::gio::spawn_blocking(move || backup::restore(&path, &target))
-                    .await
-                    .unwrap_or_else(|_| Err("The restore did not finish.".into()));
-                status_row.set_subtitle(&match res { Ok(m) => m, Err(e) => e });
+            let (window2, status_row2) = (window.clone(), status_row.clone());
+            restore_browser::open(&window, move |pick| {
+                let (window, status_row) = (window2.clone(), status_row2.clone());
+                glib::spawn_future_local(async move {
+                    match pick {
+                        restore_browser::Pick::Item { path, snapshot } => restore_into_folder(&window, &status_row, path, Some(snapshot)).await,
+                        restore_browser::Pick::TypeInstead => {
+                            if let Some(path) = ask_typed_path(&window, &status_row).await {
+                                restore_into_folder(&window, &status_row, path, None).await;
+                            }
+                        }
+                    }
+                });
             });
         });
     }
