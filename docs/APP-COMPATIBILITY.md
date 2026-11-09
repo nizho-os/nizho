@@ -8,8 +8,7 @@ particular app works.
 
 - Apps come from Flathub through Capsule or `nizho install`. Windows `.exe` files and `.deb`
   packages do not install.
-- Some Fedora `.rpm` packages can be added to the system by an advanced user, but that is not
-  something Nizho supports, and it can get in the way of updates.
+- Nizho does not support adding other system packages. Use a Flatpak app, or ask us.
 - A browser extension that talks to a password manager on the computer may not be able to reach it
   when the browser is a Flatpak. Nizho's own Firefox is not a Flatpak.
 
