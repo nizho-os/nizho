@@ -20,14 +20,15 @@ particular app works.
     Carlito (a stand-in for Calibri), Caladea (Cambria) and the Liberation fonts (Arial, Times New
     Roman, Courier New). These fonts are built to match the originals' letter widths, so lines and
     pages break in the same places more often. Microsoft's own fonts are not included.
-  - ONLYOFFICE Desktop Editors is in Capsule and `nizho install`. People often find it keeps more of
-    a .docx layout. We have not compared the two ourselves.
+  - ONLYOFFICE Desktop Editors is on the `nizho install` list. It is a separate program with its own
+    document engine, so it may handle some .docx files differently from LibreOffice. We have not
+    compared the two ourselves.
   - Microsoft 365 in the browser works. To send a file to someone who uses Word, choose Save As
     and pick .docx, .xlsx or .pptx in LibreOffice.
   - Complex documents can still look different, for example tracked changes, embedded objects and
     unusual fonts. Check an important file before you rely on it.
 - **Adobe apps.** There is no Linux version of Photoshop, Illustrator, InDesign, Lightroom or
-  Premiere. Capsule lists GIMP, Krita, Inkscape, Scribus, darktable and Kdenlive as stand-ins. They are
+  Premiere. `nizho install` lists GIMP, Krita, Inkscape, Scribus, darktable and Kdenlive as stand-ins. They are
   different programs with their own file handling. Files from Adobe apps may not open, or may open
   with parts missing. Ask for an export (PDF, SVG, PNG, TIFF) from whoever made the file.
 - **Games.** Many Windows games run through Steam's Proton. Some games with kernel-level
@@ -56,5 +57,5 @@ If an app you need is not on this page, assume it is untested.
   and came out at 10 pages. The change shows the substitute fonts have different widths. We did
   not have real Calibri to compare against, so we did not measure how close 10 pages is to what Word
   produces.
-- Not tested: real Word documents, spreadsheets, ONLYOFFICE's .docx output, and the new Capsule
-  and `nizho install` entries on a running Nizho.
+- Not tested: real Word documents, spreadsheets, ONLYOFFICE's .docx output, and the new `nizho install`
+  entries on a running Nizho.
