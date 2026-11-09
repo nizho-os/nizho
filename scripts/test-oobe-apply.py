@@ -67,7 +67,7 @@ class ApplyTests(unittest.TestCase):
             'NIZHO_OOBE_HELPER_SOURCE',
             Path(__file__).resolve().parents[1] / 'system' / 'nizho-oobe-apply',
         )).read_text()
-        for prefix in ('/run/', '/etc/', '/var/lib/', '/home/', '/usr/share/zoneinfo/', '/usr/share/color-schemes/', '/usr/share/X11/'):
+        for prefix in ('/run/', '/etc/', '/var/lib/', '/home/', '/usr/share/zoneinfo/', '/usr/share/color-schemes/', '/usr/share/X11/', '/usr/libexec/'):
             source = source.replace(prefix, str(self.root) + prefix)
         self.helper = self.root / 'helper'
         self.helper.write_text(source)
@@ -75,13 +75,17 @@ class ApplyTests(unittest.TestCase):
             command = self.root / 'bin' / name
             command.write_text(MOCK_COMMAND)
             command.chmod(0o755)
+        phone = self.root / 'usr/libexec/nizho-phone-link'
+        phone.parent.mkdir(parents=True, exist_ok=True)
+        phone.write_text(MOCK_COMMAND)
+        phone.chmod(0o755)
         self.env = dict(os.environ, OOBE_TEST_ROOT=str(self.root))
         self.env['PATH'] = str(self.root / 'bin') + os.pathsep + '/usr/bin:/bin'
 
     def run_helper(self, user='alice', autologin='1', password='test-password\n', look=None, dev=None, host=None, zone=None,
-                   accent=None, locale=None, keyboard=None):
+                   accent=None, locale=None, keyboard=None, phone=None):
         args = ['bash', str(self.helper), user, autologin]
-        later = (host, dev, zone, accent, locale, keyboard)
+        later = (host, dev, zone, accent, locale, keyboard, phone)
         if look is None and any(a is not None for a in later):
             look = 'dark'          # later arguments are positional: the look must come first
         if look is not None:
@@ -90,16 +94,18 @@ class ApplyTests(unittest.TestCase):
             args.append(host or 'nizho')
         if dev is not None:
             args.extend(dev)
-        elif any(a is not None for a in (zone, accent, locale, keyboard)):
+        elif any(a is not None for a in (zone, accent, locale, keyboard, phone)):
             args.extend(['', '', ''])      # no version control, then the time zone
-        if any(a is not None for a in (zone, accent, locale, keyboard)):
+        if any(a is not None for a in (zone, accent, locale, keyboard, phone)):
             args.append(zone or '')
-        if any(a is not None for a in (accent, locale, keyboard)):
+        if any(a is not None for a in (accent, locale, keyboard, phone)):
             args.append(accent or 'green')
-        if any(a is not None for a in (locale, keyboard)):
+        if any(a is not None for a in (locale, keyboard, phone)):
             args.append(locale or '')
-        if keyboard is not None:
-            args.append(keyboard)
+        if any(a is not None for a in (keyboard, phone)):
+            args.append(keyboard or '')
+        if phone is not None:
+            args.append(phone)
         return subprocess.run(
             args, input=password,
             text=True, capture_output=True, env=self.env, timeout=5,
@@ -473,6 +479,69 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('could not give the login screen the blue accent', result.stderr)
         self.assertTrue((self.root / 'var/lib/nizho-firstboot-done').exists())
+
+    def autostart(self, user='alice'):
+        return self.root / 'home' / user / '.config/autostart/org.kde.kdeconnect.daemon.desktop'
+
+    def test_phone_link_defaults_to_no_when_the_argument_is_missing(self):
+        result = self.run_helper(look='dark', keyboard='de')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls_to('nizho-phone-link'), [])
+        self.assertFalse(self.autostart().exists())
+
+    def test_the_old_calling_convention_still_works_and_links_nothing(self):
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls_to('nizho-phone-link'), [])
+        self.assertTrue((self.root / 'var/lib/nizho-firstboot-done').exists())
+
+    def check_no_link(self, answer):
+        result = self.run_helper(phone=answer)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls_to('nizho-phone-link'), [])
+        self.assertFalse(self.autostart().exists())
+
+    def test_an_empty_answer_links_nothing(self):
+        self.check_no_link('')
+
+    def test_a_no_answer_links_nothing(self):
+        self.check_no_link('no')
+
+    def test_yes_opens_the_rule_and_starts_kde_connect_at_login(self):
+        result = self.run_helper(phone='yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls_to('nizho-phone-link'), [['nizho-phone-link', 'on']])
+        text = self.autostart().read_text()
+        self.assertIn('Exec=/usr/bin/kdeconnectd', text)
+        self.assertIn('Hidden=false', text)
+
+    def test_yes_with_every_other_argument_given(self):
+        result = self.run_helper(look='light', host='laptop', zone='Europe/Berlin', accent='blue',
+                                 locale='de_DE.UTF-8', keyboard='de', phone='yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls_to('nizho-phone-link'), [['nizho-phone-link', 'on']])
+        self.assertTrue(self.autostart().exists())
+
+    def test_a_failed_rule_does_not_stop_the_account_and_writes_no_autostart(self):
+        self.env['OOBE_TEST_FAIL'] = 'nizho-phone-link'
+        result = self.run_helper(phone='yes')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('could not link your phone', result.stderr)
+        self.assertFalse(self.autostart().exists())
+        self.assertTrue((self.root / 'var/lib/nizho-firstboot-done').exists())
+
+    def test_anything_but_yes_or_no_is_refused_before_the_account_is_made(self):
+        for answer in ('YES', 'true', '1', 'yes;reboot', 'y'):
+            with self.subTest(answer=answer):
+                self.assertNotEqual(self.run_helper(phone=answer).returncode, 0)
+                self.assert_no_account_changes()
+                self.assertEqual(self.calls_to('nizho-phone-link') if (self.root / 'calls').exists() else [], [])
+
+    def test_too_many_arguments_are_refused(self):
+        args = ['bash', str(self.helper), 'alice', '1', 'dark', 'nizho', '', '', '', '', 'green', '', '', 'yes', 'extra']
+        result = subprocess.run(args, input='test-password\n', text=True, capture_output=True, env=self.env, timeout=5)
+        self.assertNotEqual(result.returncode, 0)
+        self.assert_no_account_changes()
 
 if __name__ == '__main__':
     unittest.main()

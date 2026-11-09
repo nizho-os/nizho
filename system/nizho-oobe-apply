@@ -10,21 +10,24 @@
 #
 #   usage: nizho-oobe-apply <username> <autologin:0|1> [light|dark
 #                            [<computer-name> [<tools> <commit-name> <commit-email>
-#                            [<time-zone> [<accent>]]]]]
+#                            [<time-zone> [<accent> [<language> [<keyboard> [<phone>]]]]]]]]
 #          (password on stdin; look defaults to dark, the image default;
 #           the computer name defaults to nizho, the privacy default;
 #           the time zone is a tz database name such as Europe/Berlin, and when
 #           it is left out the image's own zone stays; callers that pick a time
 #           zone but no version control pass three empty strings before it;
 #           the accent is green or blue, green when left out, and a caller that
-#           picks one but no time zone passes an empty string for the zone)
+#           picks one but no time zone passes an empty string for the zone;
+#           the last argument, phone, is yes or no: yes opens the firewall rule for
+#           KDE Connect and starts it at login for the new account. When it is left
+#           out or empty the answer is no, and nothing about phones is changed)
 #
 # tools is the optional version control from setup's Advanced options: a comma
 # list of vara and git, each set up with the name and email for commits.
 set -euo pipefail
 
-if [ "$#" -lt 2 ] || [ "$#" -gt 11 ] || [ "$#" -eq 5 ] || [ "$#" -eq 6 ]; then
-    echo "nizho-oobe-apply: expected username, autologin flag, optional look, computer name, version control, time zone and accent" >&2
+if [ "$#" -lt 2 ] || [ "$#" -gt 12 ] || [ "$#" -eq 5 ] || [ "$#" -eq 6 ]; then
+    echo "nizho-oobe-apply: expected username, autologin flag, optional look, computer name, version control, time zone, accent, language, keyboard and phone link" >&2
     exit 2
 fi
 user="$1"
@@ -38,6 +41,8 @@ zone="${8:-}"
 accent="${9:-green}"
 locale="${10:-}"
 keyboard="${11:-}"
+phone="${12:-no}"
+[ -n "$phone" ] || phone=no
 
 # Serialize account creation, including retries from the graphical and TUI paths.
 exec 9>/run/nizho-oobe.lock
@@ -97,6 +102,12 @@ if [ -n "$keyboard" ]; then
         echo "nizho-oobe-apply: invalid keyboard layout" >&2
         exit 2
     fi
+fi
+
+# Linking a phone is off unless the answer is exactly yes.
+if [[ "$phone" != "yes" && "$phone" != "no" ]]; then
+    echo "nizho-oobe-apply: invalid phone link answer" >&2
+    exit 2
 fi
 
 if [ -n "$tools" ]; then
@@ -212,6 +223,28 @@ if [ -n "$keyboard" ]; then
         kwriteconfig6 --file "$f" --group Layout --key LayoutList "$2"
     ' nizho-setup-keyboard "/home/$user" "$keyboard" ||
         echo "nizho-oobe-apply: warning: could not set the keyboard for the desktop" >&2
+fi
+
+# Phone link, only when the user said yes. The helper opens the firewall rule (this script
+# already runs as root, so no password prompt). KDE Connect then starts at login for the new
+# account, the same autostart entry Settings writes. If the rule could not be opened the
+# autostart is not written, so nothing runs without its firewall rule. A failure is reported
+# but does not stop setup: the user can switch it on later in Settings, Internet.
+if [ "$phone" = "yes" ]; then
+    if /usr/libexec/nizho-phone-link on; then
+        runuser -u "$user" -- bash -c '
+            set -eu
+            umask 077
+            dir=$1/.config/autostart
+            mkdir -p -- "$dir"
+            printf "%s\n" "[Desktop Entry]" "Type=Application" "Name=KDE Connect" "Exec=/usr/bin/kdeconnectd" \
+                "StartupNotify=false" "X-KDE-autostart-phase=1" "NoDisplay=true" "Hidden=false" \
+                > "$dir/org.kde.kdeconnect.daemon.desktop"
+        ' nizho-setup-phone "/home/$user" ||
+            echo "nizho-oobe-apply: warning: could not start KDE Connect at login" >&2
+    else
+        echo "nizho-oobe-apply: warning: could not link your phone; turn it on later in Settings, Internet" >&2
+    fi
 fi
 
 # A computer name other than the default goes into nizhod's settings, so nizhod sets it
