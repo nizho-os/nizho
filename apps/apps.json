@@ -8,7 +8,7 @@
   {
     "id": "org.kde.kdenlive",
     "name": "Kdenlive",
-    "about": "Video editor.",
+    "about": "Video editor. Used in place of Premiere Pro or Final Cut.",
     "category": "Media"
   },
   {
@@ -26,19 +26,19 @@
   {
     "id": "org.gimp.GIMP",
     "name": "GIMP",
-    "about": "Photo editor and painting tool.",
+    "about": "Photo editor and painting tool. Used in place of Photoshop; it is a different program with different files.",
     "category": "Graphics"
   },
   {
     "id": "org.kde.krita",
     "name": "Krita",
-    "about": "Digital painting.",
+    "about": "Digital painting. Used in place of Photoshop or Clip Studio for drawing.",
     "category": "Graphics"
   },
   {
     "id": "org.inkscape.Inkscape",
     "name": "Inkscape",
-    "about": "Vector drawing.",
+    "about": "Vector drawing. Used in place of Illustrator; it is a different program and layouts can differ.",
     "category": "Graphics"
   },
   {
@@ -50,13 +50,13 @@
   {
     "id": "org.libreoffice.LibreOffice",
     "name": "LibreOffice",
-    "about": "Documents, spreadsheets and slides.",
+    "about": "Documents, spreadsheets and slides. Opens and saves Word, Excel and PowerPoint formats; complex layouts can differ.",
     "category": "Office"
   },
   {
     "id": "org.onlyoffice.desktopeditors",
     "name": "ONLYOFFICE",
-    "about": "Documents, spreadsheets and slides, closer to Microsoft Office files.",
+    "about": "Documents, spreadsheets and slides. Can open Word, Excel and PowerPoint files; complex layouts can differ.",
     "category": "Office"
   },
   {
@@ -106,5 +106,23 @@
     "name": "Bottles",
     "about": "Runs Windows apps in a container.",
     "category": "Utilities"
+  },
+  {
+    "id": "org.darktable.Darktable",
+    "name": "darktable",
+    "about": "Develops and organises RAW photos. Used in place of Lightroom; it is a different program.",
+    "category": "Graphics"
+  },
+  {
+    "id": "net.scribus.Scribus",
+    "name": "Scribus",
+    "about": "Page layout for print and PDF. Used in place of InDesign; it is a different program.",
+    "category": "Graphics"
+  },
+  {
+    "id": "com.github.jeromerobert.pdfarranger",
+    "name": "PDF Arranger",
+    "about": "Merges, splits, rotates and reorders pages of PDF files.",
+    "category": "Office"
   }
 ]

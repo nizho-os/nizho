@@ -65,6 +65,43 @@ class Catalog(unittest.TestCase):
             self.assertTrue({"id", "name", "about", "category"} <= a.keys())
             self.assertIn(".", a["id"])
 
+    def test_entries_follow_the_wording_rules(self):
+        import json, re
+        with open(os.path.join(HERE, "apps.json")) as f:
+            apps = json.load(f)
+        categories = {"Media", "Graphics", "Office", "Internet", "Utilities", "Developer"}
+        banned = re.compile(r"full compatib|fully compatible|100%|drop-in|perfect|identical|exactly like|best |free of", re.I)
+        names = [a["name"] for a in apps]
+        self.assertEqual(len(names), len(set(names)))
+        for a in apps:
+            self.assertIn(a["category"], categories, a["id"])
+            self.assertRegex(a["id"], r"^[A-Za-z0-9_]+(\.[A-Za-z0-9_-]+)+$", a["id"])
+            self.assertTrue(a["about"].endswith("."), a["id"])
+            self.assertLessEqual(len(a["about"]), 130, a["id"])
+            self.assertIsNone(banned.search(a["about"]), a["id"])
+            self.assertNotIn("\u2014", a["about"], a["id"])
+            self.assertNotIn(" - ", a["about"], a["id"])
+
+    def test_office_and_creative_stand_ins_are_listed(self):
+        import json
+        with open(os.path.join(HERE, "apps.json")) as f:
+            listed = {a["id"] for a in json.load(f)}
+        wanted = {
+            "org.onlyoffice.desktopeditors", "org.libreoffice.LibreOffice", "org.gimp.GIMP",
+            "org.kde.krita", "org.inkscape.Inkscape", "org.kde.kdenlive",
+            "org.darktable.Darktable", "net.scribus.Scribus", "com.github.jeromerobert.pdfarranger",
+        }
+        self.assertEqual(wanted - listed, set())
+
+    def test_stand_in_entries_never_claim_full_compatibility(self):
+        import json
+        with open(os.path.join(HERE, "apps.json")) as f:
+            apps = {a["id"]: a for a in json.load(f)}
+        for i in ("org.onlyoffice.desktopeditors", "org.libreoffice.LibreOffice"):
+            self.assertIn("can differ", apps[i]["about"])
+        for i in ("org.gimp.GIMP", "org.inkscape.Inkscape", "net.scribus.Scribus", "org.darktable.Darktable"):
+            self.assertIn("in place of", apps[i]["about"])
+
     def test_every_capsule_app_is_on_the_list(self):
         # Capsule installs through nizho, so an app on its grid must be on nizho's list too.
         import json, re
