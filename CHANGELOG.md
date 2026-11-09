@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased (after DP1)
+
+The full list, with how each part was tested, is in [docs/FEATURES.md](docs/FEATURES.md).
+
+### Added
+- Backup page in Settings and `nizho-backup`: encrypted backups of your files to a
+  drive you choose. Tested on a development computer and, for the page, in a VM; not
+  with a real drive.
+- `nizho-import`: copies files in from a Windows or macOS drive. Tested with
+  temporary folders only.
+- `nizho-hwreport` and `docs/HARDWARE.md`: a hardware report for bug reports, and
+  the list of the one tested laptop and what is untested.
+- Phosphor tile icon set for the Nizho apps and common KDE apps. Firefox and Trash
+  keep their own icons. A critic panel scored it about 6.7 against 6.5 for the old
+  set, a small gain.
+- Language and keyboard page in setup. Not yet run in a booted image.
+
+### Changed
+- The Privacy dashboard no longer shows a privacy score. It lists each setting as
+  Configured or not.
+
+### Known Issues
+- Everything above is untested on real hardware.
+
 ## v0.1.0-dp1 — Developer Preview 1 (2026-07-11)
 
 ### Added
@@ -12,7 +36,7 @@
   Downloads-only passthrough.
 - KDE Plasma desktop branded as Nizho: top panel + floating dock +
   full-screen launcher layout, dark + green design system throughout.
-- Nizho Design System v1.0 (`nizho-design-system/`): tokens, typography,
+- Nizho Design System v1.0 (`desktop/nizho-design-system/`): tokens, typography,
   motion, components, privacy color mapping.
 - Custom SDDM login theme, Plymouth boot animation (▲ → glow → NIZHO),
   Nizho icon pack (12 icons), NizhoCursor, Nizho sound theme, generated
