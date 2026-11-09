@@ -4,6 +4,7 @@
     nizho-import scan SOURCE              find what can be imported and print a summary
     nizho-import files SOURCE --dry-run   list exactly what would be copied
     nizho-import files SOURCE             copy it into your home folder
+    nizho-import bookmarks SOURCE         write browser bookmarks to one HTML file
 
 SOURCE is a mounted Windows drive (Users/NAME/Documents and so on), a macOS home or
 Time Machine style folder (Documents, Pictures, Movies, ...), or any plain folder.
@@ -14,15 +15,27 @@ already exists with different content keeps both, and the new one is saved as
 "name (imported).ext", then "name (imported 2).ext". Identical files are skipped.
 Browser profiles, password stores and keychains are not imported.
 
+Bookmarks only: saved passwords, cookies, history and whole profiles are never read.
+The bookmarks file goes to ~/Documents/Bookmarks (or --to FILE) and never replaces a file.
+
 Exit code: 0 everything copied, 2 some files were skipped because of an error, 1 fatal error.
 """
 import argparse
+import contextlib
 import errno
 import hashlib
+import html
+import json
 import os
+import plistlib
 import secrets
+import shutil
+import sqlite3
 import stat
 import sys
+import tempfile
+import unicodedata
+import urllib.parse
 
 WIN_FOLDERS = ["Documents", "Pictures", "Music", "Videos", "Desktop", "Downloads"]
 MAC_FOLDERS = {"Documents": "Documents", "Pictures": "Pictures", "Music": "Music",
@@ -391,6 +404,15 @@ def cmd_scan(args, out):
     print(f"Would be skipped: {stats.junk} system junk, {stats.symlinks} symlinks, "
           f"{stats.private} browser or password items, {stats.special} special files.", file=out)
     report_failed(stats, out, "could not be read during the scan")
+    marks = find_bookmarks(src)
+    if marks:
+        print("Bookmarks that can be exported (nizho-import bookmarks):", file=out)
+        for it in marks:
+            who = f" ({it.label()})" if it.label() else ""
+            print(f"  {it.browser}{who}", file=out)
+    else:
+        print("No browser bookmarks found.", file=out)
+    print("Passwords, cookies, history and other browser data are not imported.", file=out)
     print(FIREFOX_NOTE, file=out)
     return 2 if stats.failed else 0
 
@@ -440,6 +462,639 @@ def cmd_files(args, out):
     return 2 if stats.failed else 0
 
 
+# ---------------------------------------------------------------- bookmarks
+
+MAX_TITLE = 500
+MAX_BOOKMARK_FILE = 256 * 1024 * 1024
+MAX_DEPTH = 64
+CHROME_EPOCH_OFFSET = 11644473600  # seconds between 1601-01-01 and 1970-01-01
+
+# browser name -> folders (relative to a user's home) that hold Bookmarks files, per operating system
+CHROMIUM_BROWSERS = [
+    ("Chrome", ["AppData/Local/Google/Chrome/User Data", "Library/Application Support/Google/Chrome",
+                ".config/google-chrome"]),
+    ("Chromium", ["AppData/Local/Chromium/User Data", "Library/Application Support/Chromium",
+                  ".config/chromium"]),
+    ("Edge", ["AppData/Local/Microsoft/Edge/User Data", "Library/Application Support/Microsoft Edge",
+              ".config/microsoft-edge"]),
+    ("Brave", ["AppData/Local/BraveSoftware/Brave-Browser/User Data",
+               "Library/Application Support/BraveSoftware/Brave-Browser",
+               ".config/BraveSoftware/Brave-Browser"]),
+    ("Vivaldi", ["AppData/Local/Vivaldi/User Data", "Library/Application Support/Vivaldi",
+                 ".config/vivaldi"]),
+    ("Opera", ["AppData/Roaming/Opera Software/Opera Stable", "Library/Application Support/com.operasoftware.Opera",
+               ".config/opera"]),
+    ("Opera GX", ["AppData/Roaming/Opera Software/Opera GX Stable",
+                  "Library/Application Support/com.operasoftware.OperaGX"]),
+]
+FIREFOX_DIRS = ["AppData/Roaming/Mozilla/Firefox/Profiles", "Library/Application Support/Firefox/Profiles",
+                ".mozilla/firefox"]
+SAFARI_DIRS = ["Library/Safari"]
+
+FIREFOX_ROOTS = {"menu________": "Bookmarks menu", "toolbar_____": "Bookmarks toolbar",
+                 "unfiled_____": "Other bookmarks", "mobile______": "Mobile bookmarks"}
+SAFARI_TOP = {"BookmarksBar": "Favorites", "BookmarksMenu": "Bookmarks menu"}
+
+SKIP_ADDRESS = "no usable address"
+SKIP_SCRIPT = "javascript: or data: address"
+SKIP_PLACE = "Firefox search or tag shortcut (place:)"
+SKIP_DUP = "duplicate (same address in the same folder)"
+SKIP_DAMAGED = "damaged entry"
+SKIP_DEEP = "folders nested too deeply"
+
+BOOKMARKS_HOWTO = ("To bring them into Firefox: Menu > Bookmarks > Manage bookmarks > Import and Backup > "
+                   "Import Bookmarks from HTML, then pick the file above.\n"
+                   "Nothing has been imported yet. This tool only wrote the file.")
+BOOKMARKS_NOTE = ("Not imported: saved passwords, cookies, history, autofill, sessions and browser profiles. "
+                  "Windows locks Chrome and Edge passwords to your Windows login and macOS keeps them in the "
+                  "Keychain, so they cannot be read from a drive. Firefox can import logins itself from a "
+                  "synced account.")
+
+
+class BadFile(Exception):
+    pass
+
+
+class Folder:
+    def __init__(self, name, added=None):
+        self.name = name
+        self.added = added
+        self.kids = []
+        self.urls = set()
+
+
+class Mark:
+    def __init__(self, title, url, added=None):
+        self.title = title
+        self.url = url
+        self.added = added
+
+
+class Tally:
+    def __init__(self):
+        self.bookmarks = 0
+        self.folders = 0
+        self.skipped = {}
+
+    def skip(self, why):
+        self.skipped[why] = self.skipped.get(why, 0) + 1
+
+    def add(self, other):
+        self.bookmarks += other.bookmarks
+        self.folders += other.folders
+        for why, n in other.skipped.items():
+            self.skipped[why] = self.skipped.get(why, 0) + n
+
+
+class Found:
+    def __init__(self, browser, kind, path, owner, profile):
+        self.browser, self.kind, self.path, self.owner, self.profile = browser, kind, path, owner, profile
+
+    def label(self):
+        return " / ".join(p for p in (self.owner, self.profile) if p)
+
+
+def clean_text(s, limit=MAX_TITLE):
+    """Keep text readable and safe to write: no control characters, one line, at most `limit` characters."""
+    if not isinstance(s, str):
+        return ""
+    out = []
+    for ch in s:
+        if ch in "\t\n\r":
+            out.append(" ")
+        elif unicodedata.category(ch) in ("Cc", "Cs"):
+            continue
+        else:
+            out.append(ch)
+    return " ".join("".join(out).split())[:limit]
+
+
+def clean_url(s):
+    if not isinstance(s, str):
+        return ""
+    return "".join(ch for ch in s if unicodedata.category(ch) not in ("Cc", "Cs")).strip()
+
+
+def chrome_time(value):
+    """Chrome counts microseconds since 1601-01-01. Returns Unix seconds, or None when unusable."""
+    try:
+        us = int(value)
+    except (TypeError, ValueError):
+        return None
+    if us <= 0:
+        return None
+    secs = us // 1000000 - CHROME_EPOCH_OFFSET
+    return secs if 0 < secs < 4102444800 else None
+
+
+def unix_micro_time(value):
+    try:
+        us = int(value)
+    except (TypeError, ValueError):
+        return None
+    secs = us // 1000000
+    return secs if 0 < secs < 4102444800 else None
+
+
+def add_mark(parent, title, url, added, tally):
+    """Add one bookmark to a folder, or count why it was left out."""
+    tally.bookmarks += 1
+    url = clean_url(url)
+    low = url.lower()
+    if not url:
+        tally.skip(SKIP_ADDRESS)
+    elif low.startswith(("javascript:", "data:", "vbscript:")):
+        tally.skip(SKIP_SCRIPT)
+    elif low.startswith("place:"):
+        tally.skip(SKIP_PLACE)
+    elif url in parent.urls:
+        tally.skip(SKIP_DUP)
+    else:
+        parent.urls.add(url)
+        parent.kids.append(Mark(clean_text(title) or url, url, added))
+
+
+def add_folder(parent, name, added, tally):
+    tally.folders += 1
+    f = Folder(clean_text(name) or "Untitled folder", added)
+    parent.kids.append(f)
+    return f
+
+
+def read_limited(path):
+    with open_source(path) as f:
+        data = f.read(MAX_BOOKMARK_FILE + 1)
+    if len(data) > MAX_BOOKMARK_FILE:
+        raise BadFile("the file is too large to be a bookmarks file")
+    return data
+
+
+# --- Chrome, Edge, Brave, Vivaldi, Opera, Chromium
+
+def parse_chrome(path, tally):
+    data = read_limited(path)
+    try:
+        doc = json.loads(data.decode("utf-8-sig"))
+    except (ValueError, RecursionError):
+        raise BadFile("the file is damaged or is not a Chrome style bookmarks file (not valid JSON)")
+    roots = doc.get("roots") if isinstance(doc, dict) else None
+    if not isinstance(roots, dict):
+        raise BadFile("the file has no bookmark folders (it is not a Chrome style bookmarks file)")
+    top = []
+    for key, label in (("bookmark_bar", "Bookmarks bar"), ("other", "Other bookmarks"),
+                       ("synced", "Mobile bookmarks")):
+        node = roots.get(key)
+        if not isinstance(node, dict):
+            continue
+        folder = Folder(label)
+        _chrome_children(node, folder, tally, 0)
+        if folder.kids:
+            top.append(folder)
+    return top
+
+
+def _chrome_children(node, parent, tally, depth):
+    kids = node.get("children")
+    if not isinstance(kids, list):
+        return
+    for child in kids:
+        if not isinstance(child, dict):
+            tally.skip(SKIP_DAMAGED)
+            continue
+        kind = child.get("type")
+        if kind == "folder":
+            if depth >= MAX_DEPTH:
+                tally.skip(SKIP_DEEP)
+                continue
+            sub = add_folder(parent, child.get("name"), chrome_time(child.get("date_added")), tally)
+            _chrome_children(child, sub, tally, depth + 1)
+        elif kind == "url":
+            add_mark(parent, child.get("name"), child.get("url"), chrome_time(child.get("date_added")), tally)
+        else:
+            tally.skip(SKIP_DAMAGED)
+
+
+# --- Firefox
+
+@contextlib.contextmanager
+def places_connection(path):
+    """Open places.sqlite without ever writing to the source.
+
+    Without a write-ahead log the file is opened read-only and immutable. With a log, immutable mode would
+    ignore the newest bookmarks, so the database and its log are copied to a temporary folder and the copy is read."""
+    wal = path + "-wal"
+    has_wal = os.path.isfile(wal) and os.path.getsize(wal) > 0
+    if not has_wal:
+        uri = "file:" + urllib.parse.quote(os.path.abspath(path)) + "?mode=ro&immutable=1"
+        conn = None
+        try:
+            conn = sqlite3.connect(uri, uri=True, timeout=1)
+            conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
+        except sqlite3.Error:
+            if conn is not None:
+                conn.close()
+        else:
+            try:
+                yield conn
+            finally:
+                conn.close()
+            return
+    with tempfile.TemporaryDirectory(prefix="nizho-import-") as td:
+        copy = os.path.join(td, "places.sqlite")
+        for src_file, dst in ((path, copy), (wal, copy + "-wal")):
+            if os.path.isfile(src_file):
+                with open_source(src_file) as fin, open(dst, "xb") as fout:
+                    shutil.copyfileobj(fin, fout, CHUNK)
+        conn = sqlite3.connect(copy)
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+
+def parse_firefox(path, tally):
+    try:
+        with places_connection(path) as conn:
+            rows = conn.execute(
+                "SELECT b.id, b.parent, b.type, b.title, b.dateAdded, b.guid, p.url "
+                "FROM moz_bookmarks b LEFT JOIN moz_places p ON b.fk = p.id "
+                "ORDER BY b.parent, b.position, b.id").fetchall()
+    except sqlite3.Error:
+        raise BadFile("the file is damaged or is not a Firefox places database")
+    by_parent = {}
+    root_id = None
+    for row in rows:
+        by_parent.setdefault(row[1], []).append(row)
+        if row[5] == "root________":
+            root_id = row[0]
+    if root_id is None:
+        raise BadFile("the file has no bookmarks root (it is not a Firefox places database)")
+    top = []
+    for row in by_parent.get(root_id, []):
+        if row[2] != 2 or row[5] == "tags________":
+            continue
+        folder = Folder(FIREFOX_ROOTS.get(row[5]) or clean_text(row[3]) or "Untitled folder")
+        _firefox_children(row[0], folder, by_parent, tally, {root_id, row[0]}, 0)
+        if folder.kids:
+            top.append(folder)
+    return top
+
+
+def _firefox_children(folder_id, parent, by_parent, tally, seen, depth):
+    for row in by_parent.get(folder_id, []):
+        kind = row[2]
+        if kind == 2:
+            if depth >= MAX_DEPTH:
+                tally.skip(SKIP_DEEP)
+                continue
+            if row[0] in seen:
+                tally.skip(SKIP_DAMAGED)
+                continue
+            sub = add_folder(parent, row[3], unix_micro_time(row[4]), tally)
+            _firefox_children(row[0], sub, by_parent, tally, seen | {row[0]}, depth + 1)
+        elif kind == 1:
+            add_mark(parent, row[3], row[6], unix_micro_time(row[4]), tally)
+        # type 3 is a separator: nothing to keep
+
+
+# --- Safari
+
+def parse_safari(path, tally):
+    data = read_limited(path)
+    try:
+        doc = plistlib.loads(data)
+    except Exception:
+        raise BadFile("the file is damaged or is not a Safari bookmarks plist")
+    if not isinstance(doc, dict) or not isinstance(doc.get("Children"), list):
+        raise BadFile("the file has no bookmark folders (it is not a Safari bookmarks plist)")
+    top = []
+    for child in doc["Children"]:
+        if not isinstance(child, dict):
+            tally.skip(SKIP_DAMAGED)
+            continue
+        title = child.get("Title")
+        if child.get("WebBookmarkType") != "WebBookmarkTypeList" or title == "com.apple.ReadingList":
+            continue  # Reading List and the History proxy are not bookmarks
+        folder = Folder(SAFARI_TOP.get(title) or clean_text(title) or "Untitled folder")
+        _safari_children(child, folder, tally, 0)
+        if folder.kids:
+            top.append(folder)
+    return top
+
+
+def _safari_children(node, parent, tally, depth):
+    kids = node.get("Children")
+    if not isinstance(kids, list):
+        return
+    for child in kids:
+        if not isinstance(child, dict):
+            tally.skip(SKIP_DAMAGED)
+            continue
+        kind = child.get("WebBookmarkType")
+        if kind == "WebBookmarkTypeList":
+            if depth >= MAX_DEPTH:
+                tally.skip(SKIP_DEEP)
+                continue
+            if child.get("Title") == "com.apple.ReadingList":
+                continue
+            sub = add_folder(parent, child.get("Title"), None, tally)
+            _safari_children(child, sub, tally, depth + 1)
+        elif kind == "WebBookmarkTypeLeaf":
+            info = child.get("URIDictionary")
+            title = info.get("title") if isinstance(info, dict) else None
+            add_mark(parent, title, child.get("URLString"), None, tally)
+        # proxies (History) and anything else are left out
+
+
+PARSERS = {"chromium": parse_chrome, "firefox": parse_firefox, "safari": parse_safari}
+
+
+# --- finding the files
+
+def _names(d):
+    try:
+        return sorted(os.listdir(d))
+    except OSError:
+        return []
+
+
+def _lookup(base, rel):
+    """Follow a relative path under base, matching each name without regard to case (NTFS and APFS do)."""
+    cur = base
+    for part in rel.split("/"):
+        nxt = os.path.join(cur, part)
+        if not os.path.lexists(nxt):
+            low = part.casefold()
+            hit = next((n for n in _names(cur) if n.casefold() == low), None)
+            if hit is None:
+                return None
+            nxt = os.path.join(cur, hit)
+        cur = nxt
+    return cur
+
+
+def _inside_file(path, src):
+    """A regular file whose real location is inside the source (a symlink out of it is refused)."""
+    return os.path.isfile(path) and inside(os.path.realpath(path), src)
+
+
+def _file_in(d, name, src):
+    p = _lookup(d, name)
+    return p if p and _inside_file(p, src) else None
+
+
+def _profiles_with(d, filename, src):
+    """(profile folder name, file) for d itself and each folder directly inside it."""
+    hits = []
+    if os.path.isdir(d) and inside(os.path.realpath(d), src):
+        p = _file_in(d, filename, src)
+        if p:
+            hits.append((os.path.basename(d.rstrip(os.sep)), p))
+        for sub in subdirs(d):
+            p = _file_in(os.path.join(d, sub), filename, src)
+            if p:
+                hits.append((sub, p))
+    return hits
+
+
+def _guess_chromium(src, path):
+    text = (os.path.basename(src.rstrip(os.sep)) + "/" + os.path.relpath(path, src)).lower()
+    for key, name in (("edge", "Edge"), ("brave", "Brave"), ("vivaldi", "Vivaldi"), ("opera", "Opera"),
+                      ("chromium", "Chromium"), ("chrome", "Chrome")):
+        if key in text:
+            return name
+    return "Chromium based browser"
+
+
+def find_bookmarks(src):
+    """Look in the standard places for bookmark files. Reads folder listings only."""
+    homes = []
+    for top in ("Users", "home"):
+        base = _lookup(src, top)
+        if base and os.path.isdir(base):
+            homes += [(n, os.path.join(base, n)) for n in subdirs(base) if n.lower() not in WIN_SKIP_USERS]
+    homes.append(("", src))
+    found, seen = [], set()
+
+    def keep(item):
+        real = os.path.realpath(item.path)
+        if real not in seen:
+            seen.add(real)
+            found.append(item)
+
+    for owner, home in homes:
+        for browser, rels in CHROMIUM_BROWSERS:
+            for rel in rels:
+                d = _lookup(home, rel)
+                for profile, p in (_profiles_with(d, "Bookmarks", src) if d else []):
+                    keep(Found(browser, "chromium", p, owner, profile))
+        for rel in FIREFOX_DIRS:
+            d = _lookup(home, rel)
+            for profile, p in (_profiles_with(d, "places.sqlite", src) if d else []):
+                keep(Found("Firefox", "firefox", p, owner, profile))
+        for rel in SAFARI_DIRS:
+            d = _lookup(home, rel)
+            p = _file_in(d, "Bookmarks.plist", src) if d and os.path.isdir(d) else None
+            if p:
+                keep(Found("Safari", "safari", p, owner, ""))
+    # the source itself may be a profile folder, a User Data folder or a Profiles folder
+    for profile, p in _profiles_with(src, "Bookmarks", src):
+        keep(Found(_guess_chromium(src, p), "chromium", p, "", profile))
+    for profile, p in _profiles_with(src, "places.sqlite", src):
+        keep(Found("Firefox", "firefox", p, "", profile))
+    for profile, p in _profiles_with(src, "Bookmarks.plist", src):
+        keep(Found("Safari", "safari", p, "", ""))
+    return found
+
+
+# --- writing the file
+
+def netscape_html(top):
+    lines = ["<!DOCTYPE NETSCAPE-Bookmark-file-1>",
+             "<!-- Written by nizho-import. Import it from your browser's bookmark manager. -->",
+             '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">',
+             "<TITLE>Bookmarks</TITLE>", "<H1>Bookmarks</H1>", "<DL><p>"]
+    _emit(top.kids, 1, lines)
+    lines.append("</DL><p>")
+    return "\n".join(lines) + "\n"
+
+
+def _date(added):
+    return f' ADD_DATE="{added}"' if added else ""
+
+
+def _emit(kids, level, lines):
+    pad = "    " * level
+    for k in kids:
+        if isinstance(k, Folder):
+            lines.append(f"{pad}<DT><H3{_date(k.added)}>{html.escape(k.name, quote=True)}</H3>")
+            lines.append(f"{pad}<DL><p>")
+            _emit(k.kids, level + 1, lines)
+            lines.append(f"{pad}</DL><p>")
+        else:
+            lines.append(f'{pad}<DT><A HREF="{html.escape(k.url, quote=True)}"{_date(k.added)}>'
+                         f"{html.escape(k.title, quote=True)}</A>")
+
+
+def count_tree(folder):
+    marks = folders = 0
+    for k in folder.kids:
+        if isinstance(k, Folder):
+            folders += 1
+            m, f = count_tree(k)
+            marks, folders = marks + m, folders + f
+        else:
+            marks += 1
+    return marks, folders
+
+
+def default_name(browsers):
+    if len(browsers) == 1:
+        return f"Bookmarks from {browsers[0]}.html"
+    if len(browsers) <= 3:
+        return "Bookmarks from " + ", ".join(browsers[:-1]) + " and " + browsers[-1] + ".html"
+    return "Bookmarks from several browsers.html"
+
+
+def _future_real(path):
+    p = os.path.abspath(path)
+    while not os.path.exists(p):
+        parent = os.path.dirname(p)
+        if parent == p:
+            break
+        p = parent
+    return os.path.realpath(p)
+
+
+def _numbered(target, n):
+    base, ext = os.path.splitext(target)
+    return target if n == 1 else f"{base} ({n}){ext}"
+
+
+def free_output_name(target):
+    n = 1
+    while os.path.lexists(_numbered(target, n)):
+        n += 1
+    return _numbered(target, n)
+
+
+def write_new_file(target, text):
+    """Create the file under the first free name. Never replaces or appends to an existing file."""
+    try:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+    except OSError as e:
+        raise Fail(f"Could not write the bookmarks file in {os.path.dirname(target)}: {reason_for(e)}. "
+                   "Nothing was written.")
+    n = 1
+    while True:
+        cand = _numbered(target, n)
+        try:
+            f = open(cand, "xb")
+        except FileExistsError:
+            n += 1
+            continue
+        except OSError as e:
+            raise Fail(f"Could not write {cand}: {reason_for(e)}. Nothing was written.")
+        break
+    try:
+        with f:
+            f.write(text.encode("utf-8"))
+            f.flush()
+            os.fsync(f.fileno())
+    except OSError as e:
+        _drop(cand)
+        raise Fail(f"Could not write {cand}: {reason_for(e)}. The unfinished file was removed.")
+    return cand
+
+
+def cmd_bookmarks(args, out):
+    src = check_source(args.source)
+    home = home_dir()
+    print(f"Source: {src}", file=out)
+    found = find_bookmarks(src)
+    if not found:
+        raise Fail("No browser bookmarks were found in this source. Looked for Chrome, Chromium, Edge, Brave, "
+                   "Vivaldi, Opera, Firefox and Safari bookmark files. Nothing was written.")
+    print("Bookmark files found:", file=out)
+    for it in found:
+        who = f" ({it.label()})" if it.label() else ""
+        print(f"  {it.browser}{who}: {os.path.relpath(it.path, src)}", file=out)
+
+    total, failed = Tally(), []
+    by_browser = {}  # browser -> [(Found, [top folders])]
+    for it in found:
+        t = Tally()
+        try:
+            tops = PARSERS[it.kind](it.path, t)
+        except BadFile as e:
+            failed.append((it.path, str(e)))
+            continue
+        except OSError as e:
+            failed.append((it.path, reason_for(e)))
+            continue
+        total.add(t)
+        print(f"  Read {t.bookmarks} bookmarks and {t.folders} folders from {it.browser}"
+              f"{' (' + it.label() + ')' if it.label() else ''}.", file=out)
+        by_browser.setdefault(it.browser, []).append((it, tops))
+
+    root = Folder("")
+    for browser, items in by_browser.items():
+        top = Folder(browser)
+        for it, tops in items:
+            if not tops:
+                continue
+            if len(items) == 1:
+                top.kids += tops
+            else:
+                sub = Folder(it.label() or it.profile or browser)
+                sub.kids = tops
+                top.kids.append(sub)
+        if top.kids:
+            root.kids.append(top)
+    marks, folders = count_tree(root)
+    names = [f.name for f in root.kids]
+
+    if failed:
+        print(f"{len(failed)} bookmark files could not be read:", file=out)
+        for path, why in failed:
+            print(f"  {path}: {why}", file=out)
+    if not by_browser:
+        raise Fail("None of the bookmark files could be read. Nothing was written.")
+
+    skipped = sum(total.skipped.values())
+    print(f"Read {total.bookmarks} bookmarks and {total.folders} folders in all.", file=out)
+    if skipped:
+        why = ", ".join(f"{n} {w}" for w, n in sorted(total.skipped.items()))
+        print(f"Skipped {skipped} bookmarks: {why}.", file=out)
+    else:
+        print("Skipped 0 bookmarks.", file=out)
+
+    if not names:
+        print("There were no bookmarks to write, so no file was created.", file=out)
+        print(BOOKMARKS_NOTE, file=out)
+        return 2 if failed else 0
+
+    name = default_name(names)
+    if args.to:
+        target = os.path.abspath(os.path.expanduser(args.to))
+        if os.path.isdir(target):
+            target = os.path.join(target, name)
+    else:
+        target = os.path.join(home, "Documents", name)
+    if inside(_future_real(os.path.dirname(target)), src):
+        raise Fail("The output file would be inside the source, which is never written to. Pick another place.")
+    text = netscape_html(root)
+    if args.dry_run:
+        print(f"Dry run: nothing was written. Would write {marks} bookmarks in {folders} folders to "
+              f"{free_output_name(target)}", file=out)
+    else:
+        written = write_new_file(target, text)
+        print(f"Wrote {marks} bookmarks in {folders} folders to {written}", file=out)
+        print(BOOKMARKS_HOWTO, file=out)
+    print(BOOKMARKS_NOTE, file=out)
+    return 2 if failed else 0
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="nizho-import", description="Bring personal files over from a Windows or macOS drive.")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -448,6 +1103,10 @@ def build_parser():
     f = sub.add_parser("files", help="copy files into your home folder")
     f.add_argument("source")
     f.add_argument("--dry-run", action="store_true", help="list what would be copied, copy nothing")
+    b = sub.add_parser("bookmarks", help="write browser bookmarks to one HTML file")
+    b.add_argument("source")
+    b.add_argument("--to", metavar="FILE", help="write here instead of ~/Documents/Bookmarks")
+    b.add_argument("--dry-run", action="store_true", help="read the bookmarks, write nothing")
     return p
 
 
@@ -472,7 +1131,7 @@ def main(argv=None, out=None):
     args = build_parser().parse_args(argv)
     _hashes.clear()
     try:
-        return cmd_scan(args, out) if args.cmd == "scan" else cmd_files(args, out)
+        return {"scan": cmd_scan, "files": cmd_files, "bookmarks": cmd_bookmarks}[args.cmd](args, out)
     except Fail as e:
         print(f"nizho-import: {e}", file=sys.stderr)
         return 1
