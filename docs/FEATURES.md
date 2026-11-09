@@ -1,7 +1,8 @@
 # What has been built since DP1, and how each part was tested
 
-This page was moved out of the README without rewording. Every "Tested in a VM" line records an ArkaOS build,
-made before the project was renamed Nizho; no Nizho image has been built or tested yet.
+This page was moved out of the README. Most "Tested in a VM" lines record ArkaOS builds, made before the project
+was renamed Nizho. The first Nizho image was built and booted in a VM on 2026-11-01; what that run checked is in
+[TEST-LOG.md](TEST-LOG.md). Entries added later say what they were tested with.
 
 
 This is source work plus the test results we wrote down along the way. The
@@ -128,7 +129,7 @@ exactly that: we haven't tried it.
   comes back at the bottom edge. Right-click it to keep it always visible or to
   change apps and sizes. It is
   [Crystal Dock](https://github.com/dangvd/crystal-dock) with an Nizho patch
-  (see `crystal-dock/`). Full-screen apps hide it, and it does not come back at
+  (see `desktop/crystal-dock/`). Full-screen apps hide it, and it does not come back at
   the edge until you leave full screen. Tested in a VM (2026-10-18). Not yet on
   hardware.
 - **Launcher.** The button at the top left, or the Meta key, opens a panel
@@ -163,8 +164,17 @@ exactly that: we haven't tried it.
   login screen does, so its white clock stays readable. New accounts' trays
   leave out Weather and Vaults. Both can be switched back on in the tray's
   settings. Tested in a VM (2026-10-20).
-- **App icons.** One family with a distinct colour per app. Firefox and the file
-  manager keep their own icons.
+- **Phosphor icon set.** The Nizho icon theme (`desktop/nizho-icons/`) draws app icons as coloured tiles
+  with [Phosphor](https://phosphoricons.com) line symbols (MIT licence, copy in
+  `THIRD-PARTY-PHOSPHOR-LICENSE.txt`). It covers 39 app icons and two action icons (suspend, switch user):
+  the Nizho apps and launcher button, Dolphin, Konsole, Discover, System Settings, System Monitor, Okular,
+  Gwenview, KCalc and the LibreOffice apps. Firefox is not in the set and keeps its own icon, because its
+  logo is a trademark. Trash stays the stock theme's icon, because the tile clashed with the line icons in
+  Dolphin's sidebar. The theme inherits Breeze Dark for everything else, so other icons are not Phosphor.
+  A critic panel scored the set about 6.7 against 6.5 for the old set on a strict rubric. That is a small
+  gain, not a transformation, and the panel's notes are not kept in this repository. That score is the only
+  test recorded for it. No run of a booted image with this theme is recorded, and it has not been seen on
+  hardware.
 - **Night light.** Settings › Appearance has a switch for warmer screen colours
   from 8 pm to 6 am. KDE's own schedule looks up your location by default. This
   one uses fixed times, so the switch asks for no location (we read this in the
@@ -186,7 +196,7 @@ exactly that: we haven't tried it.
   installing it for your account only. The text comes from Flathub's published
   metadata. It limits nothing by itself and does not make an app safe. We read
   the prompt and permission text against Flathub from the build machine and did
-  not run a full install. Not tested in a VM or on hardware.
+  not run a full install. `apps/test_nizho_install.py` runs in CI. Not tested in a VM or on hardware.
 - **Keyboard shortcuts page.** Meta+/ opens a list of the Nizho shortcuts and
   KDE's window, split-screen and space shortcuts. Each key on it was checked
   against KDE's shortcut settings or is set by an Nizho component. In a VM
@@ -198,6 +208,14 @@ exactly that: we haven't tried it.
   shows KDE's space switcher. Older accounts get two more once, at login. We have
   not seen the switcher working: our test session has no window manager. Not
   tested in a VM or on hardware.
+- **Language and keyboard in setup.** Setup has a page where you pick a language
+  and a keyboard layout from lists on the computer; picking a language suggests a
+  layout. The choice is applied at account creation with `localectl` and the
+  session's keyboard settings (`system/nizho-oobe-apply`). Nothing is looked up
+  online. Unit tests check the locale and layout names, and `scripts/test-oobe-apply.py`
+  runs the helper with stubbed tools. A preview render of the page was made. It has
+  not been run in a booted image, and we have not checked how much of the desktop is
+  translated into each language.
 - **Computer name and wheel tutorial in setup.** Setup now asks for a computer
   name (default `nizho`, which is the same on every Nizho computer) and ends with
   a short practice of the format wheel. We checked each page as a screenshot of
@@ -225,10 +243,21 @@ exactly that: we haven't tried it.
   not make pictures, sound or video smaller. Word, Excel and PowerPoint files (and
   their OpenDocument twins) become PDFs through LibreOffice. A PDF that has text
   can become a Word file, but the layout will differ, and a scanned PDF is refused
-  because Nizho has no text recognition yet. Everything runs in the same sandbox
-  with no network access. Tested with real files on the development laptop
-  (2026-11-01), not yet in a VM or on hardware. The smaller-video step needs the
-  OpenH264 encoder that Nizho ships and that laptop lacks, so it is untested.
+  for Word (its words can be saved as plain text with English text recognition
+  instead, see below). Everything runs in the same sandbox with no network access.
+  Tested first with real files on the development laptop (2026-11-01). The same
+  day, in a booted VM running the image's own sandbox ([TEST-LOG.md](TEST-LOG.md)):
+  a photo, a PNG, a WAV to MP3, a song, a video (H.264, so the OpenH264 encoder
+  works in the image), ZIP, Word and Excel to PDF, and PDF to Word. A scanned PDF
+  made no Word file and a GIF was not shrunk. Not yet on hardware.
+- **More converter options in the source.** `nizho-convert` can also save the
+  words in a picture or PDF as a text file (Tesseract, English only, can make
+  mistakes), write AVIF, TIFF and BMP pictures, make files smaller at Light,
+  Medium or Strong or aim for under 10 MB or 25 MB, black out boxes in a video,
+  bleep out parts of a sound or video, draw on a picture, and split or join sound
+  and video. These are tested by `scripts/test-nizho-convert.py` and
+  `scripts/test-edit-window.py` in CI. No test of them in a booted VM is recorded
+  here, and the Light, Medium and Strong levels are settings, not promised sizes.
 - **Remove hidden details.** Photos, PDFs, sound and video files often carry
   details you can't see: where a photo was taken, the camera, the author's name,
   the software that made a document. *Remove hidden details* in Dolphin's
@@ -267,6 +296,43 @@ exactly that: we haven't tried it.
   line. Black out's drag was checked in the VM, but its button was only clicked
   outside it. WebM trimming was checked on the build machine. The other sound and
   video formats were not tested. Not yet on hardware.
+
+### Your files and your hardware
+
+- **Backup page in Settings.** Choose a drive, back up now, and get a file back.
+  `nizho-backup` (commands `setup --to`, `now`, `status`, `list`, `restore PATH --to`,
+  `tidy`) saves your home folder to the folder you choose with restic, encrypted, and
+  prints a recovery key once. A daily timer runs it after setup and skips the day when
+  the drive is not plugged in. It does not back up the system, is not an offsite
+  backup, never overwrites files when restoring, shows no progress, and does not tell
+  you when a scheduled backup fails. Restoring one file means typing its path. Facts
+  and limits: [BACKUP.md](BACKUP.md). Tested on a development computer against restic
+  0.19.1 with temporary folders (make a backup, delete a file, restore it, compare;
+  the backup folder holds no file names or contents in the clear; a wrong key and a
+  backup folder inside home are refused), and the tests run in CI. The Settings page
+  was clicked through in a VM: set up, back up, get a file back. Not tested with a
+  real external drive, on hardware, or in a built image.
+- **nizho-import.** `nizho-import scan SOURCE`, `files SOURCE --dry-run` and
+  `files SOURCE` copy documents, pictures, music, videos, desktop and downloads from
+  a mounted Windows drive, a macOS home folder or any folder into your home folder.
+  It never changes the source, never overwrites your files (a different file with
+  the same name is kept as `name (imported).ext`), and skips identical files. It
+  leaves out apps, browser profiles, passwords, keychains and mail. It does not
+  unlock encrypted drives. Facts and limits: [IMPORT.md](IMPORT.md). Tested with
+  temporary folders and files in CI (layouts, name clashes, a read-only source,
+  unreadable files, refusal of a source that is or contains your home folder). Two
+  tests inject a fault: low free space and a read error. Not tested on a real NTFS
+  or exFAT drive, a Time Machine backup, a failing disk, a full destination or
+  large amounts of data. It is a command-line tool with no window. Not tested in a
+  built image.
+- **nizho-hwreport.** Prints a Markdown hardware report to paste into a GitHub
+  issue, with serial numbers, MAC and IP addresses, host and user names, Wi-Fi names
+  and disk labels left out. `--redact-check` scans the report again and fails if it
+  finds an identifier-looking string, which is a safety net and not a promise that
+  nothing private is left, so read the report before posting. The checklist at the
+  end is filled in by hand. [HARDWARE.md](HARDWARE.md) has the one tested machine and
+  a list of what is untested. Tested in CI against made-up file trees, not on a real
+  machine and not in a built image.
 
 ### For developers
 
