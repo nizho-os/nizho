@@ -43,6 +43,8 @@ fn build_ui(app: &adw::Application) {
     let hb = adw::HeaderBar::new();
     hb.set_show_title(false);
     let refresh_btn = gtk4::Button::from_icon_name("view-refresh-symbolic");
+    refresh_btn.set_tooltip_text(Some("Refresh the network list"));
+    refresh_btn.update_property(&[gtk4::accessible::Property::Label("Refresh the network list")]);
     hb.pack_end(&refresh_btn);
 
     let list = gtk4::ListBox::new();

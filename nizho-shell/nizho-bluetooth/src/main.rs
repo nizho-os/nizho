@@ -158,11 +158,14 @@ fn build_ui(app: &adw::Application) {
     power_switch.set_valign(gtk4::Align::Center);
     let powered = bt_powered();
     power_switch.set_active(powered);
+    power_switch.set_tooltip_text(Some("Bluetooth on or off"));
+    power_switch.update_property(&[gtk4::accessible::Property::Label("Bluetooth")]);
     hb.pack_end(&power_switch);
 
     // Scan button
     let scan_btn = gtk4::Button::from_icon_name("view-refresh-symbolic");
     scan_btn.set_tooltip_text(Some("Scan for devices"));
+    scan_btn.update_property(&[gtk4::accessible::Property::Label("Scan for devices")]);
     hb.pack_start(&scan_btn);
 
     // Main content
@@ -329,6 +332,9 @@ fn make_paired_row(dev: &BtDevice, group: &adw::PreferencesGroup) -> adw::Action
     let menu_btn = gtk4::MenuButton::new();
     menu_btn.set_icon_name("view-more-symbolic");
     menu_btn.set_valign(gtk4::Align::Center);
+    let more = format!("More actions for {}", dev.name);
+    menu_btn.set_tooltip_text(Some(&more));
+    menu_btn.update_property(&[gtk4::accessible::Property::Label(&more)]);
     let menu = gtk4::PopoverMenu::from_model(None::<&gtk4::gio::MenuModel>);
     let forget_btn = gtk4::Button::with_label("Forget Device");
     forget_btn.add_css_class("destructive-action");

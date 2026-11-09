@@ -232,6 +232,7 @@ fn build_ui(app: &adw::Application) {
     vol_scale.set_value(vol);
     vol_scale.set_hexpand(true);
     vol_scale.set_draw_value(false);
+    vol_scale.update_property(&[gtk4::accessible::Property::Label("Volume")]);
 
     // Output device label
     let sink_name = "Checking…";
