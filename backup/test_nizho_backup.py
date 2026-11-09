@@ -199,5 +199,162 @@ class RealRestic(Env):
         self.assertGreaterEqual(len(out.strip().splitlines()), 1)
 
 
+@unittest.skipUnless(RESTIC, "needs a real restic (set NIZHO_RESTIC)")
+class Browse(Env):
+    def setUp(self):
+        super().setUp()
+        os.environ["NIZHO_RESTIC"] = RESTIC
+        self.repo = os.path.join(self.drive, "nizho-backup")
+        self.put("Documents/report.odt", "r")
+        self.put("Documents/Zeta.txt", "zz")
+        self.put("Documents/alpha.txt", "a")
+        self.put("Documents/Old/2019/tax.pdf", "t")
+        self.put("Documents/Ärger notes.txt", "u")
+        self.put("Documents/my file (1).txt", "s")
+        self.put("zebra.txt", "z")
+        os.makedirs(os.path.join(self.home, "Documents", "Empty"))
+        self.assertEqual(self.run_cli("setup", "--to", self.repo)[0], 0)
+        self.assertEqual(self.run_cli("now")[0], 0)
+
+    def put(self, rel, text):
+        p = os.path.join(self.home, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w") as f:
+            f.write(text)
+
+    def ls(self, *args):
+        code, out, err = self.run_cli("ls", "--json", *args)
+        self.assertEqual(code, 0, err)
+        return json.loads(out)
+
+    def names(self, *args):
+        return [e["name"] for e in self.ls(*args)]
+
+    def test_lists_the_home_folder_and_a_folder(self):
+        top = self.names()
+        self.assertIn("Documents", top)
+        self.assertIn("zebra.txt", top)
+        self.assertNotIn("report.odt", top, "only direct entries, not nested ones")
+        self.assertEqual(self.names("."), top)
+        self.assertEqual(self.names("Documents/"), self.names("Documents"))
+
+    def test_nested_folder(self):
+        self.assertEqual(self.names("Documents/Old"), ["2019"])
+        self.assertEqual(self.names("Documents/Old/2019"), ["tax.pdf"])
+
+    def test_sort_is_folders_first_then_names_ignoring_case(self):
+        self.assertEqual(self.names("Documents"),
+                         ["Empty", "Old", "alpha.txt", "my file (1).txt", "report.odt", "Zeta.txt", "Ärger notes.txt"])
+
+    def test_unicode_and_spaces(self):
+        by = {e["name"]: e for e in self.ls("Documents")}
+        self.assertIn("Ärger notes.txt", by)
+        self.assertEqual(self.names("Documents").count("my file (1).txt"), 1)
+        code, out, _ = self.run_cli("ls", "Documents")
+        self.assertIn("Ärger notes.txt", out)
+
+    def test_json_shape(self):
+        items = self.ls("Documents")
+        for e in items:
+            self.assertEqual(set(e), {"name", "type", "size", "mtime"})
+            self.assertIn(e["type"], ("file", "dir"))
+            self.assertIsInstance(e["size"], int)
+        by = {e["name"]: e for e in items}
+        self.assertEqual(by["Zeta.txt"]["size"], 2)
+        self.assertEqual(by["Old"]["type"], "dir")
+        self.assertRegex(by["Zeta.txt"]["mtime"], r"^\d{4}-\d\d-\d\dT")
+
+    def test_plain_output_marks_folders(self):
+        code, out, _ = self.run_cli("ls", "Documents")
+        self.assertEqual(code, 0)
+        lines = out.splitlines()
+        self.assertTrue(lines[0].startswith("dir") and lines[0].endswith("Empty/"))
+        self.assertTrue(lines[2].startswith("file") and lines[2].endswith("alpha.txt"))
+
+    def test_file_deleted_since_the_backup_is_still_listed(self):
+        os.remove(os.path.join(self.home, "Documents", "report.odt"))
+        self.assertIn("report.odt", self.names("Documents"))
+
+    def test_empty_folder(self):
+        self.assertEqual(self.ls("Documents/Empty"), [])
+        code, out, _ = self.run_cli("ls", "Documents/Empty")
+        self.assertEqual((code, out.strip()), (0, "This folder is empty."))
+
+    def test_a_file_path_is_refused_plainly(self):
+        code, _, err = self.run_cli("ls", "Documents/report.odt")
+        self.assertEqual(code, 1)
+        self.assertIn("is a file, not a folder", err)
+
+    def test_missing_path(self):
+        code, _, err = self.run_cli("ls", "Nothing/here")
+        self.assertEqual(code, 1)
+        self.assertIn("not found in that backup", err)
+
+    def test_dotdot_and_absolute_paths_are_refused(self):
+        for bad in ("..", "../x", "Documents/../..", "/etc", self.home):
+            code, _, err = self.run_cli("ls", bad)
+            self.assertEqual(code, 1, bad)
+            self.assertIn("relative to your home folder", err)
+
+    def test_an_option_looking_name_is_not_an_option(self):
+        self.put("-rf/inside.txt", "x")
+        self.run_cli("now")
+        code, out, err = self.run_cli("ls", "--json", "--", "-rf")
+        self.assertEqual(code, 0, err)
+        self.assertEqual([e["name"] for e in json.loads(out)], ["inside.txt"])
+
+    def test_two_snapshots_show_what_changed(self):
+        _, out, _ = self.run_cli("snapshots", "--json")
+        first = json.loads(out)
+        self.assertEqual(len(first), 1)
+        os.remove(os.path.join(self.home, "Documents", "alpha.txt"))
+        self.put("Documents/new.txt", "n")
+        self.assertEqual(self.run_cli("now")[0], 0)
+        _, out, _ = self.run_cli("snapshots", "--json")
+        snaps = json.loads(out)
+        self.assertEqual(len(snaps), 2)
+        self.assertGreater(snaps[0]["time"], snaps[1]["time"], "newest first")
+        self.assertEqual(snaps[1]["id"], first[0]["id"])
+        old = self.names("Documents", "--snapshot", snaps[1]["id"])
+        new = self.names("Documents")
+        self.assertIn("alpha.txt", old)
+        self.assertNotIn("new.txt", old)
+        self.assertNotIn("alpha.txt", new)
+        self.assertIn("new.txt", new)
+        self.assertEqual(self.names("Documents", "--snapshot", snaps[1]["id"][:8]), old)
+        code, _, err = self.run_cli("ls", "--snapshot", "deadbeef")
+        self.assertEqual(code, 1)
+        self.assertIn("was not found", err)
+
+    def test_home_reached_through_a_symlink(self):
+        link = os.path.join(self.tmp, "homelink")
+        os.symlink(self.home, link)
+        os.environ["HOME"] = link
+        self.assertIn("Documents", self.names())
+        self.assertIn("alpha.txt", self.names("Documents"))
+
+    def test_no_backups_yet_and_drive_missing(self):
+        other = os.path.join(self.tmp, "second")
+        nb.save_config({"repo": other, "paths": [self.home]})
+        os.makedirs(other)
+        env = dict(os.environ, RESTIC_REPOSITORY=other, RESTIC_PASSWORD_FILE=nb.key_path())
+        subprocess.run([RESTIC, "init", "-q"], env=env, check=True, capture_output=True)
+        code, out, _ = self.run_cli("ls")
+        self.assertEqual((code, out.strip()), (0, "There are no backups yet."))
+        code, out, _ = self.run_cli("ls", "--json")
+        self.assertEqual((code, json.loads(out)), (0, []))
+        shutil.rmtree(other)
+        for cmd in (["ls"], ["snapshots", "--json"]):
+            code, _, err = self.run_cli(*cmd)
+            self.assertEqual(code, 1)
+            self.assertIn("drive is not connected", err)
+
+    def test_ls_before_setup(self):
+        os.remove(nb.config_path())
+        code, _, err = self.run_cli("ls")
+        self.assertEqual(code, 1)
+        self.assertIn("not set up", err)
+
+
 if __name__ == "__main__":
     unittest.main()
