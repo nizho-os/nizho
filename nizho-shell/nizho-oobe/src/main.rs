@@ -444,6 +444,14 @@ fn decode_out(l: &gtk4::Label, text: &str, done: impl Fn() + 'static) {
     const TICK: u64 = 45; // ms between glyph changes
     const LEAD: u64 = 380; // scramble alone before the first letter locks
     const STEP: u64 = 95; // gap between letters locking
+    // A screen reader would otherwise read the random glyphs while they scramble.
+    l.update_property(&[gtk4::accessible::Property::Label(text)]);
+    // With animations off, show the finished text at once.
+    if !motion::animations_enabled() {
+        l.set_text(text);
+        done();
+        return;
+    }
     let chars: Vec<char> = text.chars().collect();
     let started = std::time::Instant::now();
     let l = l.clone();
