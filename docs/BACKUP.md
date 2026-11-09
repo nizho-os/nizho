@@ -1,9 +1,12 @@
 # Backing up your files
 
-Status: written for the first version of `nizho-backup`. It has been tested on a development
-computer against restic 0.19.1. It has not yet been built into an image or run on Nizho itself, and
-it has no graphical screen yet. Treat it as a command-line tool for people who are comfortable
-with a terminal.
+Status: first version. The tool was tested on a development computer against restic 0.19.1, and
+the Settings page was clicked through in a virtual machine (set up, back up, get a file back). It
+has not been built into an image yet, and it has not been tried on a real laptop with a real
+external drive.
+
+Settings has a Backup page: choose a drive, back up now, and get a file back. The same things work
+from a terminal with `nizho-backup`.
 
 ## What it does
 
@@ -34,6 +37,8 @@ A daily timer runs `now` for you after setup, and does nothing when the drive is
 - If you lose the recovery key and this computer, the backup cannot be opened. That is how the
   encryption works.
 - Backup progress is not shown while it runs, and nothing tells you when a scheduled backup fails.
+- Restoring one file at a time means typing its path, for example Documents/report.odt. There is no
+  list of saved files to browse yet.
 
 ## What we checked
 
