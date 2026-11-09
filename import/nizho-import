@@ -1,0 +1,438 @@
+#!/usr/bin/env python3
+"""nizho-import: bring your personal files over from a Windows or macOS drive.
+
+    nizho-import scan SOURCE              find what can be imported and print a summary
+    nizho-import files SOURCE --dry-run   list exactly what would be copied
+    nizho-import files SOURCE             copy it into your home folder
+
+SOURCE is a mounted Windows drive (Users/NAME/Documents and so on), a macOS home or
+Time Machine style folder (Documents, Pictures, Movies, ...), or any plain folder.
+A plain folder is copied into ~/Imported/FOLDERNAME.
+
+The source is only ever read. Nothing in your home folder is overwritten: a name that
+already exists with different content keeps both, and the new one is saved as
+"name (imported).ext", then "name (imported 2).ext". Identical files are skipped.
+Browser profiles, password stores and keychains are not imported.
+
+Exit code: 0 everything copied, 2 some files were skipped because of an error, 1 fatal error.
+"""
+import argparse
+import errno
+import hashlib
+import os
+import stat
+import sys
+
+WIN_FOLDERS = ["Documents", "Pictures", "Music", "Videos", "Desktop", "Downloads"]
+MAC_FOLDERS = {"Documents": "Documents", "Pictures": "Pictures", "Music": "Music",
+               "Movies": "Videos", "Desktop": "Desktop", "Downloads": "Downloads"}
+WIN_SKIP_USERS = {"public", "default", "default user", "all users"}
+
+JUNK_NAMES = {"desktop.ini", "thumbs.db", ".ds_store", "$recycle.bin", "system volume information",
+              ".trashes", ".spotlight-v100", ".fseventsd", ".temporaryitems"}
+PRIVATE_DIRS = {"appdata", "library", ".mozilla", ".thunderbird", ".gnupg", ".ssh"}
+PRIVATE_FILES = {"logins.json", "key3.db", "key4.db", "signons.sqlite", "cookies.sqlite",
+                 "places.sqlite", "login data", "ntuser.dat"}
+PRIVATE_EXT = (".kdbx", ".kdb", ".keychain", ".keychain-db")
+
+FIREFOX_NOTE = ("Not imported: browser profiles, saved passwords, cookies and keychains.\n"
+                "Firefox can import bookmarks and logins itself "
+                "(Firefox: Menu > Import Data from Another Browser).")
+CHUNK = 1024 * 1024
+
+
+class Fail(Exception):
+    pass
+
+
+def human(n):
+    for unit in ("bytes", "KB", "MB", "GB", "TB"):
+        if n < 1000 or unit == "TB":
+            return f"{n} bytes" if unit == "bytes" else f"{n:.1f} {unit}"
+        n /= 1000.0
+
+
+def reason_for(e):
+    code = getattr(e, "errno", None)
+    if code in (errno.EACCES, errno.EPERM):
+        return "permission denied"
+    if code == errno.EIO:
+        return "read error (the disk may have bad sectors)"
+    if code == errno.ENAMETOOLONG:
+        return "file name or path too long"
+    if code == errno.ENOENT:
+        return "file disappeared or its name could not be opened"
+    if code == errno.ENOSPC:
+        return "no space left"
+    return e.strerror or str(e)
+
+
+def is_junk(name):
+    low = name.lower()
+    return low in JUNK_NAMES or low.startswith("._") or low.endswith(".tmp")
+
+
+def is_private_dir(name):
+    return name.lower() in PRIVATE_DIRS
+
+
+def is_private_file(name):
+    low = name.lower()
+    return low in PRIVATE_FILES or low.endswith(PRIVATE_EXT)
+
+
+def home_dir():
+    return os.path.realpath(os.environ.get("HOME") or os.path.expanduser("~"))
+
+
+def inside(path, parent):
+    try:
+        return os.path.commonpath([path, parent]) == parent
+    except ValueError:
+        return False
+
+
+def check_source(source):
+    src = os.path.realpath(source)
+    if not os.path.isdir(src):
+        raise Fail(f"{source} is not a folder, or it cannot be found.")
+    home = home_dir()
+    if inside(src, home):
+        raise Fail("The source is your home folder or inside it. Pick the old drive or folder instead.")
+    if inside(home, src):
+        raise Fail("The source contains your home folder, so copying would loop. Pick a folder that does not.")
+    if not os.access(src, os.R_OK | os.X_OK):
+        raise Fail(f"{source} cannot be read (permission denied).")
+    return src
+
+
+def subdirs(path):
+    try:
+        with os.scandir(path) as it:
+            return sorted(e.name for e in it if e.is_dir(follow_symlinks=False))
+    except OSError:
+        return []
+
+
+def detect(src):
+    """Return (kind label, [(source folder, destination folder name or relative path)])."""
+    users = os.path.join(src, "Users")
+    homes = []
+    if os.path.isdir(users):
+        homes = [(n, os.path.join(users, n)) for n in subdirs(users) if n.lower() not in WIN_SKIP_USERS]
+    win, mac = [], []
+    for name, h in homes:
+        names = set(subdirs(h))
+        if names & {"AppData", "Videos"} or os.path.exists(os.path.join(h, "NTUSER.DAT")):
+            win += [(os.path.join(h, f), f) for f in WIN_FOLDERS if f in names]
+        elif names & {"Movies", "Library"}:
+            mac += [(os.path.join(h, f), t) for f, t in MAC_FOLDERS.items() if f in names]
+        elif names & set(WIN_FOLDERS):
+            win += [(os.path.join(h, f), f) for f in WIN_FOLDERS if f in names]
+    if win:
+        return "Windows drive", win
+    if mac:
+        return "macOS home folder (Users/NAME)", mac
+    names = set(subdirs(src))
+    if names & {"Movies", "Library"} and names & set(MAC_FOLDERS):
+        return "macOS home or Time Machine style folder", \
+            [(os.path.join(src, f), t) for f, t in MAC_FOLDERS.items() if f in names]
+    if len(names & set(MAC_FOLDERS)) >= 2 and "Videos" not in names:
+        return "macOS home or Time Machine style folder", \
+            [(os.path.join(src, f), t) for f, t in MAC_FOLDERS.items() if f in names]
+    if len(names & set(WIN_FOLDERS)) >= 2:
+        return "Windows style home folder", [(os.path.join(src, f), f) for f in WIN_FOLDERS if f in names]
+    base = os.path.basename(src.rstrip(os.sep)) or "source"
+    return "plain folder", [(src, os.path.join("Imported", base))]
+
+
+class Stats:
+    def __init__(self):
+        self.junk = 0
+        self.symlinks = 0
+        self.private = 0
+        self.special = 0
+        self.failed = []  # (path, reason)
+
+
+def walk(root, stats):
+    """Yield (path, relative path, lstat) for regular files. Never follows symlinks."""
+    stack = [(root, "")]
+    while stack:
+        d, rel = stack.pop()
+        try:
+            with os.scandir(d) as it:
+                entries = sorted(it, key=lambda e: e.name)
+        except OSError as e:
+            stats.failed.append((d, "folder could not be listed: " + reason_for(e)))
+            continue
+        dirs = []
+        for e in entries:
+            try:
+                if e.is_symlink():
+                    stats.symlinks += 1
+                elif is_junk(e.name):
+                    stats.junk += 1
+                elif e.is_dir(follow_symlinks=False):
+                    if is_private_dir(e.name):
+                        stats.private += 1
+                    else:
+                        dirs.append((e.path, os.path.join(rel, e.name)))
+                elif e.is_file(follow_symlinks=False):
+                    if is_private_file(e.name):
+                        stats.private += 1
+                    else:
+                        yield e.path, os.path.join(rel, e.name), e.stat(follow_symlinks=False)
+                else:
+                    stats.special += 1
+            except OSError as e2:
+                stats.failed.append((e.path, reason_for(e2)))
+        stack.extend(reversed(dirs))
+
+
+def open_source(path):
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    try:
+        fd = os.open(path, flags | getattr(os, "O_NOATIME", 0))
+    except PermissionError:
+        fd = os.open(path, flags)
+    return os.fdopen(fd, "rb")
+
+
+_hashes = {}
+
+
+def sha256(path):
+    if path in _hashes:
+        return _hashes[path]
+    h = hashlib.sha256()
+    with open_source(path) as f:
+        for chunk in iter(lambda: f.read(CHUNK), b""):
+            h.update(chunk)
+    _hashes[path] = h.hexdigest()
+    return _hashes[path]
+
+
+def same_content(src, other):
+    """Size first, then SHA-256. Errors reading src propagate; errors on other mean 'different'."""
+    ssize = os.lstat(src).st_size
+    try:
+        st = os.lstat(other)
+    except OSError:
+        return False
+    if not stat.S_ISREG(st.st_mode) or st.st_size != ssize:
+        return False
+    mine = sha256(src)
+    try:
+        return mine == sha256(other)
+    except OSError:
+        return False
+
+
+def choose_dest(dest, src, reserved):
+    base, ext = os.path.splitext(dest)
+    n = 0
+    while True:
+        if n == 0:
+            cand = dest
+        else:
+            cand = f"{base} (imported{'' if n == 1 else ' ' + str(n)}){ext}"
+        if cand in reserved:
+            other = reserved[cand]
+        elif os.path.lexists(cand):
+            other = cand
+        else:
+            return "copy", cand
+        if same_content(src, other):
+            return "same", cand
+        n += 1
+
+
+class Plan:
+    def __init__(self):
+        self.copy = []      # dicts: src, dest, size, mtime_ns, renamed
+        self.same = 0
+        self.bytes = 0
+        self.stats = Stats()
+        self.files_seen = 0
+
+
+def build_plan(src, targets, home):
+    plan = Plan()
+    reserved = {}
+    for folder, destrel in targets:
+        destroot = os.path.join(home, destrel)
+        for path, rel, st in walk(folder, plan.stats):
+            plan.files_seen += 1
+            dest = os.path.join(destroot, rel)
+            try:
+                action, cand = choose_dest(dest, path, reserved)
+                if action == "copy":
+                    with open_source(path):
+                        pass
+            except OSError as e:
+                plan.stats.failed.append((path, reason_for(e)))
+                continue
+            if action == "same":
+                plan.same += 1
+                continue
+            reserved[cand] = path
+            plan.copy.append({"src": path, "dest": cand, "size": st.st_size,
+                              "mtime_ns": st.st_mtime_ns, "renamed": cand != dest})
+            plan.bytes += st.st_size
+    return plan
+
+
+def free_space(path):
+    p = path
+    while not os.path.exists(p):
+        parent = os.path.dirname(p)
+        if parent == p:
+            break
+        p = parent
+    st = os.statvfs(p)
+    return st.f_bavail * st.f_frsize
+
+
+def copy_one(item, stats):
+    """Copy one planned file. Returns bytes copied or None if skipped. Raises Fail when the disk is full."""
+    src, dest = item["src"], item["dest"]
+    created = False
+    try:
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open_source(src) as fin:
+            try:
+                fout = open(dest, "xb")
+            except FileExistsError:
+                stats.failed.append((src, "a file with the planned name appeared in your home folder, left alone"))
+                return None
+            created = True
+            with fout:
+                while True:
+                    try:
+                        chunk = fin.read(CHUNK)
+                    except OSError as e:
+                        raise _ReadError(e)
+                    if not chunk:
+                        break
+                    fout.write(chunk)
+        os.utime(dest, ns=(item["mtime_ns"], item["mtime_ns"]))
+        return item["size"]
+    except _ReadError as e:
+        stats.failed.append((src, reason_for(e.err)))
+    except OSError as e:
+        if e.errno == errno.ENOSPC:
+            _drop(dest, created)
+            raise Fail("The disk filled up while copying. Files copied so far were kept.")
+        stats.failed.append((src, reason_for(e)))
+    _drop(dest, created)
+    return None
+
+
+class _ReadError(Exception):
+    def __init__(self, err):
+        self.err = err
+
+
+def _drop(dest, created):
+    if created:
+        try:
+            os.unlink(dest)
+        except OSError:
+            pass
+
+
+def cmd_scan(args, out):
+    src = check_source(args.source)
+    kind, targets = detect(src)
+    print(f"Source: {src}", file=out)
+    print(f"Looks like: {kind}", file=out)
+    stats = Stats()
+    total_files = total_bytes = 0
+    for folder, destrel in targets:
+        n = b = 0
+        for _p, _r, st in walk(folder, stats):
+            n += 1
+            b += st.st_size
+        total_files += n
+        total_bytes += b
+        print(f"  {os.path.relpath(folder, src)} -> ~/{destrel}: {n} files, {human(b)}", file=out)
+    if not targets:
+        print("  No personal folders found.", file=out)
+    print(f"Found {total_files} files, {human(total_bytes)} that could be imported.", file=out)
+    print(f"Would be skipped: {stats.junk} system junk, {stats.symlinks} symlinks, "
+          f"{stats.private} browser or password items, {stats.special} special files.", file=out)
+    report_failed(stats, out, "could not be read during the scan")
+    print(FIREFOX_NOTE, file=out)
+    return 2 if stats.failed else 0
+
+
+def report_failed(stats, out, what):
+    if stats.failed:
+        print(f"{len(stats.failed)} items {what}:", file=out)
+        for path, why in stats.failed:
+            print(f"  {path}: {why}", file=out)
+
+
+def cmd_files(args, out):
+    src = check_source(args.source)
+    home = home_dir()
+    kind, targets = detect(src)
+    print(f"Source: {src}", file=out)
+    print(f"Looks like: {kind}", file=out)
+    plan = build_plan(src, targets, home)
+    free = free_space(home)
+    if plan.bytes > free:
+        raise Fail(f"Not enough free space in your home folder: {human(plan.bytes)} needed, "
+                   f"{human(free)} free. Nothing was copied.")
+    stats = plan.stats
+    if args.dry_run:
+        for it in plan.copy:
+            note = "  (name already used, kept both)" if it["renamed"] else ""
+            print(f"WOULD COPY {it['src']} -> {it['dest']}{note}", file=out)
+        print("Dry run: nothing was copied.", file=out)
+        verb, nbytes, nfiles = "Would copy", plan.bytes, len(plan.copy)
+    else:
+        verb, nbytes, nfiles = "Copied", 0, 0
+        try:
+            for it in plan.copy:
+                n = copy_one(it, stats)
+                if n is not None:
+                    nfiles += 1
+                    nbytes += n
+        except Fail:
+            print(f"Stopped early after {nfiles} files.", file=out)
+            raise
+    print(f"{verb} {nfiles} files, {human(nbytes)}.", file=out)
+    print(f"Already there (identical content, skipped): {plan.same}", file=out)
+    print(f"Skipped on purpose: {stats.junk} system junk, {stats.symlinks} symlinks, "
+          f"{stats.private} browser or password items, {stats.special} special files.", file=out)
+    report_failed(stats, out, "skipped with an error")
+    print(FIREFOX_NOTE, file=out)
+    return 2 if stats.failed else 0
+
+
+def build_parser():
+    p = argparse.ArgumentParser(prog="nizho-import", description="Bring personal files over from a Windows or macOS drive.")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("scan", help="find what can be imported and print a summary")
+    s.add_argument("source")
+    f = sub.add_parser("files", help="copy files into your home folder")
+    f.add_argument("source")
+    f.add_argument("--dry-run", action="store_true", help="list what would be copied, copy nothing")
+    return p
+
+
+def main(argv=None, out=None):
+    out = out or sys.stdout
+    args = build_parser().parse_args(argv)
+    _hashes.clear()
+    try:
+        return cmd_scan(args, out) if args.cmd == "scan" else cmd_files(args, out)
+    except Fail as e:
+        print(f"nizho-import: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
