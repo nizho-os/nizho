@@ -7,6 +7,7 @@
     nizho-import scan SOURCE
     nizho-import files SOURCE --dry-run
     nizho-import files SOURCE
+    nizho-import bookmarks SOURCE [--to FILE] [--dry-run]
 
 SOURCE can be:
 
@@ -15,6 +16,44 @@ SOURCE can be:
 - Any other folder. It is copied to ~/Imported/FOLDERNAME.
 
 The tool says which one it detected.
+
+## Bookmarks
+
+    nizho-import bookmarks SOURCE
+    nizho-import bookmarks SOURCE --dry-run
+    nizho-import bookmarks SOURCE --to ~/Documents/my-bookmarks.html
+
+This reads bookmark files and writes one standard bookmarks HTML file. Every browser can import that format. The default place is `~/Documents/Bookmarks from NAME.html`, where NAME is the browser found (for example Chrome, or "Chrome and Firefox"). A file that already exists is never replaced. The new file gets ` (2)`, ` (3)` and so on. `--dry-run` reads and reports but writes nothing.
+
+SOURCE can be a mounted Windows drive, a macOS home folder, an old home folder, or a browser profile folder.
+
+What is read, and only that:
+
+- Chrome, Chromium, Edge, Brave, Vivaldi and Opera: the JSON file named `Bookmarks` in each profile folder (Default, Profile 1 and so on).
+- Firefox: the bookmarks tables in `places.sqlite`.
+- Safari: `Library/Safari/Bookmarks.plist`. Reading List and History are skipped.
+
+Windows, macOS and Linux profile locations are checked. The tool prints which files it found.
+
+The output has one top level folder per browser, so nothing is mixed. If a browser has several profiles, each profile gets its own folder inside. Folder order, names, addresses and added dates are kept. Safari does not store dates, so Safari bookmarks have none.
+
+Left out and counted in the summary: addresses that start with `javascript:` or `data:`, entries with no address, Firefox `place:` shortcuts and tags, and the same address twice in one folder. Titles longer than 500 characters are cut, and control characters are removed.
+
+The file is only written. The tool does not import it into any browser. To import it into Firefox: Menu, then Bookmarks, then Manage bookmarks, then Import and Backup, then Import Bookmarks from HTML, and pick the file.
+
+How the source is protected:
+
+- Firefox databases are opened read only and immutable. If the database has a write-ahead log (`-wal` file), the database and the log are copied to a temporary folder and the copy is read, because an immutable open would miss the newest bookmarks. The copy is deleted afterwards.
+- Files that are symlinks pointing outside the source are not followed.
+- A source inside your home folder is refused, as with `files`.
+- The output file may not be placed inside the source.
+- A bookmarks file that is damaged or cannot be read is reported with a plain message and the rest is still written.
+
+Exit codes: 0 if all found files were read and the file was written, 2 if some bookmark files could not be read, 1 if nothing was found, nothing could be read, or the file could not be written.
+
+Not imported, on purpose: saved passwords, cookies, history, autofill, sessions and whole browser profiles. Windows encrypts Chrome and Edge passwords with your Windows login (DPAPI), and macOS keeps them in the Keychain, so they cannot be read from a drive. Copying a whole profile would also carry tracking data. Firefox can import logins itself from a synced account.
+
+`nizho-import scan` lists the browsers whose bookmarks can be exported and says that passwords and other browser data are not imported.
 
 ## Rules
 
@@ -32,7 +71,7 @@ Exit codes: 0 if everything copied, 2 if some files were skipped because of an e
 ## What it does not do
 
 - It does not move apps or licences.
-- It does not copy browser profiles, saved passwords, cookies or keychains. Files named like password databases (.kdbx, .keychain) and folders such as AppData, Library, .mozilla, .ssh and .gnupg are left out. Firefox can import bookmarks and logins itself: Menu, then Import Data from Another Browser.
+- It does not copy browser profiles, saved passwords, cookies or keychains. Files named like password databases (.kdbx, .keychain) and folders such as AppData, Library, .mozilla, .ssh and .gnupg are left out. The `bookmarks` command below handles bookmarks only. Firefox can import logins itself from a synced account.
 - It does not read Outlook or Mail data.
 - It does not unlock encrypted drives. Unlock and mount the drive first.
 - It does not delete anything after copying.
@@ -46,5 +85,9 @@ Tests are in import/test_nizho_import.py. They use real temp folders and files, 
 Covered: Windows layout, macOS layout (home and Users/NAME), plain folder, scan output, rename sequence up to `(imported 3)`, identical skip, re-run gives no new copies, same size but different content, two Windows users with the same file name, junk and symlink and password file skipping, dry run changes nothing, modification times, refusal of a source inside home or equal to it or a symlink into it or containing it, source tree identical before and after (bytes, mtimes, modes, file list) including with a read-only source folder, an unreadable file and folder (chmod 000, skipped when running as root), a name too long for the filesystem, a FIFO that is not opened.
 
 Two tests inject a fault because it cannot be created for real: the free space check (a patched free space value) and a read error halfway through a file (EIO).
+
+Bookmarks tests use temporary files shaped like each browser's real files, not real browser profiles. Covered: Chrome style JSON with nested folders, unicode names, an empty folder, bad entries and script addresses; the Chrome time conversion with a known value; a Firefox style places.sqlite built with the sqlite3 module, including a locked database and one with a write-ahead log; Safari plists in XML and binary form; HTML escaping and a round trip through an HTML parser; no overwrite of an existing output file; the source tree unchanged (file list, bytes, mtimes); a source inside home refused; damaged files giving plain errors; a failed write.
+
+Not tested for bookmarks: a real Windows or macOS drive, real browser profiles, current versions of each browser (the file formats are written from their documented shape), and importing the result into a real Firefox.
 
 Not tested: a real NTFS or exFAT drive, a real Time Machine backup (Backups.backupdb layout is not handled), a real disk with bad sectors, a full destination disk during a copy, large amounts of data, Windows junctions, OneDrive placeholder files, and running on real hardware.
