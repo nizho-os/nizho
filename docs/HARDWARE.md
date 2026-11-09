@@ -4,13 +4,13 @@ Nizho has booted on one real laptop. No machine is listed here as working. This 
 
 ## How to run the tool
 
-`nizho-hwreport` prints a Markdown report. It only reads files on your computer. It sends nothing over the network and writes no files.
+`nizho-hwreport` prints a Markdown report. It reads files on your computer and runs three read-only tools if they are present: `lspci`, `kscreen-doctor` and `mokutil`. It sends nothing over the network and writes no files. The Containerfile installs it as `/usr/bin/nizho-hwreport`; from a source checkout, run `python3 hardware/nizho-hwreport`.
 
 ```
-python3 hardware/nizho-hwreport --redact-check > report.md
+nizho-hwreport --redact-check > report.md
 ```
 
-The report leaves out serial numbers, MAC and IP addresses, host and user names, Wi-Fi network names, disk labels and UUIDs, and paths in your home folder. The `--redact-check` flag scans the report again and fails if it finds a MAC address, an IP address, or a serial or UUID looking string. Read the report yourself before you post it.
+The report leaves out serial numbers, MAC and IP addresses, host and user names, Wi-Fi network names, disk labels and UUIDs, and paths in your home folder. The `--redact-check` flag scans the report again and fails if it finds a MAC address, an IP address, or a serial or UUID looking string. Read the report yourself before you post it. The tool's tests (`hardware/test_nizho_hwreport.py`, run in CI) read a made-up file tree, not a real machine.
 
 The checklist at the end of the report is blank. Fill it in by hand with works, partly, broken or not tested. Leave out what you did not try.
 

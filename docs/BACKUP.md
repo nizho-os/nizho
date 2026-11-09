@@ -1,9 +1,9 @@
 # Backing up your files
 
 Status: first version. The tool was tested on a development computer against restic 0.19.1, and
-the Settings page was clicked through in a virtual machine (set up, back up, get a file back). It
-has not been built into an image yet, and it has not been tried on a real laptop with a real
-external drive.
+the Settings page was clicked through in a virtual machine (set up, back up, get a file back). The
+Containerfile now installs the tool, restic and the daily timer, but no test of a built image is
+recorded, and it has not been tried on a real laptop with a real external drive.
 
 Settings has a Backup page: choose a drive, back up now, and get a file back. The same things work
 from a terminal with `nizho-backup`.
@@ -11,7 +11,8 @@ from a terminal with `nizho-backup`.
 ## What it does
 
 `nizho-backup` saves the files in your home folder to a folder on a drive you choose, encrypted.
-Old copies are kept, so you can get back a file you deleted last week.
+Old copies are kept, so you can get back a file you deleted last week. After each scheduled backup,
+`tidy` drops old copies and keeps 7 daily, 4 weekly and 6 monthly ones.
 
 ```
 nizho-backup setup --to /run/media/you/MyDrive/nizho-backup
@@ -22,8 +23,10 @@ nizho-backup restore Documents/report.odt --to ~/Restored
 nizho-backup tidy
 ```
 
-`setup` prints a recovery key once. Write it down or keep a copy somewhere other than this computer.
+`setup` prints a recovery key once. It also saves the key on this computer, in `~/.config/nizho/backup.key`
+(readable only by you). Write it down or keep a copy somewhere other than this computer.
 A daily timer runs `now` for you after setup, and does nothing when the drive is not plugged in.
+`setup` refuses a backup folder inside your home folder unless you add `--allow-home`.
 
 ## What it does not do
 
@@ -31,7 +34,8 @@ A daily timer runs `now` for you after setup, and does nothing when the drive is
   to it does not restore older copies of your files.
 - It is not an offsite backup. A backup drive kept next to the computer will not survive a fire or
   a theft that takes both.
-- It skips caches and the trash, so it is smaller than a full copy of your home folder.
+- It skips caches, the trash, thumbnails, `node_modules` folders and anything on another mounted
+  drive, so it is smaller than a full copy of your home folder.
 - Restoring never overwrites your files. It puts the old copy in a folder you choose, and you copy
   back what you need.
 - If you lose the recovery key and this computer, the backup cannot be opened. That is how the
@@ -44,4 +48,5 @@ A daily timer runs `now` for you after setup, and does nothing when the drive is
 
 The tests make a backup, delete a file, restore it, and check that the restored copy matches. They
 also check that the backup folder does not contain your file names or contents in the clear, that a
-wrong key is refused, and that a backup folder inside your home folder is refused.
+wrong key is refused, and that a backup folder inside your home folder is refused. They run in CI
+(`.github/workflows/checks.yml`) and use temporary folders, not a real external drive.
