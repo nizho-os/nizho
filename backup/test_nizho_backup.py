@@ -300,6 +300,16 @@ class RealRestic(Env):
         self.assertEqual(self.run_cli("restore", "Pictures/trip [2020]", "--to", target)[0], 0)
         self.assertFalse(os.path.exists(os.path.join(target, "Pictures", "what?")))
 
+    def test_the_backup_does_not_contain_its_own_recovery_key(self):
+        self.run_cli("setup", "--to", self.repo)
+        self.run_cli("now")
+        ls = subprocess.run([RESTIC, "-r", self.repo, "--password-file", nb.key_path(), "ls", "latest"],
+                            capture_output=True, text=True).stdout
+        self.assertNotIn("backup.key", ls, "a key stored only inside the backup would be useless after a loss")
+        self.assertIn("report.txt", ls)
+        code, out, _ = self.run_cli("ls", ".config/nizho", "--json")
+        self.assertNotIn("backup.key", out)
+
     def test_second_setup_and_reused_folder_are_refused(self):
         self.run_cli("setup", "--to", self.repo)
         code, _, err = self.run_cli("setup", "--to", self.repo)

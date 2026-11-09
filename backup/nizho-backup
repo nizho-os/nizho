@@ -32,7 +32,7 @@ import subprocess
 import sys
 import tempfile
 
-EXCLUDES = [".cache", ".local/share/Trash", ".var/app/*/cache", ".var/app/*/.cache", "*/node_modules", ".thumbnails"]
+EXCLUDES = [".cache", ".local/share/Trash", ".var/app/*/cache", ".var/app/*/.cache", "*/node_modules", ".thumbnails", ".config/nizho/backup.key"]
 KEEP = ["--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6"]
 
 
