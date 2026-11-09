@@ -2,7 +2,7 @@
 Name=Nizho
 Comment=Nizho app icons — one family, a distinct colour per app
 Inherits=breeze-dark
-Directories=scalable/apps,scalable/actions
+Directories=scalable/apps,scalable/actions,scalable/places
 
 [scalable/apps]
 Context=Applications
@@ -14,6 +14,13 @@ Type=Scalable
 [scalable/actions]
 Context=Actions
 Size=24
+MinSize=8
+MaxSize=512
+Type=Scalable
+
+[scalable/places]
+Context=Places
+Size=48
 MinSize=8
 MaxSize=512
 Type=Scalable
