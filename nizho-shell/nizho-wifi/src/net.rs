@@ -78,6 +78,26 @@ mod tests {
         assert_eq!(parse_line(": space :12:--").unwrap().ssid, " space ");
         assert!(parse_line(":bad:field:count:extra").is_none());
     }
+
+    #[test]
+    fn signal_words_follow_the_bar_bands() {
+        assert_eq!(signal_words(100), "Signal strength: excellent");
+        assert_eq!(signal_words(75), "Signal strength: excellent");
+        assert_eq!(signal_words(74), "Signal strength: good");
+        assert_eq!(signal_words(25), "Signal strength: fair");
+        assert_eq!(signal_words(24), "Signal strength: weak");
+        assert_eq!(signal_words(0), "Signal strength: weak");
+    }
+}
+
+/// The same bands as `signal_bars`, in words. The bar glyphs mean nothing to a screen reader.
+pub fn signal_words(signal: u8) -> &'static str {
+    match signal {
+        75..=100 => "Signal strength: excellent",
+        50..=74  => "Signal strength: good",
+        25..=49  => "Signal strength: fair",
+        _        => "Signal strength: weak",
+    }
 }
 
 pub fn signal_bars(signal: u8) -> &'static str {

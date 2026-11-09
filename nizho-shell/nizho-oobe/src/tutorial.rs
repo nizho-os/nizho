@@ -158,6 +158,12 @@ fn icon(cr: &cairo::Context, kind: Kind, cx: f64, cy: f64, c: (f64, f64, f64)) {
     }
 }
 
+/// Opacity of the outline round the file to click. It breathes while animations are on and holds
+/// steady when the desktop asks for none.
+fn outline_alpha(t: f64, animate: bool) -> f64 {
+    if animate { 0.35 + 0.55 * (0.5 + 0.5 * (t * 3.2).sin()) } else { 0.9 }
+}
+
 fn draw(cr: &cairo::Context, w: f64, h: f64, st: &State, dark: bool) {
     let p = palette(dark);
     let _ = h;
@@ -207,7 +213,7 @@ fn draw(cr: &cairo::Context, w: f64, h: f64, st: &State, dark: bool) {
         let (mut a, mut lw) = (0.55, 1.0);
         if i == 0 {
             // the file to use: it breathes until it is clicked, then stays marked
-            a = if st.stage == Stage::Click { 0.35 + 0.55 * (0.5 + 0.5 * (t * 3.2).sin()) } else { 0.9 };
+            a = if st.stage == Stage::Click { outline_alpha(t, crate::motion::animations_enabled()) } else { 0.9 };
             lw = 1.6;
         }
         cr.set_source_rgba(if i == 0 { p.fg.0 } else { p.line.0 }, if i == 0 { p.fg.1 } else { p.line.1 }, if i == 0 { p.fg.2 } else { p.line.2 }, a * appear);
@@ -498,4 +504,27 @@ pub fn build(dark: Rc<Cell<bool>>, on_stage: Rc<dyn Fn(Stage)>) -> (gtk4::Drawin
         Rc::new(move || set_stage(start, if start == Stage::Done { Some(1) } else { None }))
     };
     (area, reset)
+}
+
+#[cfg(test)]
+mod outline_tests {
+    use super::outline_alpha;
+
+    #[test]
+    fn outline_is_steady_without_animations() {
+        for t in [0.0, 0.3, 1.7, 9.9] {
+            assert_eq!(outline_alpha(t, false), 0.9);
+        }
+    }
+
+    #[test]
+    fn outline_breathes_within_bounds_with_animations() {
+        let (mut lo, mut hi) = (f64::MAX, f64::MIN);
+        for i in 0..400 {
+            let a = outline_alpha(i as f64 * 0.01, true);
+            lo = lo.min(a);
+            hi = hi.max(a);
+        }
+        assert!(lo >= 0.35 - 1e-9 && hi <= 0.9 + 1e-9 && hi - lo > 0.4);
+    }
 }

@@ -470,17 +470,21 @@ fn make_catalog_card(
     let is_fav = favorites.borrow().contains(&exec_for_fav);
     let star_btn = gtk4::Button::from_icon_name(if is_fav { "starred-symbolic" } else { "non-starred-symbolic" });
     star_btn.add_css_class("star-btn");
+    set_fav_text(&star_btn, is_fav, app.name);
     let fav_rc = favorites.clone();
     let exec_fav2 = exec_for_fav.clone();
     let star_btn2 = star_btn.clone();
+    let app_name = app.name;
     star_btn.connect_clicked(move |_| {
         let mut favs = fav_rc.borrow_mut();
         if favs.contains(&exec_fav2) {
             favs.retain(|e| e != &exec_fav2);
             star_btn2.set_icon_name("non-starred-symbolic");
+            set_fav_text(&star_btn2, false, app_name);
         } else {
             favs.push(exec_fav2.clone());
             star_btn2.set_icon_name("starred-symbolic");
+            set_fav_text(&star_btn2, true, app_name);
         }
         save_favorites(&favs);
     });
@@ -645,6 +649,9 @@ fn refresh_running(list: &gtk4::ListBox) {
 
         let close_btn = gtk4::Button::from_icon_name("window-close-symbolic");
         close_btn.add_css_class("win-close-btn");
+        let close_text = format!("Close {}", win.title);
+        close_btn.set_tooltip_text(Some(&close_text));
+        close_btn.update_property(&[gtk4::accessible::Property::Label(&close_text)]);
         let close_id = win.id.clone();
         close_btn.connect_clicked(move |_| {
             window_service().close(&close_id);
@@ -871,6 +878,17 @@ fn flatpak_installed() -> Vec<String> {
         .collect()
 }
 
+/// Text for the favourite star: what pressing it will do. The icon alone says nothing to a screen reader.
+fn fav_text(is_fav: bool, name: &str) -> String {
+    format!("{} {} as a favourite", if is_fav { "Remove" } else { "Add" }, name)
+}
+
+fn set_fav_text(btn: &gtk4::Button, is_fav: bool, name: &str) {
+    let text = fav_text(is_fav, name);
+    btn.set_tooltip_text(Some(&text));
+    btn.update_property(&[gtk4::accessible::Property::Label(&text)]);
+}
+
 fn make_smart_row(icon: &str, name: &str, sub: &str, cmd: &str) -> gtk4::ListBoxRow {
     let row = gtk4::ListBoxRow::new();
     let hb = gtk4::Box::new(gtk4::Orientation::Horizontal, 12);
@@ -905,6 +923,20 @@ fn make_smart_row(icon: &str, name: &str, sub: &str, cmd: &str) -> gtk4::ListBox
     let gesture = gtk4::GestureClick::new();
     gesture.connect_released(move |_, _, _, _| { launch(&c); });
     row.add_controller(gesture);
+    // The click gesture only sees the mouse, so Enter and Space on a focused row get their own handler.
+    let c = cmd.to_string();
+    let keys = gtk4::EventControllerKey::new();
+    keys.connect_key_pressed(move |_, key, _, _| {
+        use gtk4::gdk::Key;
+        if matches!(key, Key::Return | Key::KP_Enter | Key::space) {
+            launch(&c);
+            gtk4::glib::Propagation::Stop
+        } else {
+            gtk4::glib::Propagation::Proceed
+        }
+    });
+    row.add_controller(keys);
+    row.update_property(&[gtk4::accessible::Property::Label(&format!("Open {name}, {sub}"))]);
 
     row
 }
@@ -917,3 +949,14 @@ fn launch(exec: &str) {
 
 #[cfg(test)]
 mod packages_tests;
+
+#[cfg(test)]
+mod label_tests {
+    use super::fav_text;
+
+    #[test]
+    fn favourite_label_says_what_the_press_does() {
+        assert_eq!(fav_text(false, "Blender"), "Add Blender as a favourite");
+        assert_eq!(fav_text(true, "Blender"), "Remove Blender as a favourite");
+    }
+}

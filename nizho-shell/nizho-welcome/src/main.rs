@@ -48,7 +48,7 @@ const CSS: &str = "
 .wl-row-sub { font-size: 13px; color: alpha(@window_fg_color, 0.75); }
 .wl-note { font-size: 13px; color: alpha(@window_fg_color, 0.75); }
 button.wl-row-btn { background: none; box-shadow: none; padding: 0; border-radius: 0; }
-button.wl-row-btn:hover .wl-row { background-color: alpha(@window_fg_color, 0.04); }
+button.wl-row-btn:hover .wl-row, button.wl-row-btn:focus-visible .wl-row { background-color: alpha(@window_fg_color, 0.04); }
 button.wl-done { border-radius: 999px; padding: 10px 26px; font-weight: 600;
                  background-color: @window_fg_color; color: @window_bg_color; }
 ";

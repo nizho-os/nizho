@@ -10,9 +10,9 @@ use adw::prelude::*;
 const APP_ID: &str = "org.nizho.wifi";
 
 const STYLE: &str = "
-.signal-on  { font-family: monospace; color: #4fc3f7; font-size: 12px; }
-.signal-off { font-family: monospace; color: #1a3050; font-size: 12px; }
-.connected  { color: #4ade80; font-size: 11px; font-weight: 700; }
+.signal-on  { font-family: monospace; color: @accent; font-size: 12px; }
+.signal-off { font-family: monospace; color: @text_muted; font-size: 12px; }
+.connected  { color: @accent; font-size: 11px; font-weight: 700; }
 ";
 
 fn main() {
@@ -43,6 +43,8 @@ fn build_ui(app: &adw::Application) {
     let hb = adw::HeaderBar::new();
     hb.set_show_title(false);
     let refresh_btn = gtk4::Button::from_icon_name("view-refresh-symbolic");
+    refresh_btn.set_tooltip_text(Some("Refresh the network list"));
+    refresh_btn.update_property(&[gtk4::accessible::Property::Label("Refresh the network list")]);
     hb.pack_end(&refresh_btn);
 
     let list = gtk4::ListBox::new();
@@ -143,6 +145,8 @@ fn rebuild_rows(list: &gtk4::ListBox, networks: &[net::Network]) {
 
         let bars = gtk4::Label::new(Some(net::signal_bars(n.signal)));
         bars.add_css_class(if n.signal > 40 { "signal-on" } else { "signal-off" });
+        bars.update_property(&[gtk4::accessible::Property::Label(net::signal_words(n.signal))]);
+        bars.set_tooltip_text(Some(net::signal_words(n.signal)));
         hbox.append(&bars);
 
         let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 2);
