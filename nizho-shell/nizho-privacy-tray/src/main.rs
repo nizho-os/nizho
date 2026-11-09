@@ -197,7 +197,7 @@ async fn read_enforcement(p: &NizhodProxy<'_>) -> Option<Enforcement> {
         firewall,
         browser_ok,
         browser_detail: if browser_ok {
-            "Sees only your Downloads folder".to_string()
+            "Firefox sees only your Downloads folder".to_string()
         } else {
             "Not confirmed".to_string()
         },
@@ -344,6 +344,6 @@ mod tests {
         let tray = NizhoTray::default();
         assert!(status_line(&tray).starts_with("unknown\tStatus unknown"));
         let up = NizhoTray { nizhod_up: true, ..NizhoTray::default() };
-        assert_eq!(status_line(&up), "ok\tPrivacy settings are on");
+        assert_eq!(status_line(&up), "ok\tPrivacy settings are in place");
     }
 }
