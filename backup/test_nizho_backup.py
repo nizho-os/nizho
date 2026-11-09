@@ -67,6 +67,15 @@ class Rules(Env):
         self.assertIn("inside your home folder", err)
         self.assertFalse(os.path.exists(nb.key_path()))
 
+    def test_refuses_backup_folder_that_is_a_symlink_into_home(self):
+        os.makedirs(os.path.join(self.home, "real"))
+        link = os.path.join(self.drive, "link")
+        os.symlink(os.path.join(self.home, "real"), link)
+        code, _, err = self.run_cli("setup", "--to", os.path.join(link, "repo"))
+        self.assertEqual(code, 1)
+        self.assertIn("inside your home folder", err)
+        self.assertFalse(os.path.exists(nb.key_path()))
+
     def test_missing_restic_is_said_plainly(self):
         os.environ["NIZHO_RESTIC"] = ""
         os.environ["PATH"] = "/nonexistent"

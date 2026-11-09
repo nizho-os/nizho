@@ -99,7 +99,9 @@ def cmd_setup(a):
         raise Fail("Backups are already set up. The backup folder is " + load_config()["repo"] + ".")
     dest = os.path.abspath(os.path.expanduser(a.to))
     home = os.path.expanduser("~")
-    if dest == home or dest.startswith(home + os.sep) and not a.allow_home:
+    # Compare real paths, so a symlink to a folder in your home does not get around the check.
+    rdest, rhome = os.path.realpath(dest), os.path.realpath(home)
+    if rdest == rhome or rdest.startswith(rhome + os.sep) and not a.allow_home:
         raise Fail("The backup folder is inside your home folder, so it would go with your files if the disk fails. "
                    "Choose a folder on an external drive, or add --allow-home to do it anyway.")
     if os.path.exists(os.path.join(dest, "config")):
