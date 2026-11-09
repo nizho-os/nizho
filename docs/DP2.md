@@ -1,8 +1,9 @@
 # DP2 — post-DP1 work already landed on `main`
 
 DP1 is frozen as a historical milestone (tag `v0.1.0-dp1`). This file records
-the concrete work that has **already landed on `main` since DP1** and will ship
-in the next image build — it is a record of what's queued, not a plan.
+the early work that landed on `main` after DP1. It is a record, not a plan. The
+full list of what has been built since, with how each part was tested, is in
+[FEATURES.md](FEATURES.md).
 
 **DP2's actual scope is not decided here.** It is determined after a month of
 daily driving, from real experience (`docs/FIELD-NOTES.md`). Candidate future
@@ -21,8 +22,9 @@ The theme of what has landed so far is *paying down Hyprland → Plasma debt*.
   `foot` / `thunar` (Hyprland-era). Now `konsole` / `dolphin`, which the
   `@kde-desktop-environment` group actually installs.
 
-These are source-only fixes and do **not** change the tagged DP1 image; they
-land in the next build.
+These are source fixes and do **not** change the tagged DP1 image. Later image
+builds from `main` contain them. We have not recorded a test of either action on a
+booted image.
 
 ## Window-management abstraction (the headline of DP2)
 
@@ -87,8 +89,8 @@ time, not by Nizho.
 
 Real captures only — no mockups. The full DP1 set was captured live (2026-07-11)
 and archived under `assets/screenshots/dp1/`: desktop, lock screen, wizard,
-launcher, Privacy Dashboard, Privacy Report, Capsule, Settings, Wi-Fi. Shown in
-the README.
+launcher, Privacy Dashboard, Privacy Report, Capsule, Settings, Wi-Fi. They show
+the old name and logo, and the README no longer shows them.
 
 ---
 
