@@ -145,6 +145,8 @@ fn rebuild_rows(list: &gtk4::ListBox, networks: &[net::Network]) {
 
         let bars = gtk4::Label::new(Some(net::signal_bars(n.signal)));
         bars.add_css_class(if n.signal > 40 { "signal-on" } else { "signal-off" });
+        bars.update_property(&[gtk4::accessible::Property::Label(net::signal_words(n.signal))]);
+        bars.set_tooltip_text(Some(net::signal_words(n.signal)));
         hbox.append(&bars);
 
         let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 2);
