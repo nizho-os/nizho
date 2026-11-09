@@ -5,6 +5,9 @@
     nizho-backup now                 back up your files now (the daily timer runs this too)
     nizho-backup status [--json]     when the last backup ran, and whether the drive is connected
     nizho-backup list                list the saved backups
+    nizho-backup snapshots --json    the saved backups as JSON: id and time, newest first
+    nizho-backup ls [PATH] [--snapshot ID] [--json]
+                                     list what is inside PATH (relative to your home folder) in a backup
     nizho-backup restore PATH --to DIR [--snapshot ID]
                                      put PATH (relative to your home folder) back into DIR
     nizho-backup tidy                drop old backups: keep 7 daily, 4 weekly, 6 monthly
@@ -192,6 +195,106 @@ def cmd_list(a):
         print(f'{s["short_id"]}  {s["time"][:19].replace("T", " ")}')
 
 
+def pick_snapshot(snaps, wanted):
+    """The newest backup, or the one whose id starts with WANTED."""
+    ordered = sorted(snaps, key=lambda x: x["time"])
+    if not wanted or wanted == "latest":
+        return ordered[-1]
+    hits = [s for s in ordered if s["id"].startswith(wanted) or s.get("short_id") == wanted]
+    if len(hits) != 1:
+        raise Fail("That backup was not found. Run: nizho-backup list")
+    return hits[0]
+
+
+def snapshot_node_dir(snap, home):
+    """restic stores the home folder under the name it had when backed up, which on Nizho is the real
+    /var/home/NAME even if you reach it as /home/NAME. Return the path the home folder has inside this backup."""
+    paths = [os.path.normpath(p) for p in snap.get("paths") or []]
+    real = os.path.realpath(home)
+    candidates = [real, os.path.normpath(home)]
+    mine = next((p for p in paths if p in candidates), None) or next((p for p in paths if os.path.realpath(p) == real), None)
+    if mine is None:
+        return None
+    return mine
+
+
+def clean_rel(path):
+    """PATH as given by the user, checked and turned into a relative path ('.' for the home folder)."""
+    p = path or "."
+    if p.startswith("/") or "\0" in p or ".." in p.split("/"):
+        raise Fail("Give PATH relative to your home folder, for example Documents, and without '..'.")
+    return os.path.normpath(p)
+
+
+def list_entries(cfg, snap, rel):
+    """The entries directly inside REL in SNAP, as dicts, folders first. Raises Fail with plain words."""
+    base = snapshot_node_dir(snap, os.path.expanduser("~"))
+    if base is None:
+        raise Fail("This backup does not hold your home folder.")
+    target = base if rel == "." else base + "/" + rel
+    out = run_restic(cfg, ["ls", "--json", snap["id"], "--", target], capture=True)
+    self_node, entries = None, []
+    for line in out.splitlines():
+        try:
+            n = json.loads(line)
+        except ValueError:
+            continue
+        if n.get("struct_type") != "node":
+            continue
+        if n.get("path") == target:
+            self_node = n
+        elif os.path.dirname(n.get("path", "")) == target:
+            entries.append({"name": n["name"], "type": "dir" if n.get("type") == "dir" else "file",
+                            "size": n.get("size", 0) if n.get("type") != "dir" else 0, "mtime": n.get("mtime", "")})
+    if self_node is None:
+        raise Fail(f"{rel} was not found in that backup.")
+    if self_node.get("type") != "dir":
+        raise Fail(f"{rel} is a file, not a folder.")
+    entries.sort(key=lambda e: (e["type"] != "dir", e["name"].casefold(), e["name"]))
+    return entries
+
+
+def human_size(n):
+    for unit in ("bytes", "KB", "MB", "GB"):
+        if n < 1000 or unit == "GB":
+            return f"{n} bytes" if unit == "bytes" else f"{n:.1f} {unit}"
+        n /= 1000
+
+
+def cmd_snapshots(a):
+    cfg = need_config()
+    if not drive_connected(cfg):
+        raise Fail("The backup drive is not connected: " + cfg["repo"])
+    snaps = sorted(snapshots(cfg), key=lambda x: x["time"], reverse=True)
+    if a.json:
+        print(json.dumps([{"id": s["id"], "time": s["time"]} for s in snaps]))
+    elif not snaps:
+        print("There are no backups yet.")
+    else:
+        for s in snaps:
+            print(f'{s["short_id"]}  {s["time"][:19].replace("T", " ")}')
+
+
+def cmd_ls(a):
+    cfg = need_config()
+    if not drive_connected(cfg):
+        raise Fail("The backup drive is not connected: " + cfg["repo"])
+    rel = clean_rel(a.path)
+    snaps = snapshots(cfg)
+    if not snaps:
+        print("[]" if a.json else "There are no backups yet.")
+        return
+    entries = list_entries(cfg, pick_snapshot(snaps, a.snapshot), rel)
+    if a.json:
+        print(json.dumps(entries))
+    elif not entries:
+        print("This folder is empty.")
+    else:
+        for e in entries:
+            size = "" if e["type"] == "dir" else human_size(e["size"])
+            print(f'{e["type"]:<5} {size:>10}  {e["mtime"][:16].replace("T", " ")}  {e["name"]}' + ("/" if e["type"] == "dir" else ""))
+
+
 def cmd_restore(a):
     cfg = need_config()
     if not drive_connected(cfg):
@@ -252,6 +355,8 @@ def main(argv=None):
     t = sub.add_parser("status"); t.add_argument("--json", action="store_true"); t.set_defaults(f=cmd_status)
     sub.add_parser("list").set_defaults(f=cmd_list)
     r = sub.add_parser("restore"); r.add_argument("path"); r.add_argument("--to", required=True); r.add_argument("--snapshot"); r.set_defaults(f=cmd_restore)
+    q = sub.add_parser("snapshots"); q.add_argument("--json", action="store_true"); q.set_defaults(f=cmd_snapshots)
+    l = sub.add_parser("ls"); l.add_argument("path", nargs="?"); l.add_argument("--snapshot"); l.add_argument("--json", action="store_true"); l.set_defaults(f=cmd_ls)
     sub.add_parser("tidy").set_defaults(f=cmd_tidy)
     a = p.parse_args(argv)
     try:
