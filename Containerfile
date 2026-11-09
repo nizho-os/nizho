@@ -90,6 +90,8 @@ COPY system/kernel/10-nizho-hardening.toml /usr/lib/bootc/kargs.d/10-nizho-harde
 COPY system/kernel/60-nizho-hardening.conf /usr/lib/sysctl.d/60-nizho-hardening.conf
 COPY system/kernel/20-nizho-recovery.toml /usr/lib/bootc/kargs.d/20-nizho-recovery.toml
 COPY system/nizho-arm-boot-counter /usr/libexec/nizho-arm-boot-counter
+COPY system/nizho-phone-link /usr/libexec/nizho-phone-link
+COPY system/polkit/org.nizho.phone-link.policy /usr/share/polkit-1/actions/org.nizho.phone-link.policy
 COPY system/nizho-stale-trigger-check /usr/libexec/nizho-stale-trigger-check
 COPY system/autostart/nizho-privacy-dots.desktop /etc/xdg/autostart/nizho-privacy-dots.desktop
 COPY desktop/crystal-dock/nizho-dock.desktop /etc/xdg/autostart/nizho-dock.desktop
@@ -661,7 +663,7 @@ RUN chmod 755 /usr/bin/nizho-backup /usr/bin/nizho-import /usr/bin/nizho-hwrepor
     systemctl --global enable nizho-backup.timer
 RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf && \
     grep -q '^DefaultZone=nizho' /etc/firewalld/firewalld.conf && \
-    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
+    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-phone-link /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
     mkdir -p /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d && \
     printf '[Service]\nExecStart=\nExecStart=/usr/bin/bootc upgrade --quiet\n' \
       > /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d/10-nizho-no-auto-reboot.conf && \
