@@ -10,7 +10,7 @@
 // second setup.
 //
 // NIZHO_OOBE_PREVIEW=<page> opens it windowed at a page for design review
-// (hello, look, accent, name, password, computer, zone, language, signin, privacy, wheel, working, bye) and never
+// (hello, look, accent, name, password, computer, zone, language, signin, phone, privacy, wheel, working, bye) and never
 // creates an account or reboots. Setup opens in the dark look so the first
 // screens are not a full-brightness white panel in a dim room (reported on real
 // hardware); NIZHO_OOBE_THEME=light previews the light look.
@@ -35,6 +35,10 @@ mod tutorial;
 
 const APP_ID: &str = "org.nizho.oobe";
 
+const PHONE_TEXT: &str = "KDE Connect lets your phone and this computer share files, notifications and the clipboard \
+over your home network. If you say yes, phones on the same network can find this computer. \
+You can change this later in Settings, Internet.";
+
 fn main() {
     let app = adw::Application::builder().application_id(APP_ID).build();
     app.connect_activate(build_ui);
@@ -50,9 +54,11 @@ fn main() {
 // `dev` is the optional version control from Advanced options: the tools
 // ("vara", "git" or "vara,git") plus the name and email for commits. `zone` is the time
 // zone the user picked, a tz database name such as Europe/Berlin. `accent` is "green" or "blue".
-fn create_account(user: &str, pass: &str, autologin: bool, dark: bool, host: &str,
-                  dev: Option<(String, String, String)>, zone: &str, accent: &str, locale: &str, keyboard: &str) -> Result<(), String> {
-    use std::io::Write;
+/// The arguments for `sudo -n nizho-oobe-apply`, in the order the helper reads them. The last one is
+/// the phone link answer, "yes" or "no". Everything is passed, so a missing answer cannot mean yes.
+fn apply_args(user: &str, autologin: bool, dark: bool, host: &str,
+              dev: Option<(String, String, String)>, zone: &str, accent: &str, locale: &str, keyboard: &str,
+              phone: bool) -> Vec<String> {
     let mut args = vec![
         "-n".to_string(),
         "/usr/libexec/nizho-oobe-apply".to_string(),
@@ -71,6 +77,15 @@ fn create_account(user: &str, pass: &str, autologin: bool, dark: bool, host: &st
     args.push(accent.to_string());
     args.push(locale.to_string());
     args.push(keyboard.to_string());
+    args.push(if phone { "yes" } else { "no" }.to_string());
+    args
+}
+
+fn create_account(user: &str, pass: &str, autologin: bool, dark: bool, host: &str,
+                  dev: Option<(String, String, String)>, zone: &str, accent: &str, locale: &str, keyboard: &str,
+                  phone: bool) -> Result<(), String> {
+    use std::io::Write;
+    let args = apply_args(user, autologin, dark, host, dev, zone, accent, locale, keyboard, phone);
     let mut child = std::process::Command::new("sudo")
         .args(&args)
         .stdin(std::process::Stdio::piped())
@@ -1060,6 +1075,38 @@ fn build_ui(app: &adw::Application) {
         Some("signin"),
     );
 
+    // phone link: off unless the user says yes. Nothing is opened or started here; the answer is
+    // passed to the setup helper at the end.
+    let phone_choice = |title: &str, sub: &str| -> gtk4::CheckButton {
+        let col = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
+        col.set_margin_start(10);
+        col.append(&label(title, "oobe-choice-title"));
+        col.append(&label(sub, "oobe-choice-sub"));
+        let b = gtk4::CheckButton::new();
+        b.add_css_class("oobe-choice");
+        b.set_child(Some(&col));
+        b
+    };
+    let phone_no = phone_choice("No", "Phones on your network cannot find this computer.");
+    let phone_yes = phone_choice("Yes, link my phone", "Phones on the same network can find this computer.");
+    phone_yes.set_group(Some(&phone_no));
+    phone_no.set_active(true);
+    for c in [&phone_no, &phone_yes] {
+        c.connect_has_focus_notify(|b| if b.has_focus() { b.set_active(true) });
+    }
+    let phone_wanted: Rc<dyn Fn() -> bool> = {
+        let yes = phone_yes.clone();
+        Rc::new(move || yes.is_active())
+    };
+    let phone_body = gtk4::Box::new(gtk4::Orientation::Vertical, 6);
+    phone_body.append(&phone_no);
+    phone_body.append(&phone_yes);
+    pages.add_named(
+        &page(&label("Link your phone?", "oobe-title"),
+              &label(PHONE_TEXT, "oobe-sub"), &phone_body),
+        Some("phone"),
+    );
+
     // live privacy check
     let priv_rows = gtk4::Box::new(gtk4::Orientation::Vertical, 22);
     let priv_note = label("Checking…", "oobe-note");
@@ -1166,7 +1213,7 @@ fn build_ui(app: &adw::Application) {
     root.add_named(&frame, Some("setup"));
 
     // ── navigation ────────────────────────────────────────────────────────
-    const ORDER: &[&str] = &["look", "accent", "name", "password", "computer", "zone", "language", "signin", "privacy", "wheel", "working"];
+    const ORDER: &[&str] = &["look", "accent", "name", "password", "computer", "zone", "language", "signin", "phone", "privacy", "wheel", "working"];
     let cur = Rc::new(Cell::new(0usize));
 
     // Privacy rows: Checking… while nizhod is asked (it may still be starting),
@@ -1315,7 +1362,8 @@ fn build_ui(app: &adw::Application) {
 
             let animate = motion_on && shown_once.get() && i != from && motion::animations_enabled();
             shown_once.set(true);
-            ridge.go_to(i.min(9), animate);
+            // The phone step shares the sign-in stop on the ridge, so the later stops stay where they were.
+            ridge.go_to(if i > 8 { i - 1 } else { i }.min(9), animate);
             let my = show_gen.get().wrapping_add(1);
             show_gen.set(my);
 
@@ -1328,6 +1376,7 @@ fn build_ui(app: &adw::Application) {
                 let (zone_drop, zone_refresh) = (zone_drop.clone(), zone_refresh.clone());
                 let lang_drop = lang_drop.clone();
                 let (accent_green, accent_blue) = (accent_green.clone(), accent_blue.clone());
+                let phone_no = phone_no.clone();
                 move || {
                     let parts = if animate { pages.child_by_name(name).map(|p| motion::prepare(p.upcast_ref())) } else { None };
                     pages.set_visible_child_name(name);
@@ -1339,6 +1388,7 @@ fn build_ui(app: &adw::Application) {
                         "computer" => { host_refresh(); }
                         "zone" => { zone_refresh(); zone_drop.grab_focus(); }
                         "language" => { lang_drop.grab_focus(); }
+                        "phone" => { phone_no.grab_focus(); }
                         "accent" => { if accent_blue.is_active() { accent_blue.grab_focus() } else { accent_green.grab_focus() }; }
                         "privacy" => {
                             check_privacy();
@@ -1392,6 +1442,7 @@ fn build_ui(app: &adw::Application) {
         let zone_name = zone_name.clone();
         let (language_value, keyboard_value) = (language_value.clone(), keyboard_value.clone());
         let accent_name = accent_name.clone();
+        let phone_wanted = phone_wanted.clone();
         let (vara_cb, git_cb, commit_name, commit_email) =
             (vara_cb.clone(), git_cb.clone(), commit_name.clone(), commit_email.clone());
         let next_btn = next.clone();
@@ -1433,15 +1484,17 @@ fn build_ui(app: &adw::Application) {
                     show(8)
                 }
             }
-            "privacy" => show(9),
+            "phone" => show(9),
+            "privacy" => show(10),
             "wheel" => {
                 if busy.replace(true) { return; }
                 next_btn.set_sensitive(false);
-                show(10);
+                show(11);
                 let host = host_name();
                 let zone = zone_name();
                 let (locale, keyboard) = (language_value(), keyboard_value());
                 let accent = accent_name();
+                let phone = phone_wanted();
                 let user = name_entry.text().to_string();
                 let (u, p, autologin, d) = (user.clone(), pass_entry.text().to_string(), !ask.is_active(), dark.get());
                 let tools: Vec<&str> = [("vara", vara_cb.is_active()), ("git", git_cb.is_active())]
@@ -1456,7 +1509,7 @@ fn build_ui(app: &adw::Application) {
                     let res = if preview {
                         Ok(())
                     } else {
-                        gio::spawn_blocking(move || create_account(&u, &p, autologin, d, &host, dev, &zone, accent, &locale, &keyboard))
+                        gio::spawn_blocking(move || create_account(&u, &p, autologin, d, &host, dev, &zone, accent, &locale, &keyboard, phone))
                             .await
                             .unwrap_or_else(|_| Err("account helper crashed".into()))
                     };
@@ -1464,7 +1517,7 @@ fn build_ui(app: &adw::Application) {
                         Ok(()) => finish(user),
                         Err(e) => {
                             busy.set(false);
-                            show(9);
+                            show(10);
                             fail(&format!("Couldn't create the account: {e}"));
                         }
                     }
@@ -1691,5 +1744,34 @@ mod language_tests {
             assert!(super::valid_locale(locale), "{name}");
             assert!(super::valid_layout(layout), "{name}");
         }
+    }
+}
+
+#[cfg(test)]
+mod phone_tests {
+    fn args(phone: bool) -> Vec<String> {
+        super::apply_args("alice", true, true, "nizho", None, "", "green", "", "", phone)
+    }
+
+    #[test]
+    fn the_phone_answer_is_the_last_argument_and_defaults_to_no() {
+        assert_eq!(args(false).last().map(String::as_str), Some("no"));
+        assert_eq!(args(true).last().map(String::as_str), Some("yes"));
+    }
+
+    #[test]
+    fn the_old_arguments_keep_their_places() {
+        let a = args(true);
+        assert_eq!(&a[..6], ["-n", "/usr/libexec/nizho-oobe-apply", "alice", "1", "dark", "nizho"]);
+        // tools, name, email, zone, accent, language, keyboard, then phone
+        assert_eq!(a.len(), 6 + 3 + 4 + 1);
+        assert_eq!(a[9..13], ["", "green", "", ""]);
+    }
+
+    #[test]
+    fn the_text_is_the_agreed_wording() {
+        assert_eq!(super::PHONE_TEXT,
+            "KDE Connect lets your phone and this computer share files, notifications and the clipboard over your home network. \
+If you say yes, phones on the same network can find this computer. You can change this later in Settings, Internet.");
     }
 }
