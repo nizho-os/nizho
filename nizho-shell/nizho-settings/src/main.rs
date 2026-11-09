@@ -4,6 +4,8 @@ use libadwaita as adw;
 use adw::prelude::*;
 use std::process::Command;
 
+mod backup;
+
 const APP_ID: &str = "org.nizho.settings";
 
 fn main() {
@@ -58,6 +60,7 @@ fn build_ui(app: &adw::Application) {
         ("Privacy",    "security-high-symbolic"),
         ("Internet",   "network-wireless-symbolic"),
         ("Updates",    "system-software-update-symbolic"),
+        ("Backup",     "drive-harddisk-symbolic"),
         ("Developer tools", "applications-development-symbolic"),
         ("Advanced",   "utilities-terminal-symbolic"),
     ];
@@ -93,6 +96,7 @@ fn build_ui(app: &adw::Application) {
     stack.add_named(&page_privacy(),    Some("Privacy"));
     stack.add_named(&page_internet(),   Some("Internet"));
     stack.add_named(&page_updates(),    Some("Updates"));
+    stack.add_named(&page_backup(&window), Some("Backup"));
     stack.add_named(&page_developer(),  Some("Developer tools"));
     stack.add_named(&page_advanced(),   Some("Advanced"));
 
@@ -749,6 +753,193 @@ fn page_updates() -> gtk4::Widget {
     open_row.connect_activated(|_| { let _ = Command::new("nizho-update").spawn(); });
     group.add(&open_row);
     b.append(&group);
+    b.upcast()
+}
+
+// ── Backup ──────────────────────────────────────────────────────────────────
+
+fn recovery_key_dialog(window: &adw::ApplicationWindow, key: &str, folder: &str) -> adw::MessageDialog {
+    let d = adw::MessageDialog::new(
+        Some(window),
+        Some("Save your recovery key"),
+        Some("Write this key down or keep a copy somewhere other than this computer. If this computer is lost \
+              and you do not have the key, the backup cannot be opened. It is shown only now."),
+    );
+    let k = gtk4::Label::new(None);
+    k.set_markup(&format!(
+        "<span font_family=\"monospace\" size=\"x-large\" weight=\"bold\">{}</span>",
+        glib::markup_escape_text(key)
+    ));
+    k.set_selectable(true);
+    k.set_wrap(true);
+    k.set_wrap_mode(gtk4::pango::WrapMode::Char);
+    k.set_margin_top(6);
+    let f = gtk4::Label::new(Some(&format!("Backup folder: {folder}")));
+    f.set_wrap(true);
+    f.add_css_class("dim-label");
+    let col = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
+    col.append(&k);
+    col.append(&f);
+    d.set_extra_child(Some(&col));
+    d.add_response("copy", "Copy key");
+    d.add_response("done", "I have saved it");
+    d.set_default_response(Some("done"));
+    d.set_close_response("done");
+    d
+}
+
+fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
+    let b = page_box(
+        "Backup",
+        "Saves your files, encrypted, to a drive you choose, and keeps older copies so you can get back \
+         something you deleted. It does not copy the system.",
+    );
+    let group = adw::PreferencesGroup::new();
+    group.set_title("Your files");
+
+    let status_row = adw::ActionRow::new();
+    status_row.set_title("Backup");
+    status_row.set_subtitle("Checking\u{2026}");
+    group.add(&status_row);
+
+    let setup_row = adw::ActionRow::new();
+    setup_row.set_title("Choose a drive for your backup");
+    setup_row.set_subtitle("Pick a folder on an external drive. It cannot be inside your home folder.");
+    setup_row.set_activatable(true);
+    setup_row.add_suffix(&gtk4::Image::from_icon_name("go-next-symbolic"));
+    setup_row.set_visible(false);
+    group.add(&setup_row);
+
+    let now_row = adw::ActionRow::new();
+    now_row.set_title("Back up now");
+    now_row.set_subtitle("Also runs once a day while the drive is plugged in.");
+    now_row.set_activatable(true);
+    now_row.add_suffix(&gtk4::Image::from_icon_name("go-next-symbolic"));
+    now_row.set_visible(false);
+    group.add(&now_row);
+
+    let restore_row = adw::ActionRow::new();
+    restore_row.set_title("Get a file back");
+    restore_row.set_subtitle("Puts an older copy in a folder you choose. Your current files are not changed.");
+    restore_row.set_activatable(true);
+    restore_row.add_suffix(&gtk4::Image::from_icon_name("go-next-symbolic"));
+    restore_row.set_visible(false);
+    group.add(&restore_row);
+
+    let limits = gtk4::Label::new(Some(
+        "A backup drive kept next to this computer does not protect against fire or theft. \
+         The system itself is not copied: updates keep the previous version for that.",
+    ));
+    limits.set_wrap(true);
+    limits.set_xalign(0.0);
+    limits.add_css_class("dim-label");
+
+    let refresh: std::rc::Rc<dyn Fn()> = {
+        let (status_row, setup_row, now_row, restore_row) =
+            (status_row.clone(), setup_row.clone(), now_row.clone(), restore_row.clone());
+        std::rc::Rc::new(move || {
+            let (status_row, setup_row, now_row, restore_row) =
+                (status_row.clone(), setup_row.clone(), now_row.clone(), restore_row.clone());
+            glib::spawn_future_local(async move {
+                let st = gtk4::gio::spawn_blocking(backup::status).await.unwrap_or_else(|_| backup::Status::unknown());
+                status_row.set_subtitle(&st.text);
+                setup_row.set_visible(!st.configured);
+                now_row.set_visible(st.configured && st.connected);
+                restore_row.set_visible(st.configured && st.connected);
+            });
+        })
+    };
+    refresh();
+
+    {
+        let (window, refresh, setup_row, status_row) = (window.clone(), refresh.clone(), setup_row.clone(), status_row.clone());
+        setup_row.clone().connect_activated(move |_| {
+            let (window, refresh, setup_row, status_row) = (window.clone(), refresh.clone(), setup_row.clone(), status_row.clone());
+            glib::spawn_future_local(async move {
+                let dlg = gtk4::FileDialog::builder().title("Choose the drive or folder for your backup").build();
+                let Ok(file) = dlg.select_folder_future(Some(&window)).await else { return };
+                let Some(path) = file.path() else { return };
+                setup_row.set_sensitive(false);
+                status_row.set_subtitle("Setting up\u{2026}");
+                let dest = path.join("nizho-backup");
+                let res = gtk4::gio::spawn_blocking(move || backup::setup(&dest))
+                    .await
+                    .unwrap_or_else(|_| Err("The setup did not finish.".into()));
+                setup_row.set_sensitive(true);
+                match res {
+                    Ok(done) => loop {
+                        let r = recovery_key_dialog(&window, &done.key, &done.folder).choose_future().await;
+                        if r == "copy" {
+                            gtk4::prelude::WidgetExt::display(&window).clipboard().set_text(&done.key);
+                            continue;
+                        }
+                        break;
+                    },
+                    Err(e) => status_row.set_subtitle(&e),
+                }
+                refresh();
+            });
+        });
+    }
+
+    {
+        let (refresh, now_row, status_row) = (refresh.clone(), now_row.clone(), status_row.clone());
+        now_row.clone().connect_activated(move |_| {
+            let (refresh, now_row, status_row) = (refresh.clone(), now_row.clone(), status_row.clone());
+            glib::spawn_future_local(async move {
+                now_row.set_sensitive(false);
+                status_row.set_subtitle("Backing up\u{2026}");
+                let res = gtk4::gio::spawn_blocking(backup::backup_now).await.unwrap_or_else(|_| Err("The backup did not finish.".into()));
+                now_row.set_sensitive(true);
+                refresh();
+                if let Err(e) = res {
+                    status_row.set_subtitle(&e);
+                }
+            });
+        });
+    }
+
+    {
+        let (window, restore_row, status_row) = (window.clone(), restore_row.clone(), status_row.clone());
+        restore_row.clone().connect_activated(move |_| {
+            let (window, status_row) = (window.clone(), status_row.clone());
+            glib::spawn_future_local(async move {
+                let entry = gtk4::Entry::new();
+                entry.set_placeholder_text(Some("Documents/report.odt"));
+                entry.set_activates_default(true);
+                let d = adw::MessageDialog::new(
+                    Some(&window),
+                    Some("Get a file back"),
+                    Some("Type the file or folder as it appears in your home folder. You will choose where the older copy goes."),
+                );
+                d.set_extra_child(Some(&entry));
+                d.add_response("cancel", "Cancel");
+                d.add_response("go", "Choose a folder");
+                d.set_response_appearance("go", adw::ResponseAppearance::Suggested);
+                d.set_default_response(Some("go"));
+                d.set_close_response("cancel");
+                if d.choose_future().await != "go" {
+                    return;
+                }
+                let path = entry.text().to_string();
+                if !backup::valid_restore_path(&path) {
+                    status_row.set_subtitle("Write the file or folder as it appears in your home folder, for example Documents/report.odt.");
+                    return;
+                }
+                let dlg = gtk4::FileDialog::builder().title("Choose an empty folder for the older copy").build();
+                let Ok(folder) = dlg.select_folder_future(Some(&window)).await else { return };
+                let Some(target) = folder.path() else { return };
+                status_row.set_subtitle("Restoring\u{2026}");
+                let res = gtk4::gio::spawn_blocking(move || backup::restore(&path, &target))
+                    .await
+                    .unwrap_or_else(|_| Err("The restore did not finish.".into()));
+                status_row.set_subtitle(&match res { Ok(m) => m, Err(e) => e });
+            });
+        });
+    }
+
+    b.append(&group);
+    b.append(&limits);
     b.upcast()
 }
 
