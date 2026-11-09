@@ -656,6 +656,13 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
 # restic, from Fedora's own repository, for nizho-backup.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q restic
+# Metric-compatible stand-ins for Microsoft's Calibri (Carlito, OFL-1.1), Cambria (Caladea, Apache-2.0),
+# Arial, Times New Roman and Courier New (Liberation, OFL-1.1), so Word and Excel files keep their line
+# and page breaks in LibreOffice. libreoffice-core already requires them in Fedora 44; this keeps them
+# installed even if LibreOffice's dependencies change.
+RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
+    dnf install --setopt=keepcache=True -y -q google-carlito-fonts google-crosextra-caladea-fonts \
+      liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts
 COPY --from=files / /
 RUN chmod 755 /usr/bin/nizho-backup /usr/bin/nizho-import /usr/bin/nizho-hwreport && \
     systemctl --global enable nizho-backup.timer
