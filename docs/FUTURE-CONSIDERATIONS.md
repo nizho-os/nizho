@@ -14,8 +14,8 @@ The gaps below are **product and ecosystem maturity, not architectural flaws.**
 That distinction matters: architectural flaws are expensive to fix later;
 product maturity improves with testing, feedback, and time.
 
-Readiness, split honestly: **Engineering ~9/10, Product ~4/10.** The engineering
-is mature for a DP1; the uncertainty is deployment and hardware.
+Where the uncertainty is: deployment and hardware. We have not measured it, and
+the numeric readiness scores that used to be here had no test behind them.
 
 ---
 
@@ -42,14 +42,14 @@ The single biggest unknown. A VM answers none of this:
 - Displays: HiDPI, multi-monitor.
 - Lifecycle: suspend/resume.
 
-First concrete step of the next phase: **boot Nizho on one real laptop and see
-what breaks.**
+That first step has been taken once: Nizho booted from a USB stick on one real
+laptop (see [HARDWARE.md](HARDWARE.md)). Every other item above is still untested.
 
 ## Compatibility
 
-Before 1.0, publish a validated-hardware page — a `docs/HARDWARE.md` or a website
-page — listing machines that have been tested, plus known issues. Examples of the
-shape (not claims):
+[HARDWARE.md](HARDWARE.md) is that page. It lists the one tested machine, what is
+untested, and how to send a report with `nizho-hwreport`. Before 1.0 it needs more
+machines. The list below is an example of the shape, not claims:
 
 ```
 Validated hardware
@@ -67,25 +67,30 @@ This page becomes one of the most valuable things in the project.
 
 ## Security
 
-- **Full-disk encryption — required before 1.0.** TPM-sealed LUKS. This is not
-  "another security feature"; it is *the defining privacy milestone*. A
-  privacy-by-default OS where a stolen laptop's SSD reads clean contradicts its
-  own promise. Partly architectural (install-time), so worth *designing* early
-  even under the feature freeze — needs real TPM hardware to prove.
+- **Full-disk encryption — required before 1.0.** The installer ISO already
+  encrypts the disk with LUKS2 and a passphrase by default (VM-tested, not on
+  hardware; see [FEATURES.md](FEATURES.md)). What is still open is TPM-sealed
+  unlocking, which needs real TPM hardware to prove, and a test on real hardware.
+  A privacy-by-default OS where a stolen laptop's SSD reads clean needs this
+  before 1.0.
 - Secure Boot chain, production story:
   `firmware → Secure Boot → signed bootloader → signed kernel → measured boot → TPM`.
   Measured-boot work exists but PCR 11–15 are blocked on platform bits only
   shakeable on real hardware (see `PHASE3-FINDINGS.md`).
-- Recovery: recovery mode, rollback UI, repair/safe mode — "desktop broken, how
-  does the user recover?"
+- Recovery: recovery mode, repair/safe mode — "desktop broken, how does the user
+  recover?" Automatic rollback after a bad update and a by-hand `bootc rollback`
+  exist (see [FEATURES.md](FEATURES.md)); a broken desktop on a healthy boot has
+  no recovery path we have tested.
 - Telemetry policy: formalize — no analytics; optional crash reports; a
   data-handling statement.
 
 ## Install
 
-- Live ISO + thin installer (`download → flash USB → install → use`). Downstream
-  of hardware validation — an installer for unvalidated hardware installs a
-  brick. DP1 has no installer *by design* (developer audience).
+- Live ISO + thin installer (`download → flash USB → install → use`). An
+  installer ISO now exists and was tested in a VM (see [FEATURES.md](FEATURES.md)).
+  It is not published and not tested on real hardware, and an installer for
+  unvalidated hardware can install a brick. DP1 had no installer by design
+  (developer audience).
 
 ## Sandboxing / app isolation
 
@@ -108,7 +113,9 @@ This page becomes one of the most valuable things in the project.
   controls.
 - Settings state accuracy (e.g. the Automatic Login toggle reflecting the real
   SDDM state — see `docs/FIELD-NOTES.md`).
-- Backup: local + external-drive backup, restore wizard.
+- Backup: a Settings page and `nizho-backup` now save your files to a drive you
+  choose ([BACKUP.md](BACKUP.md)). Still open: tests with a real drive, a failure
+  warning, progress, browsing saved files, offsite copies and a restore wizard.
 - **Display adaptation (requirement, near-term):** *Nizho must adapt its desktop
   presentation to the detected display — never assume a fixed resolution or scale.*
   - **Detect** resolution, refresh, DPI/physical size from **EDID** — KDE/Wayland
@@ -141,8 +148,9 @@ This page becomes one of the most valuable things in the project.
 
 ## Internationalization
 
-- Localization, RTL languages, Unicode coverage, regional formats. English-only
-  today.
+- Setup now lets you pick a language and keyboard layout (not yet run in a booted
+  image). Still open: how much of the desktop is translated into each language,
+  RTL languages, Unicode coverage and regional formats. We have not checked these.
 
 ## Architecture — the long-term shape
 
