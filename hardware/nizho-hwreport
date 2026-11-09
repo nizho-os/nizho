@@ -25,13 +25,16 @@ import sys
 NA = "not available"
 
 MAC_RE = re.compile(r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])")
-IPV4_RE = re.compile(r"(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\w.])")
+IPV4_RE = re.compile(r"(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?!\w|\.\d)")
+# 12 hex digits with no separator, or in three dotted groups (Cisco style). Bare form needs a letter, so plain numbers pass.
+MAC_BARE_RE = re.compile(r"(?<![0-9A-Za-z])(?=[0-9]*[A-Fa-f])[0-9A-Fa-f]{12}(?![0-9A-Za-z])"
+                         r"|(?<![0-9A-Za-z.])[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}(?![0-9A-Za-z.])")
 IPV6_RE = re.compile(
-    r"(?<![0-9A-Za-z:])(?:(?:[0-9A-Fa-f]{1,4}:){3,7}[0-9A-Fa-f]{0,4}|(?:[0-9A-Fa-f]{1,4}:){1,7}(?::[0-9A-Fa-f]{1,4}){1,7}|::[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)(?![0-9A-Za-z:])")
+    r"(?<![0-9A-Za-z:])(?:(?:[0-9A-Fa-f]{1,4}:){3,7}[0-9A-Fa-f]{0,4}|(?:[0-9A-Fa-f]{1,4}:){1,7}(?::[0-9A-Fa-f]{1,4}){1,7}|::[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*|(?:[0-9A-Fa-f]{1,4}:){1,7}:)(?![0-9A-Za-z:])")
 UUID_RE = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}(?![0-9A-Fa-f])")
 LONGHEX_RE = re.compile(r"(?<![0-9A-Za-z])[0-9A-Fa-f]{16,}(?![0-9A-Za-z])")
 SERIAL_RE = re.compile(r"\b(?:serial(?:[ _-]?(?:number|no))?|s/n|uuid)\b\s*[:=]\s*\S+", re.I)
-CHECKS = [("MAC address", MAC_RE), ("IPv4 address", IPV4_RE), ("IPv6 address", IPV6_RE),
+CHECKS = [("MAC address", MAC_RE), ("MAC address", MAC_BARE_RE), ("IPv4 address", IPV4_RE), ("IPv6 address", IPV6_RE),
           ("UUID", UUID_RE), ("long hex string", LONGHEX_RE), ("serial or UUID field", SERIAL_RE)]
 
 CHECKLIST = [
@@ -55,7 +58,7 @@ def rp(path):
 def scrub(value):
     """Last line of defence: remove anything that looks like an identifier."""
     s = "".join(ch if ch.isprintable() else " " for ch in str(value)).strip()
-    for _, rx in CHECKS[:5]:
+    for _, rx in CHECKS[:-1]:
         s = rx.sub("[removed]", s)
     return s[:120]
 
