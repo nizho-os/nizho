@@ -1,0 +1,241 @@
+#!/usr/bin/env python3
+"""nizho-backup: encrypted backups of your files to a drive you choose.
+
+    nizho-backup setup --to FOLDER   make an encrypted backup there and print the recovery key once
+    nizho-backup now                 back up your files now (the daily timer runs this too)
+    nizho-backup status [--json]     when the last backup ran, and whether the drive is connected
+    nizho-backup list                list the saved backups
+    nizho-backup restore PATH --to DIR [--snapshot ID]
+                                     put PATH (relative to your home folder) back into DIR
+    nizho-backup tidy                drop old backups: keep 7 daily, 4 weekly, 6 monthly
+
+What it covers: files in your home folder, minus caches and the trash. It does not
+cover the system itself; updates keep the previous system image for that.
+It is not an offsite backup. It protects against deleting something or a failed
+disk, and it does not protect against a fire or a theft that takes the backup drive too.
+Backups are encrypted with a recovery key kept in ~/.config/nizho/backup.key. If you lose
+this computer and the key, the backup cannot be opened, so keep a copy of the key elsewhere.
+"""
+import argparse
+import datetime as dt
+import json
+import os
+import secrets
+import shutil
+import subprocess
+import sys
+
+EXCLUDES = [".cache", ".local/share/Trash", ".var/app/*/cache", ".var/app/*/.cache", "*/node_modules", ".thumbnails"]
+KEEP = ["--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6"]
+
+
+class Fail(Exception):
+    pass
+
+
+def config_dir():
+    return os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "nizho")
+
+
+def config_path():
+    return os.path.join(config_dir(), "backup.json")
+
+
+def key_path():
+    return os.path.join(config_dir(), "backup.key")
+
+
+def load_config():
+    try:
+        with open(config_path()) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:
+        raise Fail(f"The backup settings could not be read ({e}).")
+
+
+def save_config(cfg):
+    os.makedirs(config_dir(), mode=0o700, exist_ok=True)
+    tmp = config_path() + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(cfg, f, indent=2)
+    os.replace(tmp, config_path())
+
+
+def restic_bin():
+    path = os.environ.get("NIZHO_RESTIC") or shutil.which("restic")
+    if not path:
+        raise Fail("restic is not installed, so backups are not available.")
+    return path
+
+
+def run_restic(cfg, args, capture=False):
+    env = dict(os.environ, RESTIC_REPOSITORY=cfg["repo"], RESTIC_PASSWORD_FILE=key_path(), RESTIC_PROGRESS_FPS="0")
+    try:
+        p = subprocess.run([restic_bin()] + args, env=env, text=True, capture_output=capture, stdin=subprocess.DEVNULL)
+    except OSError as e:
+        raise Fail(f"restic could not be started ({e}).")
+    if p.returncode != 0:
+        detail = ((p.stderr or "").strip().splitlines() or [""])[-1] if capture else ""
+        raise Fail(f"restic stopped with an error (code {p.returncode}). {detail}".strip())
+    return p.stdout if capture else ""
+
+
+def need_config():
+    cfg = load_config()
+    if not cfg:
+        raise Fail("Backups are not set up yet. Run: nizho-backup setup --to FOLDER")
+    return cfg
+
+
+def drive_connected(cfg):
+    return os.path.isdir(cfg["repo"]) and os.path.exists(os.path.join(cfg["repo"], "config"))
+
+
+def cmd_setup(a):
+    if load_config():
+        raise Fail("Backups are already set up. The backup folder is " + load_config()["repo"] + ".")
+    dest = os.path.abspath(os.path.expanduser(a.to))
+    home = os.path.expanduser("~")
+    if dest == home or dest.startswith(home + os.sep) and not a.allow_home:
+        raise Fail("The backup folder is inside your home folder, so it would go with your files if the disk fails. "
+                   "Choose a folder on an external drive, or add --allow-home to do it anyway.")
+    if os.path.exists(os.path.join(dest, "config")):
+        raise Fail("That folder already holds a backup. Choose an empty folder.")
+    os.makedirs(dest, exist_ok=True)
+    os.makedirs(config_dir(), mode=0o700, exist_ok=True)
+    key = secrets.token_urlsafe(24)
+    fd = os.open(key_path(), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(key + "\n")
+    cfg = {"repo": dest, "paths": [home], "created": dt.datetime.now().isoformat(timespec="seconds")}
+    try:
+        run_restic(cfg, ["init"], capture=True)
+    except Fail:
+        os.unlink(key_path())
+        raise
+    save_config(cfg)
+    print("Backups are set up.")
+    print(f"Backup folder: {dest}")
+    print("Recovery key (write this down or keep a copy somewhere other than this computer):")
+    print(f"  {key}")
+    print("If this computer is lost and you do not have this key, the backup cannot be opened.")
+    print("Run 'nizho-backup now' to make the first backup.")
+
+
+def cmd_now(a):
+    cfg = need_config()
+    if not drive_connected(cfg):
+        if a.quiet:
+            return
+        raise Fail("The backup drive is not connected: " + cfg["repo"])
+    args = ["backup", "--tag", "nizho", "--exclude-caches", "--one-file-system"]
+    for e in EXCLUDES:
+        args += ["--exclude", e]
+    out = run_restic(cfg, args + cfg["paths"], capture=True)
+    cfg["last_ok"] = dt.datetime.now().isoformat(timespec="seconds")
+    save_config(cfg)
+    if not a.quiet:
+        print(out.strip().splitlines()[-1] if out.strip() else "Backup finished.")
+
+
+def snapshots(cfg):
+    return json.loads(run_restic(cfg, ["snapshots", "--json"], capture=True) or "[]")
+
+
+def ago(ts):
+    try:
+        d = dt.datetime.now() - dt.datetime.fromisoformat(ts)
+    except (TypeError, ValueError):
+        return "unknown"
+    s = int(d.total_seconds())
+    if s < 90:
+        return "just now"
+    if s < 5400:
+        return f"{s // 60} minutes ago"
+    if s < 172800:
+        return f"{s // 3600} hours ago"
+    return f"{s // 86400} days ago"
+
+
+def cmd_status(a):
+    cfg = load_config()
+    if not cfg:
+        info = {"configured": False, "text": "Backups are not set up."}
+    else:
+        connected = drive_connected(cfg)
+        info = {"configured": True, "repo": cfg["repo"], "connected": connected, "last_ok": cfg.get("last_ok")}
+        if cfg.get("last_ok"):
+            info["text"] = "Last backup: " + ago(cfg["last_ok"])
+        else:
+            info["text"] = "No backup has finished yet."
+        if not connected:
+            info["text"] += ". The backup drive is not connected."
+        else:
+            info["text"] += "."
+    if a.json:
+        print(json.dumps(info))
+    else:
+        print(info["text"])
+
+
+def cmd_list(a):
+    cfg = need_config()
+    if not drive_connected(cfg):
+        raise Fail("The backup drive is not connected: " + cfg["repo"])
+    snaps = snapshots(cfg)
+    if not snaps:
+        print("There are no backups yet.")
+    for s in sorted(snaps, key=lambda x: x["time"]):
+        print(f'{s["short_id"]}  {s["time"][:19].replace("T", " ")}')
+
+
+def cmd_restore(a):
+    cfg = need_config()
+    if not drive_connected(cfg):
+        raise Fail("The backup drive is not connected: " + cfg["repo"])
+    target = os.path.abspath(os.path.expanduser(a.to))
+    if os.path.abspath(a.path) == a.path:
+        raise Fail("Give PATH relative to your home folder, for example Documents/report.odt.")
+    home = os.path.expanduser("~")
+    sub = os.path.normpath(os.path.join(home, a.path))
+    if not (sub == home or sub.startswith(home + os.sep)):
+        raise Fail("PATH must stay inside your home folder.")
+    if os.path.exists(target) and os.listdir(target):
+        raise Fail("The restore folder is not empty. Restoring never overwrites your files; choose an empty folder.")
+    os.makedirs(target, exist_ok=True)
+    run_restic(cfg, ["restore", a.snapshot or "latest", "--target", target, "--include", sub], capture=True)
+    where = os.path.join(target, sub.lstrip(os.sep))
+    print(f"Restored to {where}")
+    print("Your existing files were not touched. Copy back what you need.")
+
+
+def cmd_tidy(a):
+    cfg = need_config()
+    if not drive_connected(cfg):
+        raise Fail("The backup drive is not connected: " + cfg["repo"])
+    run_restic(cfg, ["forget", "--tag", "nizho", "--prune"] + KEEP, capture=True)
+    print("Old backups removed. Kept 7 daily, 4 weekly and 6 monthly.")
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(prog="nizho-backup", description="Encrypted backups of your files.")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("setup"); s.add_argument("--to", required=True); s.add_argument("--allow-home", action="store_true"); s.set_defaults(f=cmd_setup)
+    n = sub.add_parser("now"); n.add_argument("--quiet", action="store_true"); n.set_defaults(f=cmd_now)
+    t = sub.add_parser("status"); t.add_argument("--json", action="store_true"); t.set_defaults(f=cmd_status)
+    sub.add_parser("list").set_defaults(f=cmd_list)
+    r = sub.add_parser("restore"); r.add_argument("path"); r.add_argument("--to", required=True); r.add_argument("--snapshot"); r.set_defaults(f=cmd_restore)
+    sub.add_parser("tidy").set_defaults(f=cmd_tidy)
+    a = p.parse_args(argv)
+    try:
+        a.f(a)
+    except Fail as e:
+        print(f"nizho-backup: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

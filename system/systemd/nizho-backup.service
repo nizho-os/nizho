@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up your files to the backup drive
+ConditionPathExists=%E/nizho/backup.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nizho-backup now --quiet
+ExecStartPost=/usr/bin/nizho-backup tidy
+Nice=19
+IOSchedulingClass=idle
