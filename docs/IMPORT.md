@@ -21,7 +21,7 @@ The tool says which one it detected.
 - The source is never written, renamed, deleted or changed.
 - Nothing in your home folder is overwritten. If a name exists with different content, both are kept. The new file is named `name (imported).ext`, then `name (imported 2).ext`, and so on.
 - If the content is identical (same size, same SHA-256) the file is skipped and counted as already there.
-- Skipped on purpose: desktop.ini, Thumbs.db, .DS_Store, $RECYCLE.BIN, System Volume Information, ._* files, *.tmp files, and symlinks. Symlinks are not followed. The count is shown.
+- Skipped on purpose: desktop.ini, Thumbs.db, .DS_Store, $RECYCLE.BIN, System Volume Information, .Trashes, .Spotlight-V100, .fseventsd, .TemporaryItems, ._* files, *.tmp files, and symlinks. Symlinks are not followed. The count is shown.
 - A source that is your home folder, inside it, or contains it is refused.
 - A file that cannot be read is skipped. Each one is listed at the end with a reason.
 - Free space is checked before copying. If there is not enough, nothing is copied.
@@ -39,7 +39,7 @@ Exit codes: 0 if everything copied, 2 if some files were skipped because of an e
 
 ## What was tested
 
-Tests are in import/test_nizho_import.py. They use real temp folders and files, with HOME set to a temp folder.
+Tests are in import/test_nizho_import.py. They use real temp folders and files, with HOME set to a temp folder. They run in CI (`.github/workflows/checks.yml`). The Containerfile installs the tool as `/usr/bin/nizho-import`, but no test of a built image is recorded.
 
     cd import && python3 -I test_nizho_import.py -W error::ResourceWarning
 
