@@ -12,6 +12,15 @@ pub struct Config {
     pub dns: DnsConfig,
     #[serde(default)]
     pub hostname: HostnameConfig,
+    #[serde(default)]
+    pub phone_link: PhoneLinkConfig,
+}
+
+#[derive(Deserialize)]
+pub struct PhoneLinkConfig {
+    /// Holds the word "on" when the user allowed phones to find this computer.
+    #[serde(default = "default_phone_link_state")]
+    pub state_path: String,
 }
 
 #[derive(Deserialize)]
@@ -46,6 +55,7 @@ impl Default for Config {
             check_interval_secs: default_check_interval(),
             dns: DnsConfig::default(),
             hostname: HostnameConfig::default(),
+            phone_link: PhoneLinkConfig::default(),
         }
     }
 }
@@ -55,6 +65,14 @@ impl Default for DnsConfig {
         Self {
             server: default_dns_server(),
             tls_name: default_dns_name(),
+        }
+    }
+}
+
+impl Default for PhoneLinkConfig {
+    fn default() -> Self {
+        Self {
+            state_path: default_phone_link_state(),
         }
     }
 }
@@ -71,3 +89,18 @@ fn default_check_interval() -> u64 { 60 }
 fn default_dns_server() -> String { "9.9.9.9".into() }
 fn default_dns_name() -> String { "dns.quad9.net".into() }
 fn default_hostname() -> String { "nizho".into() }
+fn default_phone_link_state() -> String { "/etc/nizho/phone-link".into() }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn phone_link_state_path_defaults_and_can_be_set() {
+        assert_eq!(Config::default().phone_link.state_path, "/etc/nizho/phone-link");
+        let c: Config = toml::from_str("").unwrap();
+        assert_eq!(c.phone_link.state_path, "/etc/nizho/phone-link");
+        let c: Config = toml::from_str("[phone_link]\nstate_path = \"/tmp/x\"").unwrap();
+        assert_eq!(c.phone_link.state_path, "/tmp/x");
+    }
+}
