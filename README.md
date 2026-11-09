@@ -83,6 +83,7 @@ says exactly what was and was not tested. The full list is in [docs/FEATURES.md]
 - **Privacy and security:** setting checks, the browser sandbox, app permissions, the firewall.
 - **Desktop:** the Nizho look, dock, launcher, top bar, spaces, shortcuts ([list](docs/SHORTCUTS.md)), Light and Dark, green or blue.
 - **Working with files:** the format wheel, the edit wheel, make smaller, ZIP, hide private details.
+- **Your files:** a Backup page in Settings and `nizho-import` (see the gaps below for what was tested).
 - **For developers:** VARA and Git in setup.
 
 Still a developer preview: the installer is new and VM-tested only, we have one
@@ -94,12 +95,12 @@ What a daily-use desktop needs that Nizho does not do yet, or that nobody has te
 
 - **Video and audio formats:** only Fedora's free codecs are installed, so some files (for example H.265 video or AAC audio) may not play. Not tested. VLC is in Install Apps' suggested list (as a sandboxed Flatpak from Flathub) and brings its own codecs, so it should cover most of these files; we have not checked that either.
 - **NVIDIA graphics cards:** there is no proprietary NVIDIA driver, so those cards use the open driver. Not tested.
-- **Backing up your files:** rollback protects the system, not your documents. Settings has a Backup page that saves your files, encrypted, to a drive you choose ([details](docs/BACKUP.md)). It was tried in a virtual machine only, not with a real external drive, and nothing warns you if a scheduled backup fails. It is not an offsite backup.
+- **Backing up your files:** rollback protects the system, not your documents. Settings has a Backup page that saves your files, encrypted, to a drive you choose ([details](docs/BACKUP.md)). The tool was tested on a development computer and the page in a virtual machine, not with a real external drive. Nothing warns you if a scheduled backup fails. It is not an offsite backup.
 - **Bringing your files over:** `nizho-import` copies your documents and pictures from a Windows or macOS drive without changing the drive or overwriting your files ([details](docs/IMPORT.md)). It is a command-line tool, tested with temporary folders only, not on real drives. It does not bring apps, browser data or passwords.
-- **Language and keyboard:** setup now asks for both. It has unit tests and a preview render, but has not yet been run in a booted image. How much of the desktop is translated depends on the language.
-- **Never tried:** printing, scanning, webcam, suspend and hibernate, several monitors, Bluetooth pairing, and any hardware beyond the one laptop.
+- **Language and keyboard:** setup now asks for both. It has unit tests and a preview render, but has not yet been run in a booted image. We have not checked how much of the desktop is translated into each language.
+- **Never tried:** printing, scanning, webcam, several monitors, Bluetooth pairing, hibernate (the kernel lockdown setting turns it off), suspend on any machine except the one laptop, and any hardware beyond that laptop. See [docs/HARDWARE.md](docs/HARDWARE.md).
 
-VPN is not a gap: OpenVPN is installed and NetworkManager has WireGuard built in, though neither has been tested here.
+VPN: not tested. The Containerfile names no VPN package, and we have not checked which VPN types the KDE package group brings.
 
 ---
 
@@ -194,6 +195,9 @@ nizho-pulse/                       read-only System Health service
 nizho-shell/                       GTK4 first-party apps, shared design tokens and IPC types
 convert/                           Convert to, edit and format wheel tools
 apps/                              the app list and the nizho install command
+backup/                            nizho-backup, encrypted file backups (restic)
+import/                            nizho-import, copies files in from a Windows or macOS drive
+hardware/                          nizho-hwreport, a hardware report for bug reports
 
 desktop/                           the Nizho look and the desktop around KWin
   desktop/plasma-launcher/         launcher panel
@@ -235,6 +239,11 @@ does anything, and [nizho-wm](https://github.com/nizho-os/nizho-wm), a composito
 | [Building](docs/BUILDING.md) | source to image to VM |
 | [Testing](docs/TESTING.md) | how we verify, the QA scripts, budgets |
 | [Installation](docs/INSTALLATION-ARCHITECTURE.md) | VM image, USB image and installer ISO (partly out of date) |
+| [Features](docs/FEATURES.md) | what has been built since DP1 and how each part was tested |
+| [Test log](docs/TEST-LOG.md) | what was tested, where, and what was not |
+| [Hardware](docs/HARDWARE.md) | the one tested laptop, what is untested, how to send a report |
+| [Backup](docs/BACKUP.md) · [Import](docs/IMPORT.md) | the file backup and file import tools, with limits |
+| [Will my app run?](docs/APP-COMPATIBILITY.md) | what the read-only system means for your apps |
 | [Threat model](docs/THREAT-MODEL.md) | what Nizho does and does not protect against |
 | [Design System](desktop/nizho-design-system/README.md) | tokens, typography, motion, components |
 | [Release Notes](docs/RELEASE-NOTES-DP1.md) | what DP1 has, what is known to be incomplete |
