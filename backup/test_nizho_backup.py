@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 loader = importlib.machinery.SourceFileLoader("nizho_backup", os.path.join(HERE, "nizho-backup"))
@@ -75,6 +76,26 @@ class Rules(Env):
         self.assertEqual(code, 1)
         self.assertIn("inside your home folder", err)
         self.assertFalse(os.path.exists(nb.key_path()))
+
+    def test_key_removed_when_setup_is_interrupted_or_fails_late(self):
+        os.environ["NIZHO_RESTIC"] = "/bin/true"
+        for exc in (KeyboardInterrupt(), OSError("disk full")):
+            with mock.patch.object(nb, "save_config", side_effect=exc):
+                try:
+                    self.run_cli("setup", "--to", self.drive)
+                except (KeyboardInterrupt, OSError):
+                    pass
+            self.assertFalse(os.path.exists(nb.key_path()), repr(exc))
+
+    def test_existing_key_without_settings_is_kept(self):
+        os.makedirs(os.path.dirname(nb.key_path()), exist_ok=True)
+        with open(nb.key_path(), "w") as f:
+            f.write("precious\n")
+        code, _, err = self.run_cli("setup", "--to", self.drive)
+        self.assertEqual(code, 1)
+        self.assertIn("already exists", err)
+        with open(nb.key_path()) as f:
+            self.assertEqual(f.read(), "precious\n")
 
     def test_missing_restic_is_said_plainly(self):
         os.environ["NIZHO_RESTIC"] = ""

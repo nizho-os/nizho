@@ -108,17 +108,24 @@ def cmd_setup(a):
         raise Fail("That folder already holds a backup. Choose an empty folder.")
     os.makedirs(dest, exist_ok=True)
     os.makedirs(config_dir(), mode=0o700, exist_ok=True)
+    if os.path.lexists(key_path()):
+        raise Fail(f"A recovery key file already exists at {key_path()} but no backup is set up. "
+                   "It may belong to a backup you still need, so it was not touched. Move it somewhere safe, then try again.")
     key = secrets.token_urlsafe(24)
-    fd = os.open(key_path(), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write(key + "\n")
     cfg = {"repo": dest, "paths": [home], "created": dt.datetime.now().isoformat(timespec="seconds")}
     try:
+        fd = os.open(key_path(), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(key + "\n")
         run_restic(cfg, ["init"], capture=True)
-    except Fail:
-        os.unlink(key_path())
+        save_config(cfg)
+    except BaseException:
+        # Any failure or Ctrl+C: never leave a key behind for a backup that was not recorded.
+        try:
+            os.unlink(key_path())
+        except OSError:
+            pass
         raise
-    save_config(cfg)
     print("Backups are set up.")
     print(f"Backup folder: {dest}")
     print("Recovery key (write this down or keep a copy somewhere other than this computer):")
