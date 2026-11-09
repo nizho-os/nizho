@@ -88,6 +88,21 @@ Item {
             height: ridge.height
             cursorShape: Qt.PointingHandCursor
             onClicked: ridge.activated(index)
+            // Keyboard and screen reader: each desktop is a button you can Tab to.
+            activeFocusOnTab: true
+            Accessible.role: Accessible.Button
+            Accessible.name: (index === ridge.current ? qsTr("Desktop %1, current") : qsTr("Desktop %1")).arg(index + 1)
+            Keys.onReturnPressed: ridge.activated(index)
+            Keys.onSpacePressed: ridge.activated(index)
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 1
+                radius: 3
+                color: "transparent"
+                border.width: 1
+                border.color: ridge.markColor
+                visible: parent.activeFocus
+            }
         }
     }
 }
