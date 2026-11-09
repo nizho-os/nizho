@@ -123,6 +123,11 @@ COPY backup/nizho-backup /usr/bin/nizho-backup
 COPY system/systemd/nizho-backup.service /usr/lib/systemd/user/nizho-backup.service
 COPY system/systemd/nizho-backup.timer /usr/lib/systemd/user/nizho-backup.timer
 RUN chmod 755 /usr/bin/nizho-backup && systemctl --global enable nizho-backup.timer
+# nizho-import brings personal files in from a Windows or macOS drive. nizho-hwreport prints a
+# privacy-first hardware report for testers. Both only read and send nothing over the network.
+COPY import/nizho-import /usr/bin/nizho-import
+COPY hardware/nizho-hwreport /usr/bin/nizho-hwreport
+RUN chmod 755 /usr/bin/nizho-import /usr/bin/nizho-hwreport
 COPY convert/nizho-convert-image.desktop /usr/share/kio/servicemenus/nizho-convert-image.desktop
 COPY convert/nizho-convert-pdf.desktop /usr/share/kio/servicemenus/nizho-convert-pdf.desktop
 COPY convert/nizho-convert-office.desktop /usr/share/kio/servicemenus/nizho-convert-office.desktop
