@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""nizho-family: print the steps for a standard (non-admin) child account.
+
+    nizho-family plan --name NAME --age N
+
+It only prints. It runs nothing and changes nothing. An administrator reads the
+plan and runs the commands by hand in a root shell, on a Nizho image.
+
+None of this was run on Nizho. See docs/FAMILY.md for what it can and cannot stop.
+"""
+import argparse
+import re
+import shlex
+import sys
+
+NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
+RESERVED = {
+    "root", "daemon", "bin", "sys", "sync", "games", "man", "lp", "mail", "news",
+    "uucp", "proxy", "nobody", "adm", "wheel", "sudo", "admin", "sshd", "polkit",
+    "sddm", "dbus", "gdm", "users", "ram", "malcontent",
+}
+RESERVED_PREFIXES = ("systemd-",)
+MIN_AGE, MAX_AGE = 3, 17
+
+# Words that must never appear in a command this tool prints.
+FORBIDDEN = re.compile(r"\b(wheel|sudo|sudoers|admin|adm|root|visudo|pkexec|doas)\b")
+
+
+class Fail(Exception):
+    pass
+
+
+def check_name(name):
+    if not isinstance(name, str) or not NAME_RE.match(name):
+        raise Fail("name must be 1 to 32 characters: lowercase letters, digits and dashes, "
+                   "starting with a letter")
+    if name.endswith("-"):
+        raise Fail("name must not end with a dash")
+    if name in RESERVED or name.startswith(RESERVED_PREFIXES):
+        raise Fail("'%s' is a system name and cannot be used" % name)
+    return name
+
+
+def check_age(age):
+    if isinstance(age, bool) or not isinstance(age, int):
+        raise Fail("age must be a whole number")
+    if not MIN_AGE <= age <= MAX_AGE:
+        raise Fail("age must be from %d to %d" % (MIN_AGE, MAX_AGE))
+    return age
+
+
+def oars_for_age(age):
+    """Maximum content rating per OARS section. Our own starting point, not reviewed
+    by anyone else. Values: none, mild, moderate, intense."""
+    if age <= 8:
+        v = dict.fromkeys(["violence-fantasy", "violence-cartoon"], "mild")
+        none = ["violence-realistic", "violence-bloodshed", "sex-nudity", "sex-themes",
+                "language-profanity", "drugs-alcohol", "drugs-narcotics", "drugs-tobacco",
+                "money-gambling", "social-chat"]
+    elif age <= 12:
+        v = {"violence-fantasy": "moderate", "violence-cartoon": "moderate",
+             "violence-realistic": "mild", "social-chat": "mild"}
+        none = ["violence-bloodshed", "sex-nudity", "sex-themes", "language-profanity",
+                "drugs-alcohol", "drugs-narcotics", "drugs-tobacco", "money-gambling"]
+    else:
+        v = {"violence-fantasy": "intense", "violence-cartoon": "intense",
+             "violence-realistic": "moderate", "violence-bloodshed": "mild",
+             "language-profanity": "mild", "sex-themes": "mild", "social-chat": "moderate"}
+        none = ["sex-nudity", "drugs-alcohol", "drugs-narcotics", "drugs-tobacco",
+                "money-gambling"]
+    v.update(dict.fromkeys(none, "none"))
+    return v
+
+
+def commands(name, age):
+    q = shlex.quote(name)
+    oars = " ".join("%s=%s" % kv for kv in sorted(oars_for_age(age).items()))
+    cmds = [
+        ("Create the account with no extra groups.",
+         "useradd -m -s /bin/bash %s" % q),
+        ("Set its password. You choose it and keep it.",
+         "passwd %s" % q),
+        ("Set the age filter. It stores a maximum content rating per section and "
+         "forbids installing Flatpak apps for this user.",
+         "malcontent-client set-app-filter %s --disallow-user-installation %s" % (q, oars)),
+        ("Read the filter back.",
+         "malcontent-client get-app-filter %s" % q),
+    ]
+    for _, c in cmds:
+        if FORBIDDEN.search(c):
+            raise Fail("refusing to print a command that touches admin rights")
+    return cmds
+
+
+NOTES = """What this does not stop
+  - Anyone with the machine's admin password, a live USB stick, or boot menu access.
+  - Browsers: the filter covers apps that ask malcontent, not web pages.
+  - Apps that do not ask malcontent. Flatpak and GNOME Software do. Plasma's launcher,
+    Discover and Capsule were not found to do so. Check on a real image.
+  - Time limits: malcontent can store them, but the Plasma desktop was not found to
+    enforce them. This plan sets none.
+  - Changing the clock, a second account, a VPN, other devices.
+Not run on Nizho. The malcontent-client command line is documented as unstable.
+Check each command with its man page and with 'malcontent-client check-app-filter'."""
+
+
+def plan(name, age):
+    check_name(name)
+    check_age(age)
+    out = ["Plan for a standard account '%s', age %d" % (name, age),
+           "Print only. Run each command by hand in a root shell.", ""]
+    for i, (why, cmd) in enumerate(commands(name, age), 1):
+        out += ["%d. %s" % (i, why), "   %s" % cmd, ""]
+    out.append(NOTES)
+    return "\n".join(out)
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(prog="nizho-family", description=__doc__.split("\n")[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+    pl = sub.add_parser("plan", help="print the steps for a child account")
+    pl.add_argument("--name", required=True)
+    pl.add_argument("--age", required=True, type=int)
+    args = p.parse_args(argv)
+    try:
+        print(plan(args.name, args.age))
+    except Fail as e:
+        print("nizho-family: %s" % e, file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
