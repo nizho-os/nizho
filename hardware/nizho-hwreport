@@ -1,0 +1,372 @@
+#!/usr/bin/env python3
+"""nizho-hwreport: print a hardware report you can paste into a GitHub issue.
+
+    nizho-hwreport                   print the report (Markdown) to the screen
+    nizho-hwreport --redact-check    also re-scan the report and fail if it holds
+                                     a MAC address, IP address, serial number or UUID
+    nizho-hwreport --redact-check FILE
+                                     scan an existing report file instead
+
+It only reads. It never sends anything over the network and writes no files.
+It leaves out serial numbers, MAC and IP addresses, host and user names, Wi-Fi
+network names, disk labels and UUIDs, and paths in your home folder.
+Every probe is optional: a missing file or tool prints "not available".
+The checklist at the end is for you to fill in by hand. The tool never guesses it.
+Set NIZHO_HW_ROOT to read a different root than "/" (used by the tests).
+"""
+import argparse
+import glob
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+NA = "not available"
+
+MAC_RE = re.compile(r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f])")
+IPV4_RE = re.compile(r"(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\w.])")
+IPV6_RE = re.compile(
+    r"(?<![0-9A-Za-z:])(?:(?:[0-9A-Fa-f]{1,4}:){3,7}[0-9A-Fa-f]{0,4}|(?:[0-9A-Fa-f]{1,4}:){1,7}(?::[0-9A-Fa-f]{1,4}){1,7}|::[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)(?![0-9A-Za-z:])")
+UUID_RE = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}(?![0-9A-Fa-f])")
+LONGHEX_RE = re.compile(r"(?<![0-9A-Za-z])[0-9A-Fa-f]{16,}(?![0-9A-Za-z])")
+SERIAL_RE = re.compile(r"\b(?:serial(?:[ _-]?(?:number|no))?|s/n|uuid)\b\s*[:=]\s*\S+", re.I)
+CHECKS = [("MAC address", MAC_RE), ("IPv4 address", IPV4_RE), ("IPv6 address", IPV6_RE),
+          ("UUID", UUID_RE), ("long hex string", LONGHEX_RE), ("serial or UUID field", SERIAL_RE)]
+
+CHECKLIST = [
+    "Wi-Fi connects", "Bluetooth pairs", "Suspend and resume", "Battery life estimate",
+    "External monitor", "HiDPI looks right", "Touchpad gestures", "Webcam", "Microphone",
+    "Speakers and headphone jack", "Fingerprint", "Printing", "Brightness keys and function keys",
+]
+
+# USB vendor IDs that commonly make fingerprint readers. A heuristic, so it says "candidate".
+FP_VENDORS = {"06cb", "27c6", "138a", "04f3", "1c7a", "08ff", "147e", "10a5", "2808", "298d"}
+
+
+def root():
+    return os.environ.get("NIZHO_HW_ROOT") or "/"
+
+
+def rp(path):
+    return os.path.join(root(), path.lstrip("/"))
+
+
+def scrub(value):
+    """Last line of defence: remove anything that looks like an identifier."""
+    s = "".join(ch if ch.isprintable() else " " for ch in str(value)).strip()
+    for _, rx in CHECKS[:5]:
+        s = rx.sub("[removed]", s)
+    return s[:120]
+
+
+def read(path):
+    try:
+        with open(rp(path), errors="replace") as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def read_bytes(path):
+    try:
+        with open(rp(path), "rb") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def listdir(path):
+    try:
+        return sorted(os.listdir(rp(path)))
+    except OSError:
+        return []
+
+
+def run(cmd):
+    """Run a tool on the real system only. Never when the root is a test tree."""
+    if root() != "/" or not shutil.which(cmd[0]):
+        return None
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL,
+                           env=dict(os.environ, LC_ALL="C"))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return p.stdout if p.returncode == 0 else None
+
+
+def line(label, value):
+    return f"- {label}: {scrub(value) if value else NA}"
+
+
+def driver_of(devdir):
+    try:
+        return os.path.basename(os.readlink(os.path.join(rp(devdir), "driver")))
+    except OSError:
+        return None
+
+
+def ids_of(devdir):
+    """vendor:device from a PCI device, or idVendor:idProduct from the USB device above it."""
+    base = rp(devdir)
+    v, d = read_bytes(os.path.join(devdir, "vendor")), read_bytes(os.path.join(devdir, "device"))
+    if v and d:
+        return v.decode().strip()[2:] + ":" + d.decode().strip()[2:]
+    cur = os.path.realpath(base)
+    for _ in range(6):
+        try:
+            with open(os.path.join(cur, "idVendor")) as a, open(os.path.join(cur, "idProduct")) as b:
+                return a.read().strip() + ":" + b.read().strip()
+        except OSError:
+            cur = os.path.dirname(cur)
+    return None
+
+
+def describe_dev(devdir):
+    ids, drv = ids_of(devdir), driver_of(devdir)
+    if not drv:
+        # USB Bluetooth: the driver is bound on the interface below or beside the device.
+        drv = None
+    return f"{ids or 'id not available'}, driver {drv or 'not available'}"
+
+
+# ---- probes -------------------------------------------------------------
+
+def probe_system():
+    out = []
+    for label, f in (("Vendor", "sys_vendor"), ("Product", "product_name"), ("Product version", "product_version"),
+                     ("BIOS vendor", "bios_vendor"), ("BIOS version", "bios_version"), ("BIOS date", "bios_date")):
+        out.append(line(label, read("/sys/class/dmi/id/" + f)))
+    return out
+
+
+def probe_cpu_ram():
+    info = read("/proc/cpuinfo")
+    model = cores = None
+    if info:
+        m = re.search(r"^model name\s*:\s*(.+)$", info, re.M)
+        model = m.group(1) if m else None
+        n = len(re.findall(r"^processor\s*:", info, re.M))
+        cores = str(n) if n else None
+    mem = read("/proc/meminfo")
+    ram = None
+    if mem:
+        m = re.search(r"^MemTotal:\s*(\d+)\s*kB", mem, re.M)
+        if m:
+            ram = "%.1f GiB" % (int(m.group(1)) / 1048576)
+    return [line("CPU", model), line("Logical CPUs", cores), line("RAM", ram)]
+
+
+def probe_gpu():
+    out = []
+    for card in glob.glob(rp("/sys/class/drm/card[0-9]*")):
+        name = os.path.basename(card)
+        if "-" in name:
+            continue
+        dev = "/sys/class/drm/" + name + "/device"
+        out.append(f"- {name}: {describe_dev(dev)}")
+    if not out:
+        out.append(line("GPU from /sys", None))
+    lspci = run(["lspci", "-nn"])
+    if lspci is None:
+        out.append(line("lspci", None))
+    else:
+        rows = [scrub(re.sub(r"^\S+\s+", "", l)) for l in lspci.splitlines()
+                if re.search(r"VGA|3D controller|Display controller", l)]
+        out += ["- lspci: " + r for r in rows] or ["- lspci: no display controller listed"]
+    return out
+
+
+def probe_wifi():
+    out = []
+    ifaces = [n for n in listdir("/sys/class/net") if os.path.isdir(rp(f"/sys/class/net/{n}/wireless"))
+              or os.path.isdir(rp(f"/sys/class/net/{n}/phy80211"))]
+    if not os.path.isdir(rp("/sys/class/net")):
+        return [line("Wi-Fi interface", None)]
+    if not ifaces:
+        return ["- Wi-Fi interface: none found"]
+    for n in ifaces:
+        state = read(f"/sys/class/net/{n}/operstate")
+        out.append(f"- Wi-Fi interface exists: yes, state {scrub(state) if state else NA}")
+        out.append(f"- Wi-Fi adapter: {describe_dev(f'/sys/class/net/{n}/device')}")
+    return out
+
+
+def probe_bluetooth():
+    if not os.path.isdir(rp("/sys/class/bluetooth")):
+        return [line("Bluetooth adapter", None)]
+    hcis = [n for n in listdir("/sys/class/bluetooth") if re.fullmatch(r"hci\d+", n)]
+    if not hcis:
+        return ["- Bluetooth adapter: none found"]
+    return [f"- Bluetooth adapter: {describe_dev(f'/sys/class/bluetooth/{n}/device')}" for n in hcis]
+
+
+def probe_audio():
+    cards = read("/proc/asound/cards")
+    if cards is None:
+        return [line("Audio devices", None)]
+    rows = [scrub(re.sub(r"^\s*\d+\s*\[[^\]]*\]:\s*", "", l)) for l in cards.splitlines() if re.match(r"^\s*\d+\s*\[", l)]
+    return ["- Audio device: " + r for r in rows] or ["- Audio devices: none found"]
+
+
+def probe_webcam():
+    if not os.path.isdir(rp("/sys/class/video4linux")):
+        return [line("Webcam", None)]
+    names = []
+    for n in listdir("/sys/class/video4linux"):
+        v = read(f"/sys/class/video4linux/{n}/name")
+        if v and scrub(v) not in names:
+            names.append(scrub(v))
+    return ["- Webcam present: " + ("yes, " + "; ".join(names) if names else "no video4linux device found")]
+
+
+def probe_input():
+    txt = read("/proc/bus/input/devices")
+    if txt is None:
+        return [line("Touchpad and input devices", None)]
+    names = []
+    for block in txt.split("\n\n"):
+        m = re.search(r'^N: Name="(.*)"', block, re.M)
+        if not m:
+            continue
+        # Skip Bluetooth and other devices that carry a user-set name or an address.
+        if re.search(r"^U: Uniq=\S", block, re.M) or re.search(r"bluetooth|uhid", block, re.I):
+            continue
+        if re.search(r"touchpad|trackpad|touchscreen|synaptics|elan|alps|mouse|keyboard", m.group(1), re.I):
+            names.append(scrub(m.group(1)))
+    names = sorted(set(names))
+    return ["- Input device: " + n for n in names] or ["- Input devices: no touchpad or keyboard found"]
+
+
+def probe_fingerprint():
+    if not os.path.isdir(rp("/sys/bus/usb/devices")):
+        return [line("Fingerprint reader", None)]
+    found = []
+    for n in listdir("/sys/bus/usb/devices"):
+        v = read(f"/sys/bus/usb/devices/{n}/idVendor")
+        p = read(f"/sys/bus/usb/devices/{n}/idProduct")
+        prod = read(f"/sys/bus/usb/devices/{n}/product") or ""
+        if v and p and (v.lower() in FP_VENDORS or "fingerprint" in prod.lower()):
+            found.append(scrub(f"{v}:{p}"))
+    note = "candidate USB ID " + ", ".join(sorted(set(found))) if found else "none found on USB"
+    return ["- Fingerprint reader: " + note + " (a guess from the vendor ID, confirm in the checklist)"]
+
+
+def probe_display():
+    txt = run(["kscreen-doctor", "-o"])
+    if txt:
+        txt = re.sub(r"\x1b\[[0-9;]*m", "", txt)
+        modes = re.findall(r"\d+x\d+@[\d.]+\*", txt)
+        scales = re.findall(r"Scale:\s*([\d.]+)", txt)
+        if modes or scales:
+            return ["- Current mode (kscreen-doctor): " + (", ".join(modes) or NA),
+                    "- Scale (kscreen-doctor): " + (", ".join(scales) or NA)]
+    out = []
+    for c in sorted(glob.glob(rp("/sys/class/drm/card*-*"))):
+        if read(os.path.relpath(c, rp("/")) + "/status") != "connected":
+            continue
+        modes = (read(os.path.relpath(c, rp("/")) + "/modes") or "").split()
+        # Connector type only, such as eDP or HDMI-A. The index is dropped.
+        kind = re.sub(r"^card\d+-", "", os.path.basename(c))
+        out.append(f"- Connected display ({scrub(kind)}): first listed mode {scrub(modes[0]) if modes else NA}")
+    return out or [line("Display", None)]
+
+
+def probe_battery():
+    for b in sorted(glob.glob(rp("/sys/class/power_supply/*"))):
+        rel = os.path.relpath(b, rp("/"))
+        if (read(rel + "/type") or "").lower() != "battery":
+            continue
+        for full, design in (("energy_full", "energy_full_design"), ("charge_full", "charge_full_design")):
+            f, d = read(f"{rel}/{full}"), read(f"{rel}/{design}")
+            if f and d and f.isdigit() and d.isdigit() and int(d) > 0:
+                return [f"- Battery present: yes, health {int(f) * 100 / int(d):.0f}% of design capacity"]
+        return ["- Battery present: yes, design capacity not available"]
+    if os.path.isdir(rp("/sys/class/power_supply")):
+        return ["- Battery present: no"]
+    return [line("Battery", None)]
+
+
+def probe_platform():
+    out = [line("Kernel", read("/proc/sys/kernel/osrelease"))]
+    if os.path.isdir(rp("/sys/firmware")):
+        out.append("- Booted via UEFI: " + ("yes" if os.path.isdir(rp("/sys/firmware/efi")) else "no"))
+    else:
+        out.append(line("Booted via UEFI", None))
+    sb = None
+    for p in glob.glob(rp("/sys/firmware/efi/efivars/SecureBoot-*")):
+        data = read_bytes(os.path.relpath(p, rp("/")))
+        if data and len(data) >= 5:
+            sb = "enabled" if data[-1] == 1 else "disabled"
+    if sb is None:
+        m = run(["mokutil", "--sb-state"])
+        if m:
+            sb = "enabled" if re.search(r"enabled", m, re.I) else "disabled" if re.search(r"disabled", m, re.I) else None
+    out.append(line("Secure Boot", sb))
+    rel = read("/usr/lib/nizho-release")
+    out.append(line("Nizho image version", rel.splitlines()[0] if rel else None))
+    return out
+
+
+SECTIONS = [
+    ("System", probe_system), ("CPU and memory", probe_cpu_ram), ("Graphics", probe_gpu),
+    ("Wi-Fi", probe_wifi), ("Bluetooth", probe_bluetooth), ("Audio", probe_audio),
+    ("Webcam", probe_webcam), ("Touchpad and input", probe_input), ("Fingerprint", probe_fingerprint),
+    ("Display", probe_display), ("Battery", probe_battery), ("Software and boot", probe_platform),
+]
+
+HEADER = """# Nizho hardware report
+
+This report was made by reading files on this computer. It sent nothing over the network.
+It leaves out serial numbers, MAC and IP addresses, host and user names, Wi-Fi network
+names, disk labels and UUIDs, and paths in your home folder. Read it before you post it.
+"""
+
+
+def build_report():
+    parts = [HEADER]
+    for title, fn in SECTIONS:
+        try:
+            body = fn()
+        except Exception as e:  # a probe must never stop the report
+            body = [f"- {NA} ({type(e).__name__})"]
+        parts.append(f"## {title}\n\n" + "\n".join(body) + "\n")
+    parts.append("## Checklist\n\nFill this in by hand. Leave a line as it is if you did not try it.\n")
+    for item in CHECKLIST:
+        parts.append(f"### {item}\n\n- [ ] works  - [ ] partly  - [ ] broken  - [ ] not tested\n\nNotes:\n")
+    return "\n".join(parts)
+
+
+def redact_scan(text):
+    """Return a list of (kind, match) for anything that looks like an identifier."""
+    return [(kind, m.group(0)) for kind, rx in CHECKS for m in rx.finditer(text)]
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="nizho-hwreport", description="Print a hardware report for a GitHub issue.")
+    ap.add_argument("--redact-check", nargs="?", const=True, metavar="FILE",
+                    help="re-scan the report (or FILE) for MAC, IP, serial or UUID strings and fail if any are found")
+    args = ap.parse_args(argv)
+    if isinstance(args.redact_check, str):
+        try:
+            with open(args.redact_check, errors="replace") as f:
+                text = f.read()
+        except OSError as e:
+            print(f"nizho-hwreport: cannot read {args.redact_check} ({e.strerror})", file=sys.stderr)
+            return 2
+    else:
+        text = build_report()
+        print(text)
+    if args.redact_check:
+        hits = redact_scan(text)
+        if hits:
+            print("REDACTION CHECK FAILED. Do not post this report. Found:", file=sys.stderr)
+            for kind, val in hits:
+                print(f"  {kind}: {val}", file=sys.stderr)
+            return 1
+        print("Redaction check passed: no MAC, IP, serial or UUID patterns found.", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
