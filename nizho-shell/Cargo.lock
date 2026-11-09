@@ -1124,6 +1124,7 @@ dependencies = [
  "libadwaita",
  "nizho-shell-common",
  "nizho-update",
+ "serde_json",
 ]
 
 [[package]]
