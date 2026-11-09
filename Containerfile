@@ -116,18 +116,15 @@ COPY system/nizho-apply-look /usr/libexec/nizho-apply-look
 COPY convert/nizho-convert /usr/bin/nizho-convert
 COPY apps/nizho-install /usr/bin/nizho
 COPY apps/apps.json /usr/share/nizho/apps.json
-# nizho-backup: encrypted backups of your files (restic from Fedora's own repository) to a
-# drive you choose. The daily timer only does anything once someone has run the setup.
-RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q restic
+# nizho-backup: encrypted backups of your files, to a drive you choose. nizho-import brings
+# personal files in from a Windows or macOS drive. nizho-hwreport prints a privacy-first
+# hardware report for testers. None of them send anything over the network. This stage is
+# FROM scratch, so it can only hold COPY lines; restic and the timer are set up in the final stage.
 COPY backup/nizho-backup /usr/bin/nizho-backup
 COPY system/systemd/nizho-backup.service /usr/lib/systemd/user/nizho-backup.service
 COPY system/systemd/nizho-backup.timer /usr/lib/systemd/user/nizho-backup.timer
-RUN chmod 755 /usr/bin/nizho-backup && systemctl --global enable nizho-backup.timer
-# nizho-import brings personal files in from a Windows or macOS drive. nizho-hwreport prints a
-# privacy-first hardware report for testers. Both only read and send nothing over the network.
 COPY import/nizho-import /usr/bin/nizho-import
 COPY hardware/nizho-hwreport /usr/bin/nizho-hwreport
-RUN chmod 755 /usr/bin/nizho-import /usr/bin/nizho-hwreport
 COPY convert/nizho-convert-image.desktop /usr/share/kio/servicemenus/nizho-convert-image.desktop
 COPY convert/nizho-convert-pdf.desktop /usr/share/kio/servicemenus/nizho-convert-pdf.desktop
 COPY convert/nizho-convert-office.desktop /usr/share/kio/servicemenus/nizho-convert-office.desktop
@@ -656,7 +653,12 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
 # Git, offered next to VARA in setup's Advanced options.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q git-core
+# restic, from Fedora's own repository, for nizho-backup.
+RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
+    dnf install --setopt=keepcache=True -y -q restic
 COPY --from=files / /
+RUN chmod 755 /usr/bin/nizho-backup /usr/bin/nizho-import /usr/bin/nizho-hwreport && \
+    systemctl --global enable nizho-backup.timer
 RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf && \
     grep -q '^DefaultZone=nizho' /etc/firewalld/firewalld.conf && \
     chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
