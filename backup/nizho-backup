@@ -17,7 +17,9 @@ Backups are encrypted with a recovery key kept in ~/.config/nizho/backup.key. If
 this computer and the key, the backup cannot be opened, so keep a copy of the key elsewhere.
 """
 import argparse
+import contextlib
 import datetime as dt
+import fcntl
 import json
 import os
 import secrets
@@ -62,6 +64,29 @@ def save_config(cfg):
     with open(tmp, "w") as f:
         json.dump(cfg, f, indent=2)
     os.replace(tmp, config_path())
+
+
+def lock_path():
+    return os.path.join(config_dir(), "backup.lock")
+
+
+class Busy(Fail):
+    pass
+
+
+@contextlib.contextmanager
+def exclusive():
+    """Only one command that changes the backup runs at a time (two timers, two clicks)."""
+    os.makedirs(config_dir(), mode=0o700, exist_ok=True)
+    fd = os.open(lock_path(), os.O_WRONLY | os.O_CREAT | os.O_CLOEXEC, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            raise Busy("Another nizho-backup is already running. Wait for it to finish.")
+        yield
+    finally:
+        os.close(fd)
 
 
 def restic_bin():
@@ -264,7 +289,16 @@ def main(argv=None):
     sub.add_parser("tidy").set_defaults(f=cmd_tidy)
     a = p.parse_args(argv)
     try:
-        a.f(a)
+        if a.cmd in ("setup", "now", "tidy", "restore"):
+            with exclusive():
+                a.f(a)
+        else:
+            a.f(a)
+    except Busy as e:
+        if a.cmd == "now" and a.quiet:
+            return 0
+        print(f"nizho-backup: {e}", file=sys.stderr)
+        return 1
     except Fail as e:
         print(f"nizho-backup: {e}", file=sys.stderr)
         return 1

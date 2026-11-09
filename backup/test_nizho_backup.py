@@ -97,6 +97,21 @@ class Rules(Env):
         with open(nb.key_path()) as f:
             self.assertEqual(f.read(), "precious\n")
 
+    def test_second_instance_is_refused_while_one_runs(self):
+        import fcntl
+        nb.save_config({"repo": self.drive, "paths": [self.home]})
+        open(os.path.join(self.drive, "config"), "w").close()
+        fd = os.open(nb.lock_path(), os.O_WRONLY | os.O_CREAT, 0o600)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        try:
+            code, _, err = self.run_cli("now")
+            self.assertEqual(code, 1)
+            self.assertIn("already running", err)
+            self.assertEqual(self.run_cli("now", "--quiet"), (0, "", ""))
+            self.assertEqual(self.run_cli("status")[0], 0, "status does not need the lock")
+        finally:
+            os.close(fd)
+
     def test_missing_restic_is_said_plainly(self):
         os.environ["NIZHO_RESTIC"] = ""
         os.environ["PATH"] = "/nonexistent"
