@@ -1,3 +1,6 @@
+use std::path::PathBuf;
+use std::sync::Arc;
+
 use crate::config::Config;
 use crate::error::NizhodError;
 use crate::state::SharedState;
@@ -8,10 +11,131 @@ use super::AsyncEnforcer;
 /// connections are still allowed.
 const ZONE: &str = "nizho";
 
-pub struct FirewallEnforcer;
+/// firewalld's own service for KDE Connect: 1714-1764 tcp and udp. The only
+/// thing the zone may hold beyond dhcpv6-client, and only while the user has
+/// allowed phone linking (the flag file written by nizho-phone-link).
+const KDECONNECT: &str = "kdeconnect";
+
+type EventLog = Arc<dyn Fn(&str, &str, &str) + Send + Sync>;
+
+pub struct FirewallEnforcer {
+    firewall_cmd: String,
+    phone_link_state: PathBuf,
+    log: EventLog,
+}
+
+/// What the phone-link flag file says. Only the word `on` (surrounding
+/// whitespace ignored) allows phone linking; a missing file or any other
+/// content is off. A file that exists but cannot be read leaves consent
+/// unknown, which is treated as off for enforcement and is never reported
+/// as confirmed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PhoneLink { On, Off, Unreadable }
+
+fn read_phone_link(path: &std::path::Path) -> PhoneLink {
+    match std::fs::read(path) {
+        Ok(bytes) if String::from_utf8_lossy(&bytes).trim() == "on" => PhoneLink::On,
+        Ok(_) => PhoneLink::Off,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => PhoneLink::Off,
+        Err(_) => PhoneLink::Unreadable,
+    }
+}
 
 impl FirewallEnforcer {
-    pub fn new(_cfg: &Config) -> Self { Self }
+    pub fn new(cfg: &Config) -> Self {
+        Self::with_parts("firewall-cmd", &cfg.phone_link.state_path, Arc::new(crate::log::log_event))
+    }
+
+    fn with_parts(firewall_cmd: &str, state_path: &str, log: EventLog) -> Self {
+        Self { firewall_cmd: firewall_cmd.into(), phone_link_state: state_path.into(), log }
+    }
+
+    async fn fw(&self, args: &[&str]) -> Result<String, NizhodError> {
+        let out = crate::command::run_patient(&self.firewall_cmd, args).await?;
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    }
+
+    /// Services of the nizho zone, runtime or permanent configuration.
+    async fn zone_services(&self, permanent: bool) -> Result<Vec<String>, NizhodError> {
+        let mut args = vec!["--zone=nizho", "--list-services"];
+        if permanent { args.insert(0, "--permanent"); }
+        Ok(self.fw(&args).await?.split_whitespace().map(str::to_owned).collect())
+    }
+
+    /// Makes the KDE Connect rule match the flag: present (runtime and
+    /// permanent) when phone linking is on, absent from both otherwise. A rule
+    /// found while the flag is not on is drift (for example added by hand with
+    /// firewall-cmd) and is removed with a plain event.
+    async fn enforce_phone_rule(&self) -> Result<(), NizhodError> {
+        let flag = read_phone_link(&self.phone_link_state);
+        let runtime = self.zone_services(false).await?;
+        let permanent = self.zone_services(true).await?;
+        let has = |l: &[String]| l.iter().any(|s| s == KDECONNECT);
+        let service = format!("--add-service={KDECONNECT}");
+        let remove = format!("--remove-service={KDECONNECT}");
+        if flag == PhoneLink::On {
+            if !has(&permanent) { self.fw(&["--permanent", "--zone=nizho", &service]).await?; }
+            if !has(&runtime) { self.fw(&["--zone=nizho", &service]).await?; }
+            return Ok(());
+        }
+        if !has(&permanent) && !has(&runtime) { return Ok(()); }
+        if has(&permanent) { self.fw(&["--permanent", "--zone=nizho", &remove]).await?; }
+        if has(&runtime) { self.fw(&["--zone=nizho", &remove]).await?; }
+        let msg = if flag == PhoneLink::Unreadable {
+            "A rule opening KDE Connect ports was found and the phone linking setting could not be read, so it was removed"
+        } else {
+            "A rule opening KDE Connect ports was found while phone linking is off, so it was removed"
+        };
+        (self.log)("firewall", "drift", msg);
+        Ok(())
+    }
+
+    async fn enforce_zone(&self) -> Result<(), NizhodError> {
+        if crate::command::run("systemctl", &["is-active", "--quiet", "firewalld"]).await.is_err() {
+            crate::command::run("systemctl", &["start", "firewalld"]).await?;
+        }
+        let out = self.fw(&["--get-default-zone"]).await?;
+        if out.trim() != ZONE {
+            self.fw(&["--set-default-zone", ZONE]).await?;
+        }
+        // Interfaces the user moved to another zone are left alone; they show
+        // up as "Needs attention" instead of being silently changed back.
+        Ok(())
+    }
+
+    async fn check(&self) -> bool {
+        let flag = read_phone_link(&self.phone_link_state);
+        if flag == PhoneLink::Unreadable { return false; }
+        let phone_on = flag == PhoneLink::On;
+        // Check runtime rules, not just the zone's name: firewall-config and
+        // other applications can add exceptions without changing that name.
+        let (zones, rules, direct, passthroughs, policies, dhcp, permanent) = tokio::join!(
+            self.fw(&["--get-active-zones"]),
+            self.fw(&["--zone=nizho", "--list-all"]),
+            self.fw(&["--direct", "--get-all-rules"]),
+            self.fw(&["--direct", "--get-all-passthroughs"]),
+            self.fw(&["--list-all-policies"]),
+            self.fw(&["--info-service=dhcpv6-client"]),
+            self.zone_services(true),
+        );
+        let (Ok(z), Ok(r), Ok(d), Ok(t), Ok(p), Ok(h), Ok(perm)) =
+            (zones, rules, direct, passthroughs, policies, dhcp, permanent) else { return false };
+        let base = only_zone_active(&z, ZONE)
+            && restrictive_zone(&r, phone_on)
+            && d.trim().is_empty()
+            && t.trim().is_empty()
+            && !has_inbound_policy(&p)
+            && dhcp_service_is_narrow(&h);
+        // The saved (permanent) rule must agree with the flag too, or a
+        // firewalld reload would change what is open.
+        if !base || perm.iter().any(|s| s == KDECONNECT) != phone_on { return false; }
+        if !phone_on { return true; }
+        // The service definition can be overridden without changing its name.
+        match self.fw(&["--info-service=kdeconnect"]).await {
+            Ok(info) => kdeconnect_service_is_narrow(&info),
+            Err(_) => false,
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -19,39 +143,12 @@ impl AsyncEnforcer for FirewallEnforcer {
     fn name(&self) -> &'static str { "firewall" }
 
     async fn enforce(&self) -> Result<(), NizhodError> {
-        if crate::command::run("systemctl", &["is-active", "--quiet", "firewalld"]).await.is_err() {
-            crate::command::run("systemctl", &["start", "firewalld"]).await?;
-        }
-        let out = crate::command::run_patient("firewall-cmd", &["--get-default-zone"]).await?;
-        if String::from_utf8_lossy(&out.stdout).trim() != ZONE {
-            crate::command::run_patient("firewall-cmd", &["--set-default-zone", ZONE]).await?;
-        }
-        // Interfaces the user moved to another zone are left alone; they show
-        // up as "Needs attention" instead of being silently changed back.
-        Ok(())
+        self.enforce_zone().await?;
+        self.enforce_phone_rule().await
     }
 
     async fn update_state(&self, state: &SharedState) {
-        // Check runtime rules, not just the zone's name: firewall-config and
-        // other applications can add exceptions without changing that name.
-        let (zones, rules, direct, passthroughs, policies, dhcp) = tokio::join!(
-            crate::command::run_patient("firewall-cmd", &["--get-active-zones"]),
-            crate::command::run_patient("firewall-cmd", &["--zone=nizho", "--list-all"]),
-            crate::command::run_patient("firewall-cmd", &["--direct", "--get-all-rules"]),
-            crate::command::run_patient("firewall-cmd", &["--direct", "--get-all-passthroughs"]),
-            crate::command::run_patient("firewall-cmd", &["--list-all-policies"]),
-            crate::command::run_patient("firewall-cmd", &["--info-service=dhcpv6-client"]),
-        );
-        let on = match (zones, rules, direct, passthroughs, policies, dhcp) {
-            (Ok(z), Ok(r), Ok(d), Ok(t), Ok(p), Ok(h)) =>
-                only_zone_active(&String::from_utf8_lossy(&z.stdout), ZONE)
-                && restrictive_zone(&String::from_utf8_lossy(&r.stdout))
-                && String::from_utf8_lossy(&d.stdout).trim().is_empty()
-                && String::from_utf8_lossy(&t.stdout).trim().is_empty()
-                && !has_inbound_policy(&String::from_utf8_lossy(&p.stdout))
-                && dhcp_service_is_narrow(&String::from_utf8_lossy(&h.stdout)),
-            _ => false,
-        };
+        let on = self.check().await;
         state.write().await.firewall = on;
     }
 }
@@ -69,13 +166,19 @@ fn only_zone_active(text: &str, zone: &str) -> bool {
 }
 
 // Missing fields or multiline rules are unconfirmed, never a successful check.
-fn restrictive_zone(text: &str) -> bool {
+// With phone linking on the zone must also hold the kdeconnect service; with
+// it off the zone must not. No other service is ever acceptable.
+fn restrictive_zone(text: &str, phone_on: bool) -> bool {
     let field = |name: &str| text.lines().find_map(|line| {
         let (key, value) = line.trim().split_once(':')?;
         (key == name).then_some(value.trim())
     });
     field("target") == Some("%%REJECT%%")
-        && field("services").is_some_and(|v| v.split_whitespace().all(|s| s == "dhcpv6-client"))
+        && field("services").is_some_and(|v| {
+            let services: Vec<&str> = v.split_whitespace().collect();
+            services.iter().all(|s| *s == "dhcpv6-client" || (phone_on && *s == KDECONNECT))
+                && services.contains(&KDECONNECT) == phone_on
+        })
         && ["ports", "protocols", "source-ports", "forward-ports", "rich rules"]
             .iter().all(|key| field(key) == Some(""))
         && !text.lines().any(|l| l.trim_start().starts_with("rule "))
@@ -92,6 +195,22 @@ fn dhcp_service_is_narrow(text: &str) -> bool {
         && field("destination") == Some("ipv6:fe80::/64")
         && ["protocols", "source-ports"].iter().all(|key| field(key) == Some(""))
         && ["helpers", "modules", "includes"].iter().all(|key| field(key).unwrap_or("").is_empty())
+}
+
+// firewalld's kdeconnect service must be exactly KDE's documented range, tcp
+// and udp, with nothing else attached.
+fn kdeconnect_service_is_narrow(text: &str) -> bool {
+    let field = |name: &str| text.lines().find_map(|line| {
+        let (key, value) = line.trim().split_once(':')?;
+        (key == name).then_some(value.trim())
+    });
+    field("ports").is_some_and(|v| {
+        let mut ports: Vec<&str> = v.split_whitespace().collect();
+        ports.sort_unstable();
+        ports == ["1714-1764/tcp", "1714-1764/udp"]
+    })
+        && ["protocols", "source-ports"].iter().all(|key| field(key) == Some(""))
+        && ["destination", "helpers", "modules", "includes"].iter().all(|key| field(key).unwrap_or("").is_empty())
 }
 
 // An independent policy can let traffic in around the zone. Disabled policies
@@ -147,12 +266,12 @@ mod tests {
     }
     #[test]
     fn zone_name_does_not_prove_restrictive_rules() {
-        assert!(restrictive_zone(CLOSED));
+        assert!(restrictive_zone(CLOSED, false));
         for (old, new) in [("%%REJECT%%", "ACCEPT"), ("services: dhcpv6-client", "services: dhcpv6-client ssh"), ("ports: ", "ports: 8080/tcp"), ("protocols: ", "protocols: tcp"), ("source-ports: ", "source-ports: 22/tcp")] {
-            assert!(!restrictive_zone(&CLOSED.replace(old, new)));
+            assert!(!restrictive_zone(&CLOSED.replace(old, new), false));
         }
-        assert!(!restrictive_zone(&format!("{CLOSED}    rule family=ipv4 accept\n")));
-        assert!(!restrictive_zone("nizho\n"));
+        assert!(!restrictive_zone(&format!("{CLOSED}    rule family=ipv4 accept\n"), false));
+        assert!(!restrictive_zone("nizho\n", false));
     }
     // As printed by `firewall-cmd --list-all-policies` on Fedora 44 (VM, 2026-10-05).
     const FEDORA_POLICIES: &str = "allow-host-ipv6 (active)\n  priority: -15000\n  target: CONTINUE\n  ingress-zones: ANY\n  egress-zones: HOST\n  services: \n  ports: \n  protocols: \n  masquerade: no\n  forward-ports: \n  source-ports: \n  icmp-blocks: \n  rich rules: \n\trule family=\"ipv6\" icmp-type name=\"neighbour-advertisement\" accept\n\trule family=\"ipv6\" icmp-type name=\"neighbour-solicitation\" accept\n\trule family=\"ipv6\" icmp-type name=\"router-advertisement\" accept\n\trule family=\"ipv6\" icmp-type name=\"redirect\" accept\n\
@@ -210,5 +329,194 @@ gateway-world-to-HOST (disabled)\n  target: CONTINUE\n  ingress-zones: external 
         assert!(!only_zone_active("nizho\n  interfaces: wlp2s0\nhome\n  interfaces: enp3s0\n", "nizho"));
         assert!(!only_zone_active("FedoraWorkstation (default)\n  interfaces: wlp2s0\n", "nizho"));
         assert!(!only_zone_active("", "nizho"));
+    }
+
+    // ---- phone linking (KDE Connect) ----
+    fn phone_zone(services: &str) -> String { CLOSED.replace("services: dhcpv6-client", &format!("services: dhcpv6-client{services}")) }
+    const KDE_INFO: &str = "kdeconnect\n  ports: 1714-1764/tcp 1714-1764/udp\n  protocols: \n  source-ports: \n  helpers: \n  destination: \n  includes: \n";
+
+    #[test]
+    fn the_kdeconnect_service_is_only_accepted_while_phone_linking_is_on() {
+        assert!(restrictive_zone(&phone_zone(" kdeconnect"), true));
+        assert!(!restrictive_zone(&phone_zone(" kdeconnect"), false), "rule found while off");
+        assert!(!restrictive_zone(&phone_zone(""), true), "on but the rule is missing");
+        assert!(restrictive_zone(&phone_zone(""), false));
+        assert!(!restrictive_zone(&phone_zone(" kdeconnect ssh"), true), "nothing else beyond the baseline");
+        assert!(!restrictive_zone(&phone_zone(" kdeconnect").replace("ports: \n", "ports: 1714-1764/tcp\n"), true));
+        assert!(!restrictive_zone(&phone_zone(" kdeconnect-extra"), true));
+    }
+
+    #[test]
+    fn the_kdeconnect_definition_must_be_kdes_range_and_nothing_more() {
+        assert!(kdeconnect_service_is_narrow(KDE_INFO));
+        assert!(kdeconnect_service_is_narrow(&KDE_INFO.replace("1714-1764/tcp 1714-1764/udp", "1714-1764/udp 1714-1764/tcp")));
+        assert!(!kdeconnect_service_is_narrow(&KDE_INFO.replace("1764/udp", "1764/udp 22/tcp")));
+        assert!(!kdeconnect_service_is_narrow(&KDE_INFO.replace("1714-1764/udp", "1714-65535/udp")));
+        assert!(!kdeconnect_service_is_narrow(&KDE_INFO.replace("includes: ", "includes: ssh")));
+        assert!(!kdeconnect_service_is_narrow(&KDE_INFO.replace("protocols: ", "protocols: tcp")));
+        assert!(!kdeconnect_service_is_narrow(""));
+    }
+
+    // A stand-in for firewall-cmd that keeps the nizho zone's runtime and saved
+    // services in two files, so enforce and update_state run their real code
+    // without touching the machine's firewall.
+    mod with_fake_firewall {
+        use super::*;
+        use std::path::{Path, PathBuf};
+        use std::sync::Mutex;
+
+        struct Fixture { dir: PathBuf, events: Arc<Mutex<Vec<String>>>, enforcer: FirewallEnforcer }
+
+        impl Fixture {
+            fn new(name: &str, runtime: &str, permanent: &str) -> Self {
+                let dir = std::env::temp_dir().join(format!("nizhod-fw-test-{}-{name}", std::process::id()));
+                let _ = std::fs::remove_dir_all(&dir);
+                std::fs::create_dir_all(&dir).unwrap();
+                std::fs::write(dir.join("runtime"), runtime).unwrap();
+                std::fs::write(dir.join("permanent"), permanent).unwrap();
+                std::fs::write(dir.join("kde-info"), KDE_INFO).unwrap();
+                let policies = concat!(env!("CARGO_MANIFEST_DIR"), "/src/enforcers/testdata/fedora44-list-all-policies.txt");
+                let script = format!(r#"#!/bin/sh
+d='{dir}'
+echo "$*" >> "$d/calls"
+list="$d/runtime"
+for a in "$@"; do [ "$a" = --permanent ] && list="$d/permanent"; done
+case "$*" in
+  *--get-default-zone*) echo nizho ;;
+  *--get-active-zones*) printf 'nizho (default)\n  interfaces: wlp2s0\n' ;;
+  *--list-services*) cat "$list" ;;
+  *--zone=nizho\ --list-all*) printf 'nizho (active)\n  target: %%%%REJECT%%%%\n  services: dhcpv6-client %s\n  ports: \n  protocols: \n  source-ports: \n  forward-ports: \n  rich rules: \n' "$(cat "$d/runtime")" ;;
+  *--direct*) ;;
+  *--list-all-policies*) cat '{policies}' ;;
+  *--info-service=dhcpv6-client*) printf 'dhcpv6-client\n  ports: 546/udp\n  protocols: \n  source-ports: \n  helpers: \n  destination: ipv6:fe80::/64\n  includes: \n' ;;
+  *--info-service=kdeconnect*) cat "$d/kde-info" ;;
+  *--add-service=kdeconnect*) echo kdeconnect >> "$list" ;;
+  *--remove-service=kdeconnect*) grep -vx kdeconnect "$list" > "$list.new"; mv "$list.new" "$list" ;;
+  *) exit 1 ;;
+esac
+"#, dir = dir.display(), policies = policies);
+                let cmd = dir.join("firewall-cmd");
+                std::fs::write(&cmd, script).unwrap();
+                std::fs::set_permissions(&cmd, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+                let events = Arc::new(Mutex::new(Vec::new()));
+                let sink = events.clone();
+                let log: EventLog = Arc::new(move |cat, ev, msg| sink.lock().unwrap().push(format!("{cat}/{ev}: {msg}")));
+                let enforcer = FirewallEnforcer::with_parts(cmd.to_str().unwrap(), dir.join("phone-link").to_str().unwrap(), log);
+                Self { dir, events, enforcer }
+            }
+            fn flag(&self, content: &str) { std::fs::write(self.dir.join("phone-link"), content).unwrap(); }
+            fn list(&self, which: &str) -> Vec<String> {
+                std::fs::read_to_string(self.dir.join(which)).unwrap().split_whitespace().map(str::to_owned).collect()
+            }
+            async fn confirmed(&self) -> bool { self.enforcer.check().await }
+            fn events(&self) -> Vec<String> { self.events.lock().unwrap().clone() }
+        }
+        impl Drop for Fixture { fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.dir); } }
+
+        #[tokio::test]
+        async fn flag_on_and_service_present_is_confirmed_and_left_alone() {
+            let f = Fixture::new("on-present", "kdeconnect\n", "kdeconnect\n");
+            f.flag("on\n");
+            assert!(f.confirmed().await);
+            f.enforcer.enforce_phone_rule().await.unwrap();
+            assert_eq!(f.list("runtime"), ["kdeconnect"]);
+            assert!(f.events().is_empty());
+        }
+
+        #[tokio::test]
+        async fn flag_on_and_service_missing_is_not_confirmed_and_is_added() {
+            let f = Fixture::new("on-missing", "", "");
+            f.flag("on");
+            assert!(!f.confirmed().await);
+            f.enforcer.enforce_phone_rule().await.unwrap();
+            assert_eq!(f.list("runtime"), ["kdeconnect"]);
+            assert_eq!(f.list("permanent"), ["kdeconnect"]);
+            assert!(f.confirmed().await);
+        }
+
+        #[tokio::test]
+        async fn flag_on_with_only_the_saved_rule_missing_is_repaired() {
+            let f = Fixture::new("on-runtime-only", "kdeconnect\n", "");
+            f.flag("on");
+            assert!(!f.confirmed().await);
+            f.enforcer.enforce_phone_rule().await.unwrap();
+            assert_eq!(f.list("permanent"), ["kdeconnect"]);
+            assert_eq!(f.list("runtime"), ["kdeconnect"], "not added twice");
+        }
+
+        #[tokio::test]
+        async fn flag_on_with_a_widened_service_definition_is_not_confirmed() {
+            let f = Fixture::new("on-widened", "kdeconnect\n", "kdeconnect\n");
+            f.flag("on");
+            std::fs::write(f.dir.join("kde-info"), KDE_INFO.replace("1714-1764/udp", "1-65535/udp")).unwrap();
+            assert!(!f.confirmed().await);
+        }
+
+        #[tokio::test]
+        async fn flag_off_and_service_present_is_drift_reported_and_removed() {
+            let f = Fixture::new("off-present", "kdeconnect\n", "kdeconnect\n");
+            f.flag("off");
+            assert!(!f.confirmed().await);
+            f.enforcer.enforce_phone_rule().await.unwrap();
+            assert!(f.list("runtime").is_empty());
+            assert!(f.list("permanent").is_empty());
+            assert_eq!(f.events(), ["firewall/drift: A rule opening KDE Connect ports was found while phone linking is off, so it was removed"]);
+            assert!(f.confirmed().await);
+        }
+
+        #[tokio::test]
+        async fn flag_off_and_service_absent_is_confirmed_without_changes_or_events() {
+            let f = Fixture::new("off-absent", "", "");
+            // no flag file at all
+            assert!(f.confirmed().await);
+            f.enforcer.enforce_phone_rule().await.unwrap();
+            assert!(f.events().is_empty());
+            let calls = std::fs::read_to_string(f.dir.join("calls")).unwrap();
+            assert!(!calls.contains("--add-service") && !calls.contains("--remove-service"));
+        }
+
+        #[tokio::test]
+        async fn a_saved_rule_alone_is_drift_while_off() {
+            let f = Fixture::new("off-permanent", "", "kdeconnect\n");
+            assert!(!f.confirmed().await);
+            f.enforcer.enforce_phone_rule().await.unwrap();
+            assert!(f.list("permanent").is_empty());
+            assert_eq!(f.events().len(), 1);
+        }
+
+        #[tokio::test]
+        async fn a_flag_file_with_garbage_counts_as_off() {
+            for garbage in ["", "yes", "ON", "on please", "\u{0}\u{1}garbage", "off"] {
+                let f = Fixture::new("garbage", "kdeconnect\n", "kdeconnect\n");
+                f.flag(garbage);
+                assert!(!f.confirmed().await, "{garbage:?}");
+                f.enforcer.enforce_phone_rule().await.unwrap();
+                assert!(f.list("runtime").is_empty(), "{garbage:?}");
+            }
+            let f = Fixture::new("invalid-utf8", "", "");
+            std::fs::write(f.dir.join("phone-link"), [0xff, 0xfe, 0x6f]).unwrap();
+            assert_eq!(read_phone_link(&f.dir.join("phone-link")), PhoneLink::Off);
+            assert!(f.confirmed().await);
+        }
+
+        #[tokio::test]
+        async fn an_unreadable_flag_is_never_confirmed_and_closes_the_rule() {
+            // A directory where the file should be: it exists but cannot be read as a file.
+            let f = Fixture::new("unreadable", "kdeconnect\n", "kdeconnect\n");
+            std::fs::create_dir(f.dir.join("phone-link")).unwrap();
+            assert_eq!(read_phone_link(&f.dir.join("phone-link")), PhoneLink::Unreadable);
+            assert!(!f.confirmed().await);
+            f.enforcer.enforce_phone_rule().await.unwrap();
+            assert!(f.list("runtime").is_empty());
+            assert!(f.events()[0].contains("could not be read"));
+            assert!(!f.confirmed().await, "consent is still unknown, so the check stays unconfirmed");
+        }
+
+        #[tokio::test]
+        async fn a_missing_file_is_off_and_its_path_comes_from_the_config() {
+            assert_eq!(read_phone_link(Path::new("/nonexistent/nizho/phone-link")), PhoneLink::Off);
+            let cfg = Config::default();
+            assert_eq!(FirewallEnforcer::new(&cfg).phone_link_state, PathBuf::from("/etc/nizho/phone-link"));
+        }
     }
 }

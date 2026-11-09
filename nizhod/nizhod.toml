@@ -6,3 +6,6 @@ tls_name = "dns.quad9.net"
 
 [hostname]
 name = "nizho"
+
+[phone_link]
+state_path = "/etc/nizho/phone-link"

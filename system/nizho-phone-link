@@ -1,0 +1,102 @@
+#!/bin/sh
+# nizho-phone-link on|off|status: let phones on the local network find this computer (KDE Connect).
+# Runs as root only (through pkexec; see org.nizho.phone-link.policy). It touches the firewall and one state
+# file, nothing else: starting or stopping kdeconnectd is a user daemon and belongs to the Settings app.
+#
+# State: /etc/nizho/phone-link holding the word "on" means phone linking is allowed. Absent or anything else is off.
+# Firewall: the firewalld service "kdeconnect" in the zone "nizho" only, never another zone. firewalld defines it
+# as 1714-1764 tcp and udp (config/services/kdeconnect.xml), the range KDE documents.
+#
+# Ordering. nizhod re-checks every minute: with the flag off it removes any kdeconnect rule it finds, with the
+# flag on it adds a missing one. So the thing that must never persist is "port open while the flag says off".
+#   on : firewall first, then flag. The flag can only ever say "on" after the firewall really accepted the rule.
+#        A crash in between leaves the port open with the flag off; nizhod treats that as drift and closes it.
+#   off: flag first, then firewall. From the first step nizhod sees "off", so a crash while removing the rule
+#        leaves a rule nizhod removes within a minute, never a rule the flag still vouches for.
+# Any failure on the way rolls back to the previous (closed) state and exits 1.
+#
+# Tests: NIZHO_PHONE_LINK_TEST=1 allows running unprivileged and honours NIZHO_PHONE_LINK_STATE and
+# NIZHO_FIREWALL_CMD. Without that variable both are ignored.
+
+ZONE=nizho
+SERVICE=kdeconnect
+STATE=/etc/nizho/phone-link
+FW=firewall-cmd
+
+if [ "${NIZHO_PHONE_LINK_TEST:-}" = 1 ]; then
+    STATE=${NIZHO_PHONE_LINK_STATE:-$STATE}
+    FW=${NIZHO_FIREWALL_CMD:-$FW}
+elif [ "$(id -u)" != 0 ]; then
+    echo "nizho-phone-link: must run as root (use pkexec)" >&2
+    exit 77
+fi
+
+die() { echo "nizho-phone-link: $*" >&2; exit 1; }
+
+state_on() { [ "$(cat "$STATE" 2>/dev/null)" = on ]; }
+
+write_state() {
+    dir=$(dirname "$STATE")
+    mkdir -p "$dir" && chmod 755 "$dir" 2>/dev/null
+    tmp=$(umask 022; mktemp "$dir/.phone-link.XXXXXX") || return 1
+    if printf on >"$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$STATE"; then
+        return 0
+    fi
+    rm -f "$tmp"
+    return 1
+}
+
+fw_add_permanent()    { "$FW" --permanent --zone=$ZONE --add-service=$SERVICE >/dev/null 2>&1; }
+fw_add_runtime()      { "$FW" --zone=$ZONE --add-service=$SERVICE >/dev/null 2>&1; }
+fw_remove_permanent() { "$FW" --permanent --zone=$ZONE --remove-service=$SERVICE >/dev/null 2>&1; }
+fw_remove_runtime()   { "$FW" --zone=$ZONE --remove-service=$SERVICE >/dev/null 2>&1; }
+
+# Prints yes, no or error. firewall-cmd --query-* exits 0 for yes, 1 for no, anything else is an error.
+fw_query() {
+    "$FW" "$@" --zone=$ZONE --query-service=$SERVICE >/dev/null 2>&1
+    case $? in 0) echo yes ;; 1) echo no ;; *) echo error ;; esac
+}
+
+do_on() {
+    fw_add_permanent || die "could not add the KDE Connect rule to the firewall (is firewalld running?); nothing was changed"
+    if ! fw_add_runtime; then
+        fw_remove_permanent
+        die "could not open the KDE Connect ports in the running firewall; phone linking stays off"
+    fi
+    if ! write_state; then
+        fw_remove_runtime
+        fw_remove_permanent
+        die "could not write $STATE; the firewall rule was removed and phone linking stays off"
+    fi
+}
+
+do_off() {
+    rm -f "$STATE" || die "could not remove $STATE; the firewall was not changed"
+    bad=0
+    fw_remove_permanent || bad=1
+    fw_remove_runtime || bad=1
+    [ $bad = 0 ] || die "phone linking is off, but the firewall rule could not be removed (is firewalld running?); Nizho will remove it on its next check"
+}
+
+do_status() {
+    if state_on; then flag=on; else flag=off; fi
+    runtime=$(fw_query)
+    permanent=$(fw_query --permanent)
+    echo "$flag"
+    if [ "$runtime" = error ] || [ "$permanent" = error ]; then
+        echo "nizho-phone-link: could not read the firewall (is firewalld running?)" >&2
+        exit 1
+    fi
+    want=no; [ "$flag" = on ] && want=yes
+    if [ "$runtime" != "$want" ] || [ "$permanent" != "$want" ]; then
+        echo mismatch
+        exit 3
+    fi
+}
+
+case ${1:-} in
+    on)     [ $# = 1 ] || { echo "usage: nizho-phone-link on|off|status" >&2; exit 2; }; do_on ;;
+    off)    [ $# = 1 ] || { echo "usage: nizho-phone-link on|off|status" >&2; exit 2; }; do_off ;;
+    status) [ $# = 1 ] || { echo "usage: nizho-phone-link on|off|status" >&2; exit 2; }; do_status ;;
+    *)      echo "usage: nizho-phone-link on|off|status" >&2; exit 2 ;;
+esac
