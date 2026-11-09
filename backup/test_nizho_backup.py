@@ -282,6 +282,24 @@ class RealRestic(Env):
         code, _, err = self.run_cli("now")
         self.assertEqual(code, 1, "without --quiet an unplugged drive is still reported")
 
+    def test_restoring_names_with_pattern_characters(self):
+        names = ["trip [2020]", "what?", "star*", "back\\slash", "-rf"]
+        for n in names:
+            os.makedirs(os.path.join(self.home, "Pictures", n))
+            with open(os.path.join(self.home, "Pictures", n, "a.txt"), "w") as f:
+                f.write("in " + n)
+        self.run_cli("setup", "--to", self.repo)
+        self.run_cli("now")
+        for i, n in enumerate(names):
+            target = os.path.join(self.tmp, "r%d" % i)
+            code, _, err = self.run_cli("restore", "Pictures/" + n, "--to", target)
+            self.assertEqual(code, 0, (n, err))
+            with open(os.path.join(target, "Pictures", n, "a.txt")) as f:
+                self.assertEqual(f.read(), "in " + n)
+        target = os.path.join(self.tmp, "only")
+        self.assertEqual(self.run_cli("restore", "Pictures/trip [2020]", "--to", target)[0], 0)
+        self.assertFalse(os.path.exists(os.path.join(target, "Pictures", "what?")))
+
     def test_second_setup_and_reused_folder_are_refused(self):
         self.run_cli("setup", "--to", self.repo)
         code, _, err = self.run_cli("setup", "--to", self.repo)

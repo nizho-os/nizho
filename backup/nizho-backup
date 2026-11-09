@@ -275,7 +275,7 @@ def cmd_restore(a):
     os.makedirs(target, exist_ok=True)
     staging = tempfile.mkdtemp(prefix=".nizho-restore-", dir=target)
     try:
-        run_restic(cfg, ["restore", a.snapshot or "latest", "--target", staging, "--include", sub], capture=True)
+        run_restic(cfg, ["restore", a.snapshot or "latest", "--target", staging, "--include", glob_escape(sub)], capture=True)
         found = find_restored(staging, rel)
         if not found:
             raise Fail(f"{rel} was not found in that backup.")
@@ -286,6 +286,11 @@ def cmd_restore(a):
         shutil.rmtree(staging, ignore_errors=True)
     print(f"Restored to {dest}")
     print("Your existing files were not touched. Copy back what you need.")
+
+
+def glob_escape(path):
+    """restic reads --include as a pattern, so a name such as 'trip [2020]' must be escaped."""
+    return re.sub(r"([\\*?\[\]])", r"\\\1", path)
 
 
 def find_restored(staging, rel):
