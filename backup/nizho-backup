@@ -22,6 +22,7 @@ import datetime as dt
 import fcntl
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -51,11 +52,15 @@ def key_path():
 def load_config():
     try:
         with open(config_path()) as f:
-            return json.load(f)
+            cfg = json.load(f)
     except FileNotFoundError:
         return None
     except (OSError, ValueError) as e:
         raise Fail(f"The backup settings could not be read ({e}).")
+    if not isinstance(cfg, dict) or not isinstance(cfg.get("repo"), str) \
+            or not isinstance(cfg.get("paths"), list) or not all(isinstance(x, str) for x in cfg["paths"]):
+        raise Fail(f"The backup settings in {config_path()} are damaged. Move that file away to set up again.")
+    return cfg
 
 
 def save_config(cfg):
@@ -192,7 +197,10 @@ def cmd_now(a):
 
 
 def snapshots(cfg):
-    return json.loads(run_restic(cfg, ["snapshots", "--json"], capture=True) or "[]")
+    try:
+        return json.loads(run_restic(cfg, ["snapshots", "--json"], capture=True) or "[]")
+    except ValueError:
+        raise Fail("restic gave an answer that could not be understood.")
 
 
 def ago(ts):
@@ -201,6 +209,8 @@ def ago(ts):
     except (TypeError, ValueError):
         return "unknown"
     s = int(d.total_seconds())
+    if s < -300:
+        return "unknown"  # the clock was set back; do not claim a recent backup
     if s < 90:
         return "just now"
     if s < 5400:
@@ -253,6 +263,10 @@ def cmd_restore(a):
     sub = os.path.normpath(os.path.join(home, a.path))
     if not (sub == home or sub.startswith(home + os.sep)):
         raise Fail("PATH must stay inside your home folder.")
+    if a.snapshot and not (a.snapshot == "latest" or re.fullmatch(r"[0-9a-fA-F]{4,64}", a.snapshot)):
+        raise Fail("The snapshot must be an id from 'nizho-backup list', or left out for the latest.")
+    if os.path.exists(target) and not os.path.isdir(target):
+        raise Fail("The restore folder is a file, not a folder. Choose an empty folder.")
     if os.path.exists(target) and os.listdir(target):
         raise Fail("The restore folder is not empty. Restoring never overwrites your files; choose an empty folder.")
     rel = os.path.relpath(sub, home)
@@ -317,6 +331,12 @@ def main(argv=None):
         return 1
     except Fail as e:
         print(f"nizho-backup: {e}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("nizho-backup: stopped.", file=sys.stderr)
+        return 130
+    except OSError as e:
+        print(f"nizho-backup: {e.strerror or e}" + (f": {e.filename}" if e.filename else ""), file=sys.stderr)
         return 1
     return 0
 

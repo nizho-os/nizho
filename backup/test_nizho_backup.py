@@ -112,6 +112,33 @@ class Rules(Env):
         finally:
             os.close(fd)
 
+    def test_ordinary_mistakes_give_plain_errors_not_tracebacks(self):
+        nb.save_config({"repo": self.drive, "paths": [self.home]})
+        open(os.path.join(self.drive, "config"), "w").close()
+        afile = os.path.join(self.tmp, "afile")
+        open(afile, "w").close()
+        code, _, err = self.run_cli("restore", "a", "--to", afile)
+        self.assertEqual(code, 1)
+        self.assertNotIn("Traceback", err)
+        code, _, err = self.run_cli("restore", "a", "--to", os.path.join(self.tmp, "r"), "--snapshot=--password-file=x")
+        self.assertEqual(code, 1)
+        self.assertIn("snapshot", err)
+        os.makedirs(os.path.join(self.tmp, "ro"), mode=0o500)
+        if os.geteuid() != 0:
+            code, _, err = self.run_cli("restore", "a", "--to", os.path.join(self.tmp, "ro", "x"))
+            self.assertEqual(code, 1)
+            self.assertNotIn("Traceback", err)
+        with open(nb.config_path(), "w") as f:
+            f.write("[1, 2]")
+        for c in (["status"], ["now"], ["list"]):
+            code, _, err = self.run_cli(*c)
+            self.assertEqual(code, 1, c)
+            self.assertIn("damaged", err)
+
+    def test_a_backup_dated_in_the_future_is_not_called_recent(self):
+        future = (dt.datetime.now() + dt.timedelta(days=30)).isoformat()
+        self.assertEqual(nb.ago(future), "unknown")
+
     def test_missing_restic_is_said_plainly(self):
         os.environ["NIZHO_RESTIC"] = ""
         os.environ["PATH"] = "/nonexistent"
