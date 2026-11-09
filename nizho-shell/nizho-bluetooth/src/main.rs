@@ -131,10 +131,10 @@ fn build_ui(app: &adw::Application) {
 
     let provider = gtk4::CssProvider::new();
     provider.load_from_data("
-    .status-connected { color: #4fc3f7; font-size: 11px; }
-    .status-paired    { color: #4a6a88; font-size: 11px; }
-    .status-new       { color: #4ade80; font-size: 11px; }
-    .scan-spinner     { color: #4fc3f7; }
+    .status-connected { color: @accent; font-size: 11px; }
+    .status-paired    { color: @text_lo; font-size: 11px; }
+    .status-new       { color: @accent; font-size: 11px; }
+    .scan-spinner     { color: @accent; }
     ");
     gtk4::style_context_add_provider_for_display(
         &gtk4::gdk::Display::default().expect("display"),

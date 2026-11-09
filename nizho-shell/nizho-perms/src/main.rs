@@ -28,9 +28,9 @@ fn build_ui(app: &adw::Application) {
 
     let provider = gtk4::CssProvider::new();
     provider.load_from_data("
-    .perm-app-name { font-size: 15px; font-weight: 700; color: #d8e8f8; }
-    .perm-app-id   { font-size: 11px; color: #3a5a78; }
-    .danger-row    { color: #f28b35; }
+    .perm-app-name { font-size: 15px; font-weight: 700; color: @text_hi; }
+    .perm-app-id   { font-size: 11px; color: @text_lo; }
+    .danger-row    { color: @warn; }
     ");
     gtk4::style_context_add_provider_for_display(
         &gtk4::gdk::Display::default().expect("display"),

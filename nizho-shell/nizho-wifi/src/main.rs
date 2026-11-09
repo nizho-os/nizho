@@ -10,9 +10,9 @@ use adw::prelude::*;
 const APP_ID: &str = "org.nizho.wifi";
 
 const STYLE: &str = "
-.signal-on  { font-family: monospace; color: #4fc3f7; font-size: 12px; }
-.signal-off { font-family: monospace; color: #1a3050; font-size: 12px; }
-.connected  { color: #4ade80; font-size: 11px; font-weight: 700; }
+.signal-on  { font-family: monospace; color: @accent; font-size: 12px; }
+.signal-off { font-family: monospace; color: @text_muted; font-size: 12px; }
+.connected  { color: @accent; font-size: 11px; font-weight: 700; }
 ";
 
 fn main() {
