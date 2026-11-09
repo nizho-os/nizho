@@ -94,7 +94,8 @@ What a daily-use desktop needs that Nizho does not do yet, or that nobody has te
 
 - **Video and audio formats:** only Fedora's free codecs are installed, so some files (for example H.265 video or AAC audio) may not play. Not tested. VLC is in Install Apps' suggested list (as a sandboxed Flatpak from Flathub) and brings its own codecs, so it should cover most of these files; we have not checked that either.
 - **NVIDIA graphics cards:** there is no proprietary NVIDIA driver, so those cards use the open driver. Not tested.
-- **Backing up your files:** rollback protects the system, not your documents. There is no backup tool yet.
+- **Backing up your files:** rollback protects the system, not your documents. Settings has a Backup page that saves your files, encrypted, to a drive you choose ([details](docs/BACKUP.md)). It was tried in a virtual machine only, not with a real external drive, and nothing warns you if a scheduled backup fails. It is not an offsite backup.
+- **Bringing your files over:** `nizho-import` copies your documents and pictures from a Windows or macOS drive without changing the drive or overwriting your files ([details](docs/IMPORT.md)). It is a command-line tool, tested with temporary folders only, not on real drives. It does not bring apps, browser data or passwords.
 - **Language and keyboard:** setup now asks for both. It has unit tests and a preview render, but has not yet been run in a booted image. How much of the desktop is translated depends on the language.
 - **Never tried:** printing, scanning, webcam, suspend and hibernate, several monitors, Bluetooth pairing, and any hardware beyond the one laptop.
 
