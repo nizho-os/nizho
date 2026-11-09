@@ -20,6 +20,7 @@ import argparse
 import errno
 import hashlib
 import os
+import secrets
 import stat
 import sys
 
@@ -295,19 +296,19 @@ def free_space(path):
 
 
 def copy_one(item, stats):
-    """Copy one planned file. Returns bytes copied or None if skipped. Raises Fail when the disk is full."""
+    """Copy one planned file. Returns bytes copied or None if skipped. Raises Fail when the disk is full.
+
+    The bytes go to a temporary name in the same folder and get their real name only when the copy is
+    complete, so an interrupted run never leaves a half file that looks like the real one."""
     src, dest = item["src"], item["dest"]
-    created = False
+    tmp = None
     try:
         os.makedirs(os.path.dirname(dest), exist_ok=True)
+        before = os.lstat(src)
+        copied = 0
         with open_source(src) as fin:
-            try:
-                fout = open(dest, "xb")
-            except FileExistsError:
-                stats.failed.append((src, "a file with the planned name appeared in your home folder, left alone"))
-                return None
-            created = True
-            with fout:
+            tmp = os.path.join(os.path.dirname(dest), ".nizho-import-" + secrets.token_hex(6))
+            with open(tmp, "xb") as fout:
                 while True:
                     try:
                         chunk = fin.read(CHUNK)
@@ -316,17 +317,44 @@ def copy_one(item, stats):
                     if not chunk:
                         break
                     fout.write(chunk)
-        os.utime(dest, ns=(item["mtime_ns"], item["mtime_ns"]))
-        return item["size"]
+                    copied += len(chunk)
+        after = os.lstat(src)
+        if (after.st_size, after.st_mtime_ns) != (before.st_size, before.st_mtime_ns) or copied != before.st_size:
+            stats.failed.append((src, "the file changed while it was being copied, so it was skipped"))
+            return None
+        os.utime(tmp, ns=(before.st_mtime_ns, before.st_mtime_ns))
+        if not publish(tmp, dest):
+            stats.failed.append((src, "a file with the planned name appeared in your home folder, left alone"))
+            return None
+        tmp = None
+        return copied
     except _ReadError as e:
         stats.failed.append((src, reason_for(e.err)))
     except OSError as e:
         if e.errno == errno.ENOSPC:
-            _drop(dest, created)
+            _drop(tmp)
+            tmp = None
             raise Fail("The disk filled up while copying. Files copied so far were kept.")
         stats.failed.append((src, reason_for(e)))
-    _drop(dest, created)
+    finally:
+        _drop(tmp)
     return None
+
+
+def publish(tmp, dest):
+    """Give tmp its final name without ever replacing something that is already there."""
+    try:
+        os.link(tmp, dest)
+    except FileExistsError:
+        return False
+    except OSError:
+        # a filesystem without hard links: check, then rename (the small window is the best that is possible)
+        if os.path.lexists(dest):
+            return False
+        os.rename(tmp, dest)
+        return True
+    os.unlink(tmp)
+    return True
 
 
 class _ReadError(Exception):
@@ -334,10 +362,10 @@ class _ReadError(Exception):
         self.err = err
 
 
-def _drop(dest, created):
-    if created:
+def _drop(path):
+    if path:
         try:
-            os.unlink(dest)
+            os.unlink(path)
         except OSError:
             pass
 
@@ -423,14 +451,33 @@ def build_parser():
     return p
 
 
+class _Plain:
+    """File names from an old drive may not be valid UTF-8; show them escaped instead of crashing."""
+    def __init__(self, out):
+        self.out = out
+
+    def write(self, text):
+        try:
+            raw = text.encode("utf-8", "surrogateescape")
+        except UnicodeEncodeError:
+            raw = text.encode("utf-8", "backslashreplace")
+        return self.out.write(raw.decode("utf-8", "backslashreplace"))
+
+    def flush(self):
+        getattr(self.out, "flush", lambda: None)()
+
+
 def main(argv=None, out=None):
-    out = out or sys.stdout
+    out = _Plain(out or sys.stdout)
     args = build_parser().parse_args(argv)
     _hashes.clear()
     try:
         return cmd_scan(args, out) if args.cmd == "scan" else cmd_files(args, out)
     except Fail as e:
         print(f"nizho-import: {e}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("nizho-import: stopped. Files already copied were kept; none is half written.", file=sys.stderr)
         return 1
 
 
