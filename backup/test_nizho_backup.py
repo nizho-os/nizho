@@ -128,13 +128,13 @@ class RealRestic(Env):
         target = os.path.join(self.tmp, "restored")
         code, out, err = self.run_cli("restore", "Documents/report.txt", "--to", target)
         self.assertEqual(code, 0, err)
-        exact = os.path.join(target, self.home.lstrip(os.sep), "Documents", "report.txt")
+        exact = os.path.join(target, "Documents", "report.txt")
         self.assertIn("Restored to " + exact, out, "the message names the exact restored file")
         self.assertTrue(os.path.isfile(exact))
         found = []
         for root, _, files in os.walk(target):
             found += [os.path.join(root, f) for f in files]
-        self.assertEqual(len(found), 1, found)
+        self.assertEqual(found, [exact], "only the restored file is left, no staging folders")
         with open(found[0]) as rf:
             self.assertEqual(rf.read(), "quarterly numbers\n")
         self.assertFalse(os.path.exists(os.path.join(self.home, "Documents", "report.txt")),
@@ -165,6 +165,23 @@ class RealRestic(Env):
                     raw += fh.read()
         self.assertNotIn(b"quarterly numbers", raw, "file contents are not stored in the clear")
         self.assertNotIn(b"report.txt", raw, "file names are not stored in the clear")
+
+    def test_restoring_a_folder_and_a_missing_name(self):
+        os.makedirs(os.path.join(self.home, "Pictures", "trip"))
+        with open(os.path.join(self.home, "Pictures", "trip", "a.txt"), "w") as f:
+            f.write("a")
+        self.run_cli("setup", "--to", self.repo)
+        self.run_cli("now")
+        target = os.path.join(self.tmp, "r2")
+        code, _, err = self.run_cli("restore", "Pictures/trip", "--to", target)
+        self.assertEqual(code, 0, err)
+        self.assertTrue(os.path.isfile(os.path.join(target, "Pictures", "trip", "a.txt")))
+        code, _, err = self.run_cli("restore", "Nothing/here.txt", "--to", os.path.join(self.tmp, "r3"))
+        self.assertEqual(code, 1)
+        self.assertIn("was not found", err)
+        code, _, err = self.run_cli("restore", ".", "--to", os.path.join(self.tmp, "r4"))
+        self.assertEqual(code, 1)
+        self.assertIn("not the whole home folder", err)
 
     def test_second_setup_and_reused_folder_are_refused(self):
         self.run_cli("setup", "--to", self.repo)

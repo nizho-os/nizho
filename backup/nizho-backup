@@ -24,6 +24,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 
 EXCLUDES = [".cache", ".local/share/Trash", ".var/app/*/cache", ".var/app/*/.cache", "*/node_modules", ".thumbnails"]
 KEEP = ["--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6"]
@@ -169,7 +170,7 @@ def cmd_status(a):
         if cfg.get("last_ok"):
             info["text"] = "Last backup: " + ago(cfg["last_ok"])
         else:
-            info["text"] = "No backup has finished yet."
+            info["text"] = "No backup has finished yet"
         if not connected:
             info["text"] += ". The backup drive is not connected."
         else:
@@ -204,11 +205,35 @@ def cmd_restore(a):
         raise Fail("PATH must stay inside your home folder.")
     if os.path.exists(target) and os.listdir(target):
         raise Fail("The restore folder is not empty. Restoring never overwrites your files; choose an empty folder.")
+    rel = os.path.relpath(sub, home)
+    if rel == ".":
+        raise Fail("Choose a file or folder inside your home folder, not the whole home folder.")
     os.makedirs(target, exist_ok=True)
-    run_restic(cfg, ["restore", a.snapshot or "latest", "--target", target, "--include", sub], capture=True)
-    where = os.path.join(target, sub.lstrip(os.sep))
-    print(f"Restored to {where}")
+    staging = tempfile.mkdtemp(prefix=".nizho-restore-", dir=target)
+    try:
+        run_restic(cfg, ["restore", a.snapshot or "latest", "--target", staging, "--include", sub], capture=True)
+        found = find_restored(staging, rel)
+        if not found:
+            raise Fail(f"{rel} was not found in that backup.")
+        dest = os.path.join(target, rel)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.move(found, dest)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    print(f"Restored to {dest}")
     print("Your existing files were not touched. Copy back what you need.")
+
+
+def find_restored(staging, rel):
+    """restic keeps the full original path (on Nizho the home folder is really /var/home/NAME),
+    so look for the item by its path inside the home folder and ignore the prefix."""
+    suffix = os.sep + rel
+    for root, dirs, files in os.walk(staging):
+        for n in dirs + files:
+            p = os.path.join(root, n)
+            if p.endswith(suffix):
+                return p
+    return None
 
 
 def cmd_tidy(a):
