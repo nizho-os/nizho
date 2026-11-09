@@ -228,6 +228,33 @@ class RealRestic(Env):
         self.assertEqual(code, 1)
         self.assertIn("not the whole home folder", err)
 
+    def test_unreadable_file_still_counts_but_says_so(self):
+        if os.geteuid() == 0:
+            self.skipTest("root can read everything")
+        self.run_cli("setup", "--to", self.repo)
+        secret = os.path.join(self.home, "Documents", "locked.txt")
+        with open(secret, "w") as f:
+            f.write("x")
+        os.chmod(secret, 0)
+        code, _, err = self.run_cli("now")
+        self.assertEqual(code, 0, err)
+        self.assertIn("some files could not be read", err)
+        _, out, _ = self.run_cli("status", "--json")
+        self.assertIsNotNone(json.loads(out)["last_ok"])
+        self.assertEqual(len(self.run_cli("list")[1].strip().splitlines()), 1)
+
+    def test_drive_unplugged_during_quiet_run_stays_quiet_and_unmarked(self):
+        self.run_cli("setup", "--to", self.repo)
+        fake = os.path.join(self.tmp, "fake-restic")
+        with open(fake, "w") as f:
+            f.write('#!/bin/sh\nrm -rf "$RESTIC_REPOSITORY"\necho boom >&2\nexit 1\n')
+        os.chmod(fake, 0o755)
+        os.environ["NIZHO_RESTIC"] = fake
+        self.assertEqual(self.run_cli("now", "--quiet"), (0, "", ""))
+        self.assertIsNone(nb.load_config().get("last_ok"))
+        code, _, err = self.run_cli("now")
+        self.assertEqual(code, 1, "without --quiet an unplugged drive is still reported")
+
     def test_second_setup_and_reused_folder_are_refused(self):
         self.run_cli("setup", "--to", self.repo)
         code, _, err = self.run_cli("setup", "--to", self.repo)

@@ -96,15 +96,20 @@ def restic_bin():
     return path
 
 
-def run_restic(cfg, args, capture=False):
+def restic_process(cfg, args, capture=False, ok=(0,)):
     env = dict(os.environ, RESTIC_REPOSITORY=cfg["repo"], RESTIC_PASSWORD_FILE=key_path(), RESTIC_PROGRESS_FPS="0")
     try:
         p = subprocess.run([restic_bin()] + args, env=env, text=True, capture_output=capture, stdin=subprocess.DEVNULL)
     except OSError as e:
         raise Fail(f"restic could not be started ({e}).")
-    if p.returncode != 0:
+    if p.returncode not in ok:
         detail = ((p.stderr or "").strip().splitlines() or [""])[-1] if capture else ""
         raise Fail(f"restic stopped with an error (code {p.returncode}). {detail}".strip())
+    return p
+
+
+def run_restic(cfg, args, capture=False):
+    p = restic_process(cfg, args, capture)
     return p.stdout if capture else ""
 
 
@@ -168,11 +173,22 @@ def cmd_now(a):
     args = ["backup", "--tag", "nizho", "--exclude-caches", "--one-file-system"]
     for e in EXCLUDES:
         args += ["--exclude", e]
-    out = run_restic(cfg, args + cfg["paths"], capture=True)
+    try:
+        p = restic_process(cfg, args + cfg["paths"], capture=True, ok=(0, 3))
+    except Fail:
+        if a.quiet and not drive_connected(cfg):
+            return  # the drive was unplugged during the run: same as "not connected", nothing marked
+        raise
+    # restic code 3 means the backup was saved but some files could not be read (a file that
+    # changed or vanished while it was read). The saved backup is real, so it counts.
+    partial = p.returncode == 3
     cfg["last_ok"] = dt.datetime.now().isoformat(timespec="seconds")
     save_config(cfg)
+    if partial:
+        print("nizho-backup: the backup was saved, but some files could not be read and are not in it.", file=sys.stderr)
     if not a.quiet:
-        print(out.strip().splitlines()[-1] if out.strip() else "Backup finished.")
+        lines = (p.stdout or "").strip().splitlines()
+        print(lines[-1] if lines else "Backup finished.")
 
 
 def snapshots(cfg):
