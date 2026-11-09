@@ -923,6 +923,20 @@ fn make_smart_row(icon: &str, name: &str, sub: &str, cmd: &str) -> gtk4::ListBox
     let gesture = gtk4::GestureClick::new();
     gesture.connect_released(move |_, _, _, _| { launch(&c); });
     row.add_controller(gesture);
+    // The click gesture only sees the mouse, so Enter and Space on a focused row get their own handler.
+    let c = cmd.to_string();
+    let keys = gtk4::EventControllerKey::new();
+    keys.connect_key_pressed(move |_, key, _, _| {
+        use gtk4::gdk::Key;
+        if matches!(key, Key::Return | Key::KP_Enter | Key::space) {
+            launch(&c);
+            gtk4::glib::Propagation::Stop
+        } else {
+            gtk4::glib::Propagation::Proceed
+        }
+    });
+    row.add_controller(keys);
+    row.update_property(&[gtk4::accessible::Property::Label(&format!("Open {name}, {sub}"))]);
 
     row
 }
