@@ -101,6 +101,10 @@ COPY desktop/crystal-dock/nizho-dock-start /usr/libexec/nizho-dock-start
 COPY desktop/kwin-scripts/nizho-showdesktop /usr/share/kwin/scripts/nizho-showdesktop
 COPY desktop/kwin-scripts/nizho-showdesktop-keys /usr/libexec/nizho-showdesktop-keys
 COPY system/autostart/nizho-showdesktop-keys.desktop /etc/xdg/autostart/nizho-showdesktop-keys.desktop
+# A display scale once for each new screen from its size in the EDID, for screens KWin left at 100%
+# (system/nizho-display-scale). Runs at every login, acts once per screen, never blocks login.
+COPY system/nizho-display-scale /usr/libexec/nizho-display-scale
+COPY system/autostart/nizho-display-scale.desktop /etc/xdg/autostart/nizho-display-scale.desktop
 COPY desktop/crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/KDE/panel_1.conf
 COPY desktop/crystal-dock/appearance.conf /etc/skel/.config/crystal-dock/KDE/appearance.conf
 COPY desktop/crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/generic/panel_1.conf
@@ -670,7 +674,7 @@ RUN chmod 755 /usr/bin/nizho-backup /usr/bin/nizho-import /usr/bin/nizho-hwrepor
     systemctl --global enable nizho-backup.timer
 RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf && \
     grep -q '^DefaultZone=nizho' /etc/firewalld/firewalld.conf && \
-    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-phone-link /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
+    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-phone-link /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/libexec/nizho-display-scale /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
     mkdir -p /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d && \
     printf '[Service]\nExecStart=\nExecStart=/usr/bin/bootc upgrade --quiet\n' \
       > /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d/10-nizho-no-auto-reboot.conf && \

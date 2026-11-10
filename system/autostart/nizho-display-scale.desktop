@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Nizho display scale
+Comment=Sets a scale once for each new screen from its size
+Exec=/usr/libexec/nizho-display-scale
+OnlyShowIn=KDE;
+X-KDE-autostart-phase=2
+NoDisplay=true

@@ -40,6 +40,9 @@ on:
       - "scripts/test-wheel-formats.py"
       - "scripts/test-edit-window.py"
       - "scripts/test-arm-boot-counter.py"
+      - "system/nizho-display-scale"
+      - "system/autostart/**"
+      - "scripts/test-display-scale.py"
       - "scripts/qml/**"
   pull_request:
     paths:
@@ -80,6 +83,9 @@ on:
       - "scripts/test-wheel-formats.py"
       - "scripts/test-edit-window.py"
       - "scripts/test-arm-boot-counter.py"
+      - "system/nizho-display-scale"
+      - "system/autostart/**"
+      - "scripts/test-display-scale.py"
       - "scripts/qml/**"
   workflow_dispatch:
 
@@ -125,6 +131,8 @@ jobs:
         run: python3 scripts/test-wheel-formats.py
       - name: Test the boot counter's failure paths with fake commands
         run: sh -n system/nizho-arm-boot-counter && python3 scripts/test-arm-boot-counter.py
+      - name: Test the display scale step with made-up EDIDs and a fake kscreen-doctor
+        run: python3 -I scripts/test-display-scale.py
       - name: Test the phone-link helper against a fake firewall-cmd
         run: sh -n system/nizho-phone-link && python3 -I scripts/test-phone-link.py
       - name: Test nizho install (permission wording and the app list)
