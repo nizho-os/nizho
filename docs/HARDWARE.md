@@ -30,6 +30,11 @@ A report with "broken" lines is as useful as one with "works" lines.
 
 Sources: `docs/FIELD-NOTES.md`, `docs/NOKIA-USB-DIAGNOSIS.md`, `docs/RELEASE-VALIDATION.md`, `docs/FEATURES.md`. These are the project's own notes from one tester. They were not made with `nizho-hwreport`, so no hardware report exists for this machine. Bluetooth, webcam, microphone, external monitor, fingerprint and printing are not recorded. The notes of 2026-09-13 also say that fixes made after that test are not confirmed on the laptop.
 
+## Performance
+
+Boot time, idle memory and battery have not been measured on any machine. [PERFORMANCE.md](PERFORMANCE.md)
+has the budgets, the measuring script and what to record with each result.
+
 ## What we have not tested at all
 
 - Any laptop or desktop other than the one above.
@@ -39,7 +44,11 @@ Sources: `docs/FIELD-NOTES.md`, `docs/NOKIA-USB-DIAGNOSIS.md`, `docs/RELEASE-VAL
 - Webcam and microphone.
 - Speakers and the headphone jack (browser audio failed once and the fix is unconfirmed).
 - External monitors and multiple screens.
-- HiDPI scaling on real panels (the first boot looked too small and the scale was not recorded).
+- HiDPI scaling on real panels. The first boot looked too small and the scale was not recorded.
+  The image now has a login step, `system/nizho-display-scale`, that sets a scale once for each new
+  screen from its EDID size when KWin left it at 100%. It is tested only with made-up EDIDs and a
+  stand-in `kscreen-doctor` (`scripts/test-display-scale.py`). It has not run on a real display or
+  a booted Nizho image.
 - Touchpad gestures beyond basic pointing.
 - Fingerprint readers.
 - Printing and scanning.

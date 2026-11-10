@@ -101,6 +101,10 @@ COPY desktop/crystal-dock/nizho-dock-start /usr/libexec/nizho-dock-start
 COPY desktop/kwin-scripts/nizho-showdesktop /usr/share/kwin/scripts/nizho-showdesktop
 COPY desktop/kwin-scripts/nizho-showdesktop-keys /usr/libexec/nizho-showdesktop-keys
 COPY system/autostart/nizho-showdesktop-keys.desktop /etc/xdg/autostart/nizho-showdesktop-keys.desktop
+# A display scale once for each new screen from its size in the EDID, for screens KWin left at 100%
+# (system/nizho-display-scale). Runs at every login, acts once per screen, never blocks login.
+COPY system/nizho-display-scale /usr/libexec/nizho-display-scale
+COPY system/autostart/nizho-display-scale.desktop /etc/xdg/autostart/nizho-display-scale.desktop
 COPY desktop/crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/KDE/panel_1.conf
 COPY desktop/crystal-dock/appearance.conf /etc/skel/.config/crystal-dock/KDE/appearance.conf
 COPY desktop/crystal-dock/panel_1.conf /etc/skel/.config/crystal-dock/generic/panel_1.conf
@@ -249,10 +253,8 @@ RUN systemctl enable --force sddm.service && \
 # scripts" claim; verify at runtime via about:policies. Copied in the late
 # block below so editing it doesn't bust the KDE cache.
 
-# mako notification config + skel/Pictures for screenshots
-RUN mkdir -p /etc/skel/.config/mako /etc/skel/Pictures && \
-    printf '[global]\nbackground-color=#0d0d1aff\ntext-color=#d0dff0ff\nborder-color=#1a3a5aff\nborder-radius=8\nborder-size=1\nfont=Liberation Sans 12\nwidth=320\nmargin=10\npadding=12\ndefault-timeout=4000\n' \
-      > /etc/skel/.config/mako/config
+# skel/Pictures for screenshots. Plasma shows the notifications.
+RUN mkdir -p /etc/skel/Pictures
 
 # Preserve the distribution's password-quality policy for installed accounts.
 
@@ -674,6 +676,21 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q google-carlito-fonts google-crosextra-caladea-fonts \
       liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts
+# Packages a mainstream desktop ships. In Fedora 44 the KDE environment above already pulls in all of
+# these except the scanner ones; naming them keeps them if Fedora's groups change.
+#  - accessibility: the Orca screen reader, its speech service and voice, and Plasma's on-screen keyboard.
+#  - hardware: firmware updates (fwupd starts only when asked over D-Bus), Thunderbolt device approval,
+#    and sound firmware for Intel laptops that use SOF.
+#  - printing: CUPS and its filters.
+#  - fonts for the setup's language list: Tamil, Hindi, and Chinese, Japanese and Korean.
+#  - scanning (new): SANE drivers and Skanpage, a small KDE scanning app.
+RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
+    dnf install --setopt=keepcache=True -y -q \
+      orca speech-dispatcher espeak-ng plasma-keyboard \
+      fwupd bolt alsa-sof-firmware \
+      cups cups-filters \
+      default-fonts-ta default-fonts-hi default-fonts-cjk-sans \
+      sane-backends-drivers-scanners skanpage
 COPY --from=files / /
 # Nizho's greenboot checks sit next to the ones the greenboot package installed
 # above. Fail the build if the package's own checks are missing.
@@ -683,7 +700,7 @@ RUN chmod 755 /usr/bin/nizho-backup /usr/bin/nizho-import /usr/bin/nizho-hwrepor
     systemctl --global enable nizho-backup.timer
 RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf && \
     grep -q '^DefaultZone=nizho' /etc/firewalld/firewalld.conf && \
-    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-phone-link /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/libexec/nizho-image-ref-check /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
+    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-phone-link /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/libexec/nizho-image-ref-check /usr/libexec/nizho-display-scale /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
     mkdir -p /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d && \
     printf '[Service]\nExecStart=\nExecStart=/usr/bin/bootc upgrade --quiet\n' \
       > /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d/10-nizho-no-auto-reboot.conf && \

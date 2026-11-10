@@ -43,6 +43,10 @@ on:
       - "scripts/test-greenboot-checks.py"
       - "system/nizho-image-ref-check"
       - "scripts/test-image-ref-check.py"
+      - "system/nizho-display-scale"
+      - "system/autostart/**"
+      - "scripts/test-display-scale.py"
+      - "scripts/measure-baseline.sh"
       - "scripts/qml/**"
   pull_request:
     paths:
@@ -86,6 +90,10 @@ on:
       - "scripts/test-greenboot-checks.py"
       - "system/nizho-image-ref-check"
       - "scripts/test-image-ref-check.py"
+      - "system/nizho-display-scale"
+      - "system/autostart/**"
+      - "scripts/test-display-scale.py"
+      - "scripts/measure-baseline.sh"
       - "scripts/qml/**"
   workflow_dispatch:
 
@@ -120,7 +128,7 @@ jobs:
       - name: Check shell helpers
         run: shellcheck system/nizho-oobe-apply system/nizho-plasma-firstrun system/nizho-firefox system/nizho-firstboot scripts/flash-usb.sh
       - name: Check first-run shell syntax
-        run: bash -n system/nizho-oobe-apply && bash -n system/nizho-firstboot
+        run: bash -n system/nizho-oobe-apply && bash -n system/nizho-firstboot && bash -n scripts/measure-baseline.sh
       - name: Test setup with isolated accounts and paths
         run: python3 scripts/test-oobe-apply.py
       - name: Test USB source preflight without devices
@@ -135,6 +143,8 @@ jobs:
         run: sh -n system/greenboot/nizho-greenboot-unit-check && python3 -I scripts/test-greenboot-checks.py
       - name: Test the update image check against fake bootc status
         run: python3 -I scripts/test-image-ref-check.py
+      - name: Test the display scale step with made-up EDIDs and a fake kscreen-doctor
+        run: python3 -I scripts/test-display-scale.py
       - name: Test the phone-link helper against a fake firewall-cmd
         run: sh -n system/nizho-phone-link && python3 -I scripts/test-phone-link.py
       - name: Test nizho install (permission wording and the app list)

@@ -5,6 +5,7 @@ use adw::prelude::*;
 use std::process::Command;
 
 mod backup;
+mod devices;
 mod phone;
 mod restore_browser;
 
@@ -61,6 +62,7 @@ fn build_ui(app: &adw::Application) {
         ("Appearance", "applications-graphics-symbolic"),
         ("Privacy",    "security-high-symbolic"),
         ("Internet",   "network-wireless-symbolic"),
+        ("Devices",    "computer-symbolic"),
         ("Updates",    "system-software-update-symbolic"),
         ("Backup",     "drive-harddisk-symbolic"),
         ("Developer tools", "applications-development-symbolic"),
@@ -97,6 +99,7 @@ fn build_ui(app: &adw::Application) {
     stack.add_named(&page_appearance(&window), Some("Appearance"));
     stack.add_named(&page_privacy(),    Some("Privacy"));
     stack.add_named(&page_internet(),   Some("Internet"));
+    stack.add_named(&page_devices(),    Some("Devices"));
     stack.add_named(&page_updates(),    Some("Updates"));
     stack.add_named(&page_backup(&window), Some("Backup"));
     stack.add_named(&page_developer(),  Some("Developer tools"));
@@ -612,6 +615,34 @@ fn page_privacy() -> gtk4::Widget {
         row.add_suffix(&gtk4::Image::from_icon_name("go-next-symbolic"));
         group.add(&row);
     }
+    b.append(&group);
+    b.upcast()
+}
+
+fn page_devices() -> gtk4::Widget {
+    let b = page_box("Devices", "Screens, keyboards and printers. Each row opens Plasma's own settings.");
+
+    let group = adw::PreferencesGroup::new();
+    let dirs = devices::plugin_dirs(std::env::var("QT_PLUGIN_PATH").ok().as_deref());
+    let rows = devices::available(devices::DEVICES, |m| devices::module_installed(m, &dirs));
+    if rows.is_empty() {
+        let row = adw::ActionRow::new();
+        row.set_title("No device settings found");
+        row.set_subtitle("Plasma's settings for screens, keyboards and printers are not installed.");
+        group.add(&row);
+    }
+    for d in rows {
+        let row = adw::ActionRow::new();
+        row.set_title(d.title);
+        row.set_subtitle(d.subtitle);
+        row.add_prefix(&gtk4::Image::from_icon_name(d.icon));
+        row.add_suffix(&gtk4::Image::from_icon_name("go-next-symbolic"));
+        row.set_activatable(true);
+        let module = d.module;
+        row.connect_activated(move |_| { let _ = Command::new("systemsettings").arg(module).spawn(); });
+        group.add(&row);
+    }
+
     b.append(&group);
     b.upcast()
 }

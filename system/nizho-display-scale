@@ -1,0 +1,263 @@
+#!/usr/bin/python3 -I
+"""Nizho: pick a display scale once for each screen, from its real size.
+
+A small laptop panel with many pixels shows everything tiny at 100%. This reads how big each
+connected screen is (from its EDID in /sys/class/drm) and how many pixels it shows (from
+`kscreen-doctor -j`), works out the dots per inch, and sets a scale from the table below with
+`kscreen-doctor output.NAME.scale.X`.
+
+KWin in Plasma 6 picks a scale of its own for a screen it has not seen before. This script
+only acts on a screen that is still at 100%. It acts once per screen. Each screen it has looked at is written to
+~/.config/nizho/display-scale.json under its output name and EDID maker and product. A screen in
+that file is never touched again, so a scale the user picks later in Display settings stays. A
+screen that already has a scale other than 100% is left alone and recorded. A screen whose EDID is
+missing, damaged or gives a size that cannot be right is left alone.
+
+It runs at login from /etc/xdg/autostart. It never blocks login: every command has a time limit,
+the whole run has one too, and any failure ends in one line in the journal.
+
+Not run on a real display or a booted Nizho image yet. Tested with made-up EDID data and a
+stand-in kscreen-doctor (scripts/test-display-scale.py).
+"""
+import glob
+import json
+import math
+import os
+import signal
+import subprocess
+import sys
+import time
+
+# Dots per inch up to and including the first number get the scale next to it.
+# Above the last row the scale is TOP_SCALE.
+POLICY = (
+    (110, 1.0),
+    (160, 1.25),
+    (210, 1.5),
+    (280, 1.75),
+)
+TOP_SCALE = 2.0
+
+EDID_HEADER = bytes([0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0])
+# A size outside these limits is treated as a wrong EDID, not as a real screen.
+MIN_DIAGONAL_IN, MAX_DIAGONAL_IN = 5.0, 120.0
+MIN_DPI, MAX_DPI = 40.0, 700.0
+# The shape of the glass and the shape of the picture must roughly agree.
+MAX_ASPECT_MISMATCH = 0.25
+# Some televisions and projectors write their shape (16 by 9) where the size in cm belongs. A real
+# screen of exactly that size would be about 7 inches, so these are treated as no size at all.
+RATIO_NOT_SIZE = {(16, 9), (16, 10), (4, 3), (5, 4), (21, 9), (64, 27), (3, 2)}
+
+COMMAND_TIMEOUT = 5      # seconds, for one kscreen-doctor call
+TOTAL_TIMEOUT = 25       # seconds, for the whole run
+READ_ATTEMPTS = 5        # kscreen-doctor can fail while the session is still starting
+READ_WAIT = 2            # seconds between attempts
+
+
+class Skip(Exception):
+    """This screen is left alone; the message says why."""
+
+
+def scale_for_dpi(dpi):
+    for limit, scale in POLICY:
+        if dpi <= limit:
+            return scale
+    return TOP_SCALE
+
+
+def parse_edid(blob):
+    """Return (maker, product, width_cm, height_cm) from an EDID base block, or raise Skip."""
+    if len(blob) < 128:
+        raise Skip("EDID is shorter than 128 bytes")
+    block = blob[:128]
+    if block[:8] != EDID_HEADER:
+        raise Skip("EDID header is wrong")
+    if sum(block) % 256 != 0:
+        raise Skip("EDID checksum is wrong")
+    word = (block[8] << 8) | block[9]
+    letters = [(word >> 10) & 31, (word >> 5) & 31, word & 31]
+    maker = "".join(chr(64 + n) if 1 <= n <= 26 else "?" for n in letters)
+    product = "%04x" % (block[10] | (block[11] << 8))
+    return maker, product, block[21], block[22]
+
+
+def dpi_from(width_px, height_px, width_cm, height_cm):
+    """Dots per inch along the diagonal, or raise Skip when the numbers cannot be a real screen."""
+    if width_cm == 0 or height_cm == 0:
+        raise Skip("EDID gives no physical size")
+    if (width_cm, height_cm) in RATIO_NOT_SIZE:
+        raise Skip("EDID gives a shape of %d by %d, not a size" % (width_cm, height_cm))
+    if width_px <= 0 or height_px <= 0:
+        raise Skip("no picture size")
+    diagonal_in = math.hypot(width_cm, height_cm) / 2.54
+    if not MIN_DIAGONAL_IN <= diagonal_in <= MAX_DIAGONAL_IN:
+        raise Skip("EDID size of %d by %d cm cannot be right" % (width_cm, height_cm))
+    glass, picture = width_cm / height_cm, width_px / height_px
+    if abs(glass - picture) / picture > MAX_ASPECT_MISMATCH:
+        raise Skip("EDID size of %d by %d cm does not fit a %d by %d picture" % (width_cm, height_cm, width_px, height_px))
+    dpi = math.hypot(width_px, height_px) / diagonal_in
+    if not MIN_DPI <= dpi <= MAX_DPI:
+        raise Skip("%.0f dots per inch cannot be right" % dpi)
+    return dpi
+
+
+def read_edid(drm_dir, name):
+    """The EDID of the connector called NAME (card1-eDP-1 holds eDP-1), or raise Skip."""
+    for path in sorted(glob.glob(os.path.join(glob.escape(drm_dir), "card*-" + glob.escape(name), "edid"))):
+        try:
+            with open(path, "rb") as f:
+                blob = f.read(4096)
+        except OSError:
+            continue
+        if blob:
+            return blob
+    raise Skip("no EDID")
+
+
+def mode_size(output):
+    """(width, height) in pixels of the mode the output shows now, before any rotation."""
+    current = str(output.get("currentModeId", ""))
+    for mode in output.get("modes") or []:
+        if str(mode.get("id")) == current:
+            size = mode.get("size") or {}
+            return int(size.get("width", 0)), int(size.get("height", 0))
+    size = output.get("size") or {}
+    return int(size.get("width", 0)), int(size.get("height", 0))
+
+
+def run_doctor(args):
+    return subprocess.run(["kscreen-doctor", *args], capture_output=True, text=True, timeout=COMMAND_TIMEOUT)
+
+
+def read_outputs(sleep=time.sleep):
+    """The connected, enabled outputs from `kscreen-doctor -j`. Raises when it never answers."""
+    last = "no answer"
+    for attempt in range(READ_ATTEMPTS):
+        if attempt:
+            sleep(READ_WAIT)
+        try:
+            done = run_doctor(["-j"])
+            if done.returncode == 0:
+                outputs = json.loads(done.stdout).get("outputs")
+                if isinstance(outputs, list):
+                    # libkscreen writes "enabled" only for outputs that can be turned off.
+                    return [o for o in outputs if isinstance(o, dict) and o.get("name")
+                            and o.get("connected") and o.get("enabled", True)]
+                last = "no outputs in the answer"
+            else:
+                last = "exit %d" % done.returncode
+        except (OSError, subprocess.SubprocessError, ValueError) as e:
+            last = type(e).__name__
+    raise RuntimeError("kscreen-doctor -j failed (%s)" % last)
+
+
+def state_path():
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, "nizho", "display-scale.json")
+
+
+def load_state(path):
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        if isinstance(data, dict) and isinstance(data.get("outputs"), dict):
+            return data
+    except (OSError, ValueError):
+        pass
+    return {"outputs": {}}
+
+
+def save_state(path, state):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f, indent=2, sort_keys=True)
+        f.write("\n")
+    os.replace(tmp, path)
+
+
+def decide(output, drm_dir, seen):
+    """What to do with one output: (key, record, scale to apply or None). Raises Skip to do nothing.
+
+    A Skip leaves no record, so a screen with an unreadable EDID is looked at again next login.
+    """
+    name = output["name"]
+    maker, product, width_cm, height_cm = parse_edid(read_edid(drm_dir, name))
+    key = "%s:%s:%s" % (name, maker, product)
+    if key in seen:
+        raise Skip("already handled")
+    current = float(output.get("scale") or 1.0)
+    if abs(current - 1.0) > 0.01:
+        # Somebody, or KWin itself, already chose a scale for this screen.
+        return key, {"action": "kept", "scale": current}, None
+    width_px, height_px = mode_size(output)
+    dpi = dpi_from(width_px, height_px, width_cm, height_cm)
+    scale = scale_for_dpi(dpi)
+    record = {"dpi": round(dpi), "scale": scale, "action": "set" if scale != 1.0 else "kept"}
+    return key, record, (scale if scale != 1.0 else None)
+
+
+def log(message):
+    """One line for the journal. Never raises."""
+    line = "nizho-display-scale: " + message
+    try:
+        import syslog
+        syslog.openlog("nizho-display-scale")
+        syslog.syslog(syslog.LOG_INFO, message)
+    except Exception:
+        pass
+    try:
+        print(line, file=sys.stderr)
+    except Exception:
+        pass
+
+
+def main():
+    session = os.environ.get("XDG_SESSION_TYPE", "")
+    if session and session != "wayland":
+        return "not a Wayland session, nothing done"
+    drm_dir = os.environ.get("NIZHO_DRM_DIR", "/sys/class/drm")
+    path = state_path()
+    state = load_state(path)
+    notes, changed = [], False
+    for output in read_outputs():
+        name = output["name"]
+        try:
+            key, record, scale = decide(output, drm_dir, state["outputs"])
+        except Skip as why:
+            if str(why) != "already handled":
+                notes.append("%s left alone (%s)" % (name, why))
+            continue
+        if scale is not None:
+            try:
+                done = run_doctor(["output.%s.scale.%s" % (name, ("%.2f" % scale).rstrip("0").rstrip("."))])
+                failed = "exit %d" % done.returncode if done.returncode != 0 else ""
+            except (OSError, subprocess.SubprocessError) as e:
+                failed = type(e).__name__
+            if failed:
+                # No record, so the next login tries again.
+                notes.append("%s could not be set to %d%% (%s)" % (name, round(scale * 100), failed))
+                continue
+            notes.append("%s set to %d%% (%d dots per inch)" % (name, round(scale * 100), record["dpi"]))
+        else:
+            notes.append("%s kept at %d%%" % (name, round(record["scale"] * 100)))
+        state["outputs"][key] = record
+        changed = True
+    if changed:
+        save_state(path, state)
+    return "; ".join(notes)
+
+
+if __name__ == "__main__":
+    # A last limit on the whole run, in case something waits where no timeout applies.
+    signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError("took too long")))
+    signal.alarm(TOTAL_TIMEOUT)
+    try:
+        summary = main()
+        if summary:
+            log(summary)
+    except BaseException as e:  # login must never see a failure from here
+        if isinstance(e, KeyboardInterrupt):
+            raise
+        log("nothing changed: %s" % (e if str(e) else type(e).__name__))
+    sys.exit(0)
