@@ -1,3 +1,10 @@
+# NOT INSTALLED. The Containerfile does not copy this unit into the image, and
+# nothing below describes how setup runs today. The wizard does not run as
+# root: the unprivileged nizhosetup account auto-logs in on tty1, logind gives
+# its session the seat, its login shell starts cage with nizho-oobe, and only
+# /usr/libexec/nizho-oobe-apply runs as root, through the sudo rule in
+# /etc/sudoers.d/95-nizho-oobe (see "Graphical first-run wizard" in the
+# Containerfile). Kept for reference only.
 [Unit]
 Description=Nizho first-run setup (graphical OOBE)
 DefaultDependencies=no
@@ -7,8 +14,8 @@ Conflicts=getty@tty1.service
 ConditionPathExists=!/var/lib/nizho-firstboot-done
 
 [Service]
-# Run the graphical wizard inside the cage kiosk compositor on tty1, as root,
-# before any user exists. On success it writes /var/lib/nizho-firstboot-done,
+# Old design, not in use (see the top of this file): run the graphical wizard
+# inside cage on tty1 as root, before any user exists. On success it writes /var/lib/nizho-firstboot-done,
 # so the TUI fallback (nizho-firstboot.service, ordered after this) skips. If
 # cage can't start (no DRM/GPU), this exits without the flag and the TUI runs.
 Type=simple
