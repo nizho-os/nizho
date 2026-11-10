@@ -365,10 +365,21 @@ gateway-world-to-HOST (disabled)\n  target: CONTINUE\n  ingress-zones: external 
         use std::path::{Path, PathBuf};
         use std::sync::Mutex;
 
-        struct Fixture { dir: PathBuf, events: Arc<Mutex<Vec<String>>>, enforcer: FirewallEnforcer }
+        // A test writes a script and runs it straight away. If another test thread forks in between,
+        // the child still holds the script open for writing and the run fails with "Text file busy".
+        // One fixture at a time keeps the write and the run apart.
+        static FIXTURE_LOCK: Mutex<()> = Mutex::new(());
+
+        struct Fixture {
+            dir: PathBuf,
+            events: Arc<Mutex<Vec<String>>>,
+            enforcer: FirewallEnforcer,
+            _serial: std::sync::MutexGuard<'static, ()>,
+        }
 
         impl Fixture {
             fn new(name: &str, runtime: &str, permanent: &str) -> Self {
+                let serial = FIXTURE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
                 let dir = std::env::temp_dir().join(format!("nizhod-fw-test-{}-{name}", std::process::id()));
                 let _ = std::fs::remove_dir_all(&dir);
                 std::fs::create_dir_all(&dir).unwrap();
@@ -402,7 +413,7 @@ esac
                 let sink = events.clone();
                 let log: EventLog = Arc::new(move |cat, ev, msg| sink.lock().unwrap().push(format!("{cat}/{ev}: {msg}")));
                 let enforcer = FirewallEnforcer::with_parts(cmd.to_str().unwrap(), dir.join("phone-link").to_str().unwrap(), log);
-                Self { dir, events, enforcer }
+                Self { dir, events, enforcer, _serial: serial }
             }
             fn flag(&self, content: &str) { std::fs::write(self.dir.join("phone-link"), content).unwrap(); }
             fn list(&self, which: &str) -> Vec<String> {
