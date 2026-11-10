@@ -1,4 +1,4 @@
-/* The Nizho film (43 s). One file, nothing from other sites. It plays only when
+/* The Nizho animation (43 s, drawn in the browser, not a recording). One file, nothing from other sites. It plays only when
    the visitor asks for it (any element with data-film), and has a Skip button. */
 (function () {
   'use strict';
