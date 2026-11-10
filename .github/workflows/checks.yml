@@ -98,9 +98,9 @@ jobs:
   setup:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 (v4.4.0)
       - name: Install the cosign version that signs the images
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3 (v3.9.1)
         with:
           cosign-release: v2.4.1
       - name: Test image signing and verification
@@ -145,7 +145,7 @@ jobs:
   rust:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 (v4.4.0)
       - name: Select stable Rust
         run: rustup default stable
       - name: Test privacy enforcement
@@ -162,7 +162,7 @@ jobs:
     # shell-builder): Ubuntu has no gtk4-layer-shell, which the privacy dots need.
     container: docker.io/library/fedora:44
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 (v4.4.0)
       - name: Install desktop build dependencies
         run: dnf install -y -q gtk4-devel gtk4-layer-shell-devel libadwaita-devel rust cargo gcc pkgconf-pkg-config
       - name: Test every desktop crate including first-run setup
@@ -187,7 +187,7 @@ jobs:
       image: docker.io/library/fedora:44
       options: --privileged
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 (v4.4.0)
       - name: Install the converters and Qt
         run: |
           dnf install -y -q ffmpeg-free python3-pillow poppler-utils ghostscript bubblewrap mat2 \
