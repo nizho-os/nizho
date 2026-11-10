@@ -146,6 +146,15 @@ brokers system Flatpak transactions. Read-only operations do not prompt. Commits
 use `org.nizho.archon.manage` with polkit's authenticated system-bus-name subject
 and the caller's interactive-authorization flag. Challenges and unavailable or
 malformed authority responses fail closed. Authorization decisions are logged.
+For a full `app/ID/ARCH/BRANCH` ref the service passes polkit the details
+`polkit.message`, `app_id` and `operation`, taken from the stored plan, so the
+password prompt reads, for example, "Administrator authentication is required
+to install the application org.gnome.Calculator". Any other ref gets no
+details and the prompt shows the fixed message from the policy file. The
+details change only the text: who may authorise stays with the action defaults
+and the administrator's polkit rules. Unit tests check the details sent to a
+mock authority; the text a real polkit agent shows has not been checked in a
+guest.
 The UI and CLI contain no sudo or direct privileged package command.
 
 The unit grants write access only to `/var/lib/flatpak` and its private journal,

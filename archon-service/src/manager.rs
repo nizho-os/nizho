@@ -537,7 +537,10 @@ impl Manager {
                 "commits require the Nizho system service".into(),
             ));
         }
-        if let Err(error) = crate::authorization::check(conn, &header).await {
+        let request = &record.request;
+        if let Err(error) =
+            crate::authorization::check(conn, &header, &request.action, &request.package).await
+        {
             eprintln!("Archon authorization denied uid={uid} plan={id}: {error}");
             return Err(error);
         }
