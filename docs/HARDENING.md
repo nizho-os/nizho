@@ -117,6 +117,14 @@ denied/cancelled repair, Firefox media/downloads and compositor actions in the
 next guest image. A complete dependency advisory scan was not run. The updated
 [threat model](THREAT-MODEL.md) records the boundaries and primary references.
 
+### Suspend and hibernation
+
+The boot option `lockdown=integrity` (`system/kernel/10-nizho-hardening.toml`) turns hibernation off.
+Under lockdown the kernel does not offer hibernation, because it cannot check that the saved
+memory image was not changed on disk. Nizho has no hibernate. Suspend to RAM is not affected by lockdown. Suspend and resume were seen to work once,
+on the Nokia laptop on 2026-09-13, with an ArkaOS-era image. They have not been tested on a Nizho
+image or on any other machine.
+
 ### Image and hardware gates
 
 1. Build the Fedora 44 candidate in an isolated builder and verify all package,
