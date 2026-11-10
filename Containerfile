@@ -241,10 +241,8 @@ RUN systemctl enable --force sddm.service && \
 # scripts" claim; verify at runtime via about:policies. Copied in the late
 # block below so editing it doesn't bust the KDE cache.
 
-# mako notification config + skel/Pictures for screenshots
-RUN mkdir -p /etc/skel/.config/mako /etc/skel/Pictures && \
-    printf '[global]\nbackground-color=#0d0d1aff\ntext-color=#d0dff0ff\nborder-color=#1a3a5aff\nborder-radius=8\nborder-size=1\nfont=Liberation Sans 12\nwidth=320\nmargin=10\npadding=12\ndefault-timeout=4000\n' \
-      > /etc/skel/.config/mako/config
+# skel/Pictures for screenshots. Plasma shows the notifications.
+RUN mkdir -p /etc/skel/Pictures
 
 # Preserve the distribution's password-quality policy for installed accounts.
 
