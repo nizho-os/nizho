@@ -108,6 +108,12 @@ exactly that: we haven't tried it.
   (some hotels and sign-in pages), the dashboard notices that names aren't
   resolving and offers to allow unencrypted DNS **on that network only**. It then
   shows *Off on this network*, and other networks stay strict.
+  The exception is the NetworkManager setting `connection.dns-over-tls=no` on
+  that connection. Any program running as the desktop user can set it without a
+  password. `nizhod` writes an event with the connection name when it first
+  sees a connection using the exception and another when that ends. The events
+  are informational. `nizhod` forgets what it has seen when it restarts, so a
+  connection that is still excepted is logged once more.
 - **Kernel hardening.** Stricter kernel boot options (memory wiping, lockdown in
   integrity mode, and others) and some runtime settings. User namespaces stay
   on, because Firefox's sandbox and Flatpak need them.
