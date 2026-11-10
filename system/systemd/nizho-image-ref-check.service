@@ -1,0 +1,14 @@
+[Unit]
+Description=Warn when this computer does not follow the Nizho update image
+Documentation=file:///usr/share/doc/nizho
+# Reads `bootc status` and writes /run/nizho/image-ref-warning for the Updates
+# app when the image being followed is not ghcr.io/nizho-os/nizho. It changes
+# nothing else and always exits 0, so it cannot fail a boot.
+
+[Service]
+Type=oneshot
+TimeoutStartSec=30s
+ExecStart=/usr/libexec/nizho-image-ref-check
+
+[Install]
+WantedBy=multi-user.target

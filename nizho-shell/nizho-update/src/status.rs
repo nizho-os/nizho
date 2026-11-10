@@ -76,6 +76,22 @@ impl From<Entry> for Deployment {
 /// Where nizho-bootc-status.service publishes `bootc status` for unprivileged readers.
 pub const PUBLISHED: &str = "/run/nizho/bootc-status.json";
 
+/// Where nizho-image-ref-check.service leaves its warning when this computer follows an image
+/// other than Nizho's published one. The file is absent when there is nothing to warn about.
+pub const IMAGE_REF_WARNING: &str = "/run/nizho/image-ref-warning";
+
+/// The warning to show, or None. The file is written by root and shown as plain text.
+pub fn read_image_ref_warning() -> Option<String> {
+    warning_text(std::fs::read_to_string(IMAGE_REF_WARNING).ok().as_deref())
+}
+
+/// Trimmed and capped; an absent, empty or blank file is no warning.
+pub fn warning_text(contents: Option<&str>) -> Option<String> {
+    const MAX_CHARS: usize = 600;
+    let text = contents?.trim();
+    (!text.is_empty()).then(|| text.chars().take(MAX_CHARS).collect())
+}
+
 /// Read the status published by nizho-bootc-status.service (no privileges needed).
 pub fn read_published() -> Result<UpdateStatus, String> {
     read_published_timed().map(|(status, _)| status)
@@ -142,6 +158,15 @@ mod tests {
             "status": {"booted": entry(json!("44.1")), "staged": null, "rollback": null}})
     }
     fn parse(value: Value) -> UpdateStatus { parse_status(&value.to_string()).unwrap() }
+    #[test]
+    fn image_ref_warning_is_shown_only_when_the_file_has_text() {
+        assert_eq!(warning_text(None), None);
+        assert_eq!(warning_text(Some("")), None);
+        assert_eq!(warning_text(Some(" \n\n")), None);
+        let text = "This computer is not set to receive Nizho updates.\nsudo bootc switch ghcr.io/nizho-os/nizho:latest\n";
+        assert_eq!(warning_text(Some(text)).as_deref(), Some(text.trim()));
+        assert_eq!(warning_text(Some(&"x".repeat(5000))).unwrap().chars().count(), 600);
+    }
     #[test]
     fn published_snapshot_expires_and_rejects_future_timestamps() {
         let path = std::env::temp_dir().join(format!("nizho-status-{}-{}.json", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));

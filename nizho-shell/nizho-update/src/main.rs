@@ -20,6 +20,7 @@ const CSS: &str = "
 .up-val { font-size: 14px; color: alpha(@window_fg_color, 0.75); }
 .up-h { font-size: 17px; font-weight: 600; }
 .up-note { font-size: 13px; color: alpha(@window_fg_color, 0.75); }
+.up-warn { font-size: 14px; padding: 12px 14px; border-radius: 10px; border: 1px solid alpha(@warning_color, 0.6); }
 button.up-quiet { border-radius: 999px; padding: 8px 18px; }
 ";
 
@@ -62,6 +63,13 @@ fn build_ui(app: &adw::Application) {
     );
     sub.set_margin_top(8);
     col.append(&sub);
+
+    // Shown only while nizho-image-ref-check.service has left a warning in /run.
+    let ref_warning = label("", "up-warn");
+    ref_warning.set_margin_top(16);
+    ref_warning.set_selectable(true);
+    ref_warning.set_visible(false);
+    col.append(&ref_warning);
 
     // status rows
     let rows = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
@@ -144,8 +152,12 @@ fn build_ui(app: &adw::Application) {
 
     let refresh: std::rc::Rc<dyn Fn()> = {
         let (vals, restart_btn, rb_btn) = (vals.clone(), restart_btn.clone(), rb_btn.clone());
+        let ref_warning = ref_warning.clone();
         std::rc::Rc::new(move || {
             let (vals, restart_btn, rb_btn) = (vals.clone(), restart_btn.clone(), rb_btn.clone());
+            let warning = nizho_update::status::read_image_ref_warning();
+            ref_warning.set_visible(warning.is_some());
+            ref_warning.set_label(warning.as_deref().unwrap_or(""));
             gtk4::glib::spawn_future_local(async move {
                 let res = gtk4::gio::spawn_blocking(read_status).await.unwrap_or_else(|_| Err("status reader crashed".into()));
                 show_status(res, &vals, &restart_btn, &rb_btn);

@@ -42,6 +42,8 @@ on:
       - "scripts/test-arm-boot-counter.py"
       - "system/greenboot/**"
       - "scripts/test-greenboot-checks.py"
+      - "system/nizho-image-ref-check"
+      - "scripts/test-image-ref-check.py"
       - "scripts/qml/**"
   pull_request:
     paths:
@@ -84,6 +86,8 @@ on:
       - "scripts/test-arm-boot-counter.py"
       - "system/greenboot/**"
       - "scripts/test-greenboot-checks.py"
+      - "system/nizho-image-ref-check"
+      - "scripts/test-image-ref-check.py"
       - "scripts/qml/**"
   workflow_dispatch:
 
@@ -131,6 +135,8 @@ jobs:
         run: sh -n system/nizho-arm-boot-counter && python3 scripts/test-arm-boot-counter.py
       - name: Test Nizho's greenboot checks with fake systemctl and a fake /sys
         run: sh -n system/greenboot/nizho-greenboot-unit-check && python3 -I scripts/test-greenboot-checks.py
+      - name: Test the update image check against fake bootc status
+        run: python3 -I scripts/test-image-ref-check.py
       - name: Test the phone-link helper against a fake firewall-cmd
         run: sh -n system/nizho-phone-link && python3 -I scripts/test-phone-link.py
       - name: Test nizho install (permission wording and the app list)
