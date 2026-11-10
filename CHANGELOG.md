@@ -17,7 +17,19 @@ The full list, with how each part was tested, is in [docs/FEATURES.md](docs/FEAT
   set, a small gain.
 - Language and keyboard page in setup. Not yet run in a booted image.
 
+- `docs/EVIDENCE.md`: one status, one test kind and one build family for every
+  claim, the rule that ArkaOS results are never reported as Nizho results, and
+  the current status of the ten main claims.
+- `NOTICE.md`: third-party material, the fonts installed from Fedora packages,
+  and the assets whose origin the repository does not record.
+- Test log entry for the first checks on a published Nizho image (2026-11-09, in
+  a VM only).
+
 ### Changed
+- `docs/RELEASE-VALIDATION.md`, `docs/FIELD-NOTES.md` and `docs/DP2.md` now say
+  that their older results come from ArkaOS builds. `docs/TESTING.md` no longer
+  names a removed crate or a built-in login.
+- Dependabot also watches `archon-service`.
 - The Privacy dashboard no longer shows a privacy score. It lists each setting as
   Configured or not.
 
