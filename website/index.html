@@ -233,15 +233,15 @@ main { overflow-x: clip; }
   <section id="privacy">
     <div class="wrap">
       <h2>The privacy settings</h2>
-      <p class="lead" style="margin-top:14px">What each one does, in plain words, and how far we’ve tested it.</p>
+      <p class="lead" style="margin-top:14px">What each one does, in plain words, and how far we’ve tested it. Our October 2026 VM tests ran on ArkaOS builds, the project Nizho began as. The only test on a Nizho image so far is a VM boot on 1 November 2026, which did not check these settings one by one.</p>
       <div class="rows">
-        <div class="row"><div><b>Encrypted DNS</b><span>Website-name lookups are sent encrypted (to Quad9). On a network that blocks this, you can allow unencrypted lookups on that network only, and the dashboard says so (this option is new and still being tested).</span></div><div class="state ok">Tested in a VM</div></div>
-        <div class="row"><div><b>Private network address</b><span>Uses a random hardware (MAC) address on networks, so networks see a different device ID.</span></div><div class="state ok">Tested in a VM</div></div>
-        <div class="row"><div><b>Generic device name</b><span>Calls the computer “nizho” on networks instead of a name that identifies you.</span></div><div class="state ok">Tested in a VM</div></div>
-        <div class="row"><div><b>Temporary IPv6 addresses</b><span>Uses IPv6 addresses that change over time.</span></div><div class="state ok">Tested in a VM</div></div>
+        <div class="row"><div><b>Encrypted DNS</b><span>Website-name lookups are sent encrypted (to Quad9). On a network that blocks this, you can allow unencrypted lookups on that network only, and the dashboard says so (this option is new and still being tested).</span></div><div class="state test">Tested in a VM on an ArkaOS build (October 2026), not yet on Nizho</div></div>
+        <div class="row"><div><b>Private network address</b><span>Uses a random hardware (MAC) address on networks, so networks see a different device ID.</span></div><div class="state test">Tested in a VM on an ArkaOS build (October 2026), not yet on Nizho</div></div>
+        <div class="row"><div><b>Generic device name</b><span>Calls the computer “nizho” on networks by default. Setup lets you choose another name.</span></div><div class="state test">Tested in a VM on an ArkaOS build (October 2026), not yet on Nizho</div></div>
+        <div class="row"><div><b>Temporary IPv6 addresses</b><span>Uses IPv6 addresses that change over time.</span></div><div class="state test">Tested in a VM on an ArkaOS build (October 2026), not yet on Nizho</div></div>
         <div class="row"><div><b>Sandboxed browser</b><span>Firefox runs in a sandbox that can see your Downloads folder but not the rest of your files.</span></div><div class="state ok">Tested in a VM</div></div>
-        <div class="row"><div><b>Firewall</b><span>Rejects connections other computers try to open to this one.</span></div><div class="state ok">Tested in a VM</div></div>
-        <div class="row"><div><b>Kernel hardening</b><span>Stricter memory and kernel settings that make some attacks harder.</span></div><div class="state ok">Tested in a VM</div></div>
+        <div class="row"><div><b>Firewall</b><span>Rejects connections other computers try to open to this one.</span></div><div class="state test">Tested in a VM on an ArkaOS build (October 2026), not yet on Nizho</div></div>
+        <div class="row"><div><b>Kernel hardening</b><span>Stricter memory and kernel settings that make some attacks harder.</span></div><div class="state test">Not tested</div></div>
       </div>
       <p class="note" style="margin-top:14px">“Configured” means a checked setting is in place. It doesn’t mean you can’t be tracked: websites, accounts and apps can still identify you.</p>
       <div class="pair">
@@ -265,7 +265,7 @@ main { overflow-x: clip; }
         <div>
           <h3>Tested</h3>
           <ul>
-            <li>The privacy settings above marked “Tested in a VM”</li>
+            <li>Most privacy settings above, in a VM on an ArkaOS build (not yet on Nizho)</li>
             <li>Setup with a light or dark look, then your desktop</li>
             <li>Read-only system files at runtime</li>
             <li>Going back to the previous version on its own after a broken update, keeping a good update, and going back by hand with one command (in a VM on 11 October 2026; the first two also on one real laptop on 12 October 2026)</li>
