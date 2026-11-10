@@ -16,7 +16,7 @@ already exists with different content keeps both, and the new one is saved as
 Browser profiles, password stores and keychains are not imported.
 
 Bookmarks only: saved passwords, cookies, history and whole profiles are never read.
-The bookmarks file goes to ~/Documents/Bookmarks (or --to FILE) and never replaces a file.
+The bookmarks file goes to ~/Downloads, where the sandboxed Firefox can read it (or --to FILE) and never replaces a file.
 
 Exit code: 0 everything copied, 2 some files were skipped because of an error, 1 fatal error.
 """
@@ -1081,7 +1081,7 @@ def cmd_bookmarks(args, out):
         if os.path.isdir(target):
             target = os.path.join(target, name)
     else:
-        target = os.path.join(home, "Documents", name)
+        target = os.path.join(home, "Downloads", name)
     if inside(_future_real(os.path.dirname(target)), src):
         raise Fail("The output file would be inside the source, which is never written to. Pick another place.")
     text = netscape_html(root)
@@ -1106,7 +1106,7 @@ def build_parser():
     f.add_argument("--dry-run", action="store_true", help="list what would be copied, copy nothing")
     b = sub.add_parser("bookmarks", help="write browser bookmarks to one HTML file")
     b.add_argument("source")
-    b.add_argument("--to", metavar="FILE", help="write here instead of ~/Documents/Bookmarks")
+    b.add_argument("--to", metavar="FILE", help="write here instead of ~/Downloads (the sandboxed Firefox sees only that folder)")
     b.add_argument("--dry-run", action="store_true", help="read the bookmarks, write nothing")
     return p
 

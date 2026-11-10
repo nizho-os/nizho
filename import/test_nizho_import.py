@@ -612,7 +612,7 @@ class Bookmarks(Env):
         return rd(path).decode("utf-8")
 
     def out_file(self, name="Bookmarks from Chrome.html"):
-        return self.h("Documents", name)
+        return self.h("Downloads", name)
 
     def run_bm(self, *extra, source=None):
         return self.run_cli("bookmarks", source or self.src, *extra)
@@ -804,7 +804,7 @@ class Bookmarks(Env):
 
     def test_never_overwrites(self):
         write_chrome(self.src)
-        os.makedirs(self.h("Documents"))
+        os.makedirs(self.h("Downloads"))
         existing = self.out_file()
         write(existing, b"mine")
         code, out, _ = self.run_bm()
@@ -825,7 +825,7 @@ class Bookmarks(Env):
         code, out, _ = self.run_bm("--dry-run")
         self.assertEqual(code, 0)
         self.assertIn("Dry run: nothing was written", out)
-        self.assertFalse(os.path.exists(self.h("Documents")))
+        self.assertFalse(os.path.exists(self.h("Downloads")))
         self.assertNotIn("Wrote", out)
 
     def test_source_is_byte_for_byte_unchanged(self):
@@ -862,7 +862,7 @@ class Bookmarks(Env):
         self.assertEqual(code, 1)
         self.assertIn("home folder", err)
         self.assertNotIn("Traceback", err)
-        self.assertFalse(os.path.exists(self.h("Documents")))
+        self.assertFalse(os.path.exists(self.h("Downloads")))
         code, _, err = self.run_cli("bookmarks", self.home)
         self.assertEqual(code, 1)
         self.assertIn("home folder", err)
@@ -896,7 +896,7 @@ class Bookmarks(Env):
         self.assertIn("nothing", err.lower())
         self.assertIn("No browser bookmarks were found", err)
         self.assertNotIn("Traceback", err)
-        self.assertFalse(os.path.exists(self.h("Documents")))
+        self.assertFalse(os.path.exists(self.h("Downloads")))
 
     def test_missing_source(self):
         code, _, err = self.run_cli("bookmarks", os.path.join(self.tmp, "nope"))
@@ -919,7 +919,7 @@ class Bookmarks(Env):
                 self.assertIn("could not be read", out)
                 self.assertIn("None of the bookmark files could be read", err)
                 self.assertNotIn("Traceback", out + err)
-                self.assertFalse(os.path.exists(self.h("Documents")))
+                self.assertFalse(os.path.exists(self.h("Downloads")))
         shutil.rmtree(self.src)
         os.makedirs(self.src)
         d = os.path.join(self.src, "Users", "Sam", ".mozilla", "firefox", "bad.default")
@@ -999,7 +999,7 @@ class Bookmarks(Env):
         self.assertIn("Chrome (Sam / Default)", out)
         self.assertIn("Safari (Sam)", out)
         self.assertIn("Passwords, cookies, history and other browser data are not imported.", out)
-        self.assertFalse(os.path.exists(self.h("Documents")))
+        self.assertFalse(os.path.exists(self.h("Downloads")))
 
     def test_scan_without_browsers(self):
         write(os.path.join(self.src, "a.txt"), b"a")

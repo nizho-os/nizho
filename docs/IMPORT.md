@@ -21,9 +21,9 @@ The tool says which one it detected.
 
     nizho-import bookmarks SOURCE
     nizho-import bookmarks SOURCE --dry-run
-    nizho-import bookmarks SOURCE --to ~/Documents/my-bookmarks.html
+    nizho-import bookmarks SOURCE --to ~/Downloads/my-bookmarks.html
 
-This reads bookmark files and writes one standard bookmarks HTML file. Every browser can import that format. The default place is `~/Documents/Bookmarks from NAME.html`, where NAME is the browser found (for example Chrome, or "Chrome and Firefox"). A file that already exists is never replaced. The new file gets ` (2)`, ` (3)` and so on. `--dry-run` reads and reports but writes nothing.
+This reads bookmark files and writes one standard bookmarks HTML file. Every browser can import that format. The default place is `~/Downloads/Bookmarks from NAME.html`, because the sandboxed Firefox can read only that folder, where NAME is the browser found (for example Chrome, or "Chrome and Firefox"). A file that already exists is never replaced. The new file gets ` (2)`, ` (3)` and so on. `--dry-run` reads and reports but writes nothing.
 
 SOURCE can be a mounted Windows drive, a macOS home folder, an old home folder, or a browser profile folder.
 
