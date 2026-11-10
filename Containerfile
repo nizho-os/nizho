@@ -150,6 +150,10 @@ COPY desktop/plasma-style/panel /usr/share/plasma/desktoptheme/nizho-dark
 COPY desktop/plasma-style/panel /usr/share/plasma/desktoptheme/nizho-light
 COPY nizhod/org.nizho.nizhod.policy /usr/share/polkit-1/actions/org.nizho.nizhod.policy
 COPY system/nizho-firefox /usr/bin/firefox-sandbox
+# Fedora's own Firefox launcher (rpms/firefox f44, org.mozilla.firefox.desktop)
+# with one more action, "New private session, nothing saved". It replaces the
+# packaged copy because the files stage is copied in after Firefox is installed.
+COPY system/org.mozilla.firefox.desktop /usr/share/applications/org.mozilla.firefox.desktop
 COPY nizhod/nizhod.service /usr/lib/systemd/system/nizhod.service
 COPY nizhod/nizhod.toml /etc/nizhod/nizhod.toml
 COPY nizhod/org.nizho.nizhod.conf /etc/dbus-1/system.d/org.nizho.nizhod.conf
