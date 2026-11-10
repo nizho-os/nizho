@@ -14,8 +14,8 @@
 > **Nizho is a separate project that began as a copy of [ArkaOS](https://github.com/thulasiramk-2310/Arka).** Both were
 > created by Thulasiram K ([thulasiramk-2310](https://github.com/thulasiramk-2310)); ArkaOS continues on its own and is not
 > related to other software called ArKaos or to Arka Linux. Every test result in this README and in
-> [docs/TEST-LOG.md](docs/TEST-LOG.md) was recorded on ArkaOS builds. The first Nizho image was built and booted on
-> 2026-11-01 (splash, setup, login and desktop all came up), and has not been tested beyond that.
+> [docs/TEST-LOG.md](docs/TEST-LOG.md) dated before 2026-11-01 was recorded on ArkaOS builds. The first Nizho image
+> was built and booted in a VM on 2026-11-01 (splash, setup, login and desktop all came up). Nothing has been tested on real hardware under the Nizho name.
 
 <p align="center">
   <img src="assets/branding/hero.svg" width="100%" alt="Nizho layers from top to bottom: you, the desktop, nizhod (the privacy daemon), the immutable image, the Linux kernel, hardware"/>
@@ -41,7 +41,7 @@ setting is in place. It does not mean your apps or your network traffic are
 private.
 
 > **Read this first.** Nizho is a developer preview. Don't rely on it to
-> protect anything important yet. It has booted on one real laptop, the
+> protect anything important yet. An ArkaOS build booted on one real laptop, the
 > installer has only been tested in a VM, and nothing here is a security
 > guarantee. See the [threat model](docs/THREAT-MODEL.md) and
 > [SECURITY.md](SECURITY.md).
@@ -49,7 +49,7 @@ private.
 ## Developer Preview 1
 
 DP1 is the first thing we released: a qcow2 disk image for QEMU/KVM, for
-developers, with no installer. Everything below was tested in a VM. The last
+developers, with no installer. Everything below was tested in a VM on an ArkaOS build. The last
 column says where else we have seen it work.
 
 We released it, but its exit checklist

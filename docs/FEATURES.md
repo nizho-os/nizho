@@ -9,7 +9,7 @@ This is source work plus the test results we wrote down along the way. The
 rollback and installer results (2026-10-11 and 2026-10-12) are written up in
 [Release Validation](RELEASE-VALIDATION.md). The other dated results come
 from our own test sessions and are not all recorded in a repo document. Everything
-here was tested in a VM between 2026-10-11 and 2026-10-26 unless it says otherwise. "Not yet on hardware" means
+here was tested in a VM on an ArkaOS build between 2026-10-11 and 2026-10-26 unless it says otherwise. "Not yet on hardware" means
 exactly that: we haven't tried it.
 
 ### Real hardware
