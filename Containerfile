@@ -667,6 +667,21 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q google-carlito-fonts google-crosextra-caladea-fonts \
       liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts
+# Packages a mainstream desktop ships. In Fedora 44 the KDE environment above already pulls in all of
+# these except the scanner ones; naming them keeps them if Fedora's groups change.
+#  - accessibility: the Orca screen reader, its speech service and voice, and Plasma's on-screen keyboard.
+#  - hardware: firmware updates (fwupd starts only when asked over D-Bus), Thunderbolt device approval,
+#    and sound firmware for Intel laptops that use SOF.
+#  - printing: CUPS and its filters.
+#  - fonts for the setup's language list: Tamil, Hindi, and Chinese, Japanese and Korean.
+#  - scanning (new): SANE drivers and Skanpage, a small KDE scanning app.
+RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
+    dnf install --setopt=keepcache=True -y -q \
+      orca speech-dispatcher espeak-ng plasma-keyboard \
+      fwupd bolt alsa-sof-firmware \
+      cups cups-filters \
+      default-fonts-ta default-fonts-hi default-fonts-cjk-sans \
+      sane-backends-drivers-scanners skanpage
 COPY --from=files / /
 RUN chmod 755 /usr/bin/nizho-backup /usr/bin/nizho-import /usr/bin/nizho-hwreport && \
     systemctl --global enable nizho-backup.timer
