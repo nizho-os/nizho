@@ -66,6 +66,16 @@ does not prove every browser path works.
 - **IPv6:** checks temporary-address preferences on enabled interfaces. Actual
   address generation and use depend on network configuration and traffic.
 
+- **Time:** chrony also asks four time servers by fixed address, over plain
+  NTP, so a laptop with a dead clock battery can get the date right before DNS
+  works. The addresses are 162.159.200.1 and 162.159.200.123 (Cloudflare) and
+  216.239.35.0 and 216.239.35.4 (Google), set in the `Containerfile`. NTP is not
+  encrypted or authenticated, so a hostile network can read these requests,
+  answer them with a wrong time, or block them. A wrong clock can make
+  certificate checks fail or pass when they should not. These servers also see
+  your IP address. NTS (authenticated NTP) exists and Nizho does not use it.
+  This setting is not one of the six that the dashboard checks.
+
 Failed observations must not be shown as protection. Offline operation, captive
 portals, VPNs, split DNS and reconnects need separate guest tests.
 
@@ -90,6 +100,29 @@ The daemon and desktop lockfiles were updated from `event-listener 5.4.1` to
 `5.4.2` for [RUSTSEC-2026-0221](https://rustsec.org/advisories/RUSTSEC-2026-0221.html).
 The assistant and reliability lockfiles already used the patched version.
 This was a targeted advisory review, not a complete dependency vulnerability scan.
+
+## Known limitations
+
+- **Setup account.** Before setup finishes, the `nizhosetup` user logs in on
+  tty1 by itself. Its password is locked. A sudo rule lets it run two helpers as
+  root without a password (`/usr/libexec/nizho-oobe-apply` and
+  `/usr/libexec/nizho-firstboot`, `Containerfile`). The graphical setup is
+  that user's session, so anyone at the keyboard before setup ends can create an
+  account in the `wheel` group. Nizho trusts physical access during that
+  time. `system/nizho-oobe-apply` deletes the sudo rule when it finishes
+  (line 294). We have not checked that in a Nizho image.
+- **nizhod runs as root.** `nizhod/nizhod.service` has no systemd sandboxing
+  directives. This is a known limitation. Directives we have not tried and have
+  not tested against the enforcers: `NoNewPrivileges=`, `ProtectHome=`,
+  `PrivateTmp=`, `ProtectKernelModules=`, `ProtectControlGroups=` and a
+  `CapabilityBoundingSet=` limited to what the enforcers need. Some may break
+  an enforcer, so each needs a test.
+- **Signed updates do not stop a downgrade.** The image policy checks that an
+  image was signed with Nizho's key. That proves who made it. It does not prove
+  that the image is the newest one, so a downgrade to an older signed image is
+  not blocked.
+- **Archon's polkit prompt.** The prompt for installing a package does not name
+  the package. This is a known gap and is being fixed separately.
 
 ## Privacy records
 

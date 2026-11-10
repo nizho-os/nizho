@@ -24,16 +24,23 @@ import sys
 
 CATALOG = os.environ.get("NIZHO_APPS_CATALOG", "/usr/share/nizho/apps.json")
 REMOTE = "flathub"
-REMOTE_URL = "https://dl.flathub.org/repo/flathub.flatpakrepo"
+REMOTE_FILE = "/usr/share/nizho/flathub.flatpakrepo"   # shipped in the image, carries Flathub's signing key
 
-# Plain words for what a Flatpak permission lets an app do. "wide" ones are listed
-# apart, because they reach well beyond the app itself.
+# Plain words for what a Flatpak permission lets an app do, after flatpak-metadata(5).
+# "wide" ones are listed apart, because they reach well beyond the app itself.
+# A permission with no entry here is still shown, by its Flatpak name, as broad access.
 SHARED = {
     "network": ("Connect to the internet", False),
+    "ipc": ("Share memory with other programs on this computer", False),
 }
 SOCKETS = {
     "x11": ("Use X11, an older display system that doesn't keep it apart from other X11 apps", True),
+    "fallback-x11": ("Use X11, an older display system, when Wayland is missing", False),
+    "wayland": ("Show windows on your screen", False),
+    "inherit-wayland-socket": ("Pass its screen connection to programs it starts", False),
     "pulseaudio": ("Play sound and use the microphone", False),
+    "session-bus": ("Talk to every program and service on the desktop bus, with no filter", True),
+    "system-bus": ("Talk to every service on the system bus, with no filter", True),
     "ssh-auth": ("Use your SSH keys", True),
     "pcsc": ("Use smart cards", False),
     "cups": ("Print", False),
@@ -41,6 +48,8 @@ SOCKETS = {
 }
 DEVICES = {
     "all": ("Use every device, including cameras and USB devices", True),
+    "dri": ("Use the graphics card", False),
+    "shm": ("Use the memory folder all programs share (/dev/shm)", False),
     "usb": ("Use USB devices", False),
     "input": ("Read game controllers and input devices", False),
     "kvm": ("Run virtual machines", False),
@@ -48,10 +57,13 @@ DEVICES = {
 FEATURES = {
     "bluetooth": ("Use Bluetooth", False),
     "devel": ("Use developer features that weaken its sandbox", True),
+    "multiarch": ("Run programs built for another kind of processor", False),
     "canbus": ("Use the CAN bus", False),
+    "per-app-dev-shm": ("Share one memory folder between its own running copies", False),
 }
 FILES = {
     "host": "all your files",
+    "host-root": "the whole system and every file on it",
     "host-os": "the system's files",
     "host-etc": "the system's settings in /etc",
     "home": "your whole home folder",
@@ -61,57 +73,152 @@ FILES = {
     "xdg-music": "your Music folder",
     "xdg-videos": "your Videos folder",
     "xdg-desktop": "your Desktop folder",
+    "xdg-public-share": "your Public folder",
+    "xdg-templates": "your Templates folder",
     "xdg-config": "your settings folder (~/.config)",
+    "xdg-data": "the folder where your apps keep their data (~/.local/share)",
+    "xdg-cache": "your cache folder (~/.cache)",
 }
-WIDE_FILES = {"host", "host-os", "host-etc", "home", "xdg-config"}
+WIDE_FILES = {"host", "host-root", "host-os", "host-etc", "home", "xdg-config", "xdg-data"}
+CONTEXT_LISTS = (("shared", SHARED), ("sockets", SOCKETS), ("devices", DEVICES), ("features", FEATURES))
+CONTEXT_NOT_ACCESS = {"unset-environment"}
+# Sections of the metadata that grant nothing by themselves.
+# "X-" sections are notes for other tools (X-DConf names settings to copy over); Flatpak's sandbox ignores them.
+SECTIONS_NOT_ACCESS = ("Application", "Runtime", "Environment", "Extension ", "ExtensionOf", "Extra Data", "Build", "X-")
+# A bus name that lets an app start programs outside its sandbox.
+HOST_COMMAND_NAME = "org.freedesktop.Flatpak"
 
 
 def _opts(value):
     return [v for v in value.split(";") if v] if value else []
 
 
+def _granted(value):
+    """The items of a permission list that are granted: (name, only under a condition)."""
+    for item in _opts(value):
+        if item.startswith("!"):
+            continue
+        if item.startswith("if:"):
+            parts = item.split(":", 2)
+            if len(parts) == 3 and parts[2] == "false":
+                continue
+            yield (parts[1] if len(parts) == 3 else item), True
+        else:
+            yield item, False
+
+
+def _unknown(what):
+    return f"Something Nizho has no plain words for: {what}"
+
+
+def _file_sentence(entry):
+    """(sentence, wide) for one filesystems= entry."""
+    path, mode = entry, "rw"
+    for suffix in ("ro", "rw", "create"):
+        if entry.endswith(":" + suffix):
+            path, mode = entry[: -len(suffix) - 1], suffix
+    verb = {"ro": "Read", "create": "Read, change and create"}.get(mode, "Read and change")
+    if path == "~":
+        path = "home"
+    elif path.startswith("home/"):
+        path = "~/" + path[len("home/"):]
+    if path in FILES:
+        return f"{verb} {FILES[path]}", path in WIDE_FILES
+    base, _, sub = path.partition("/")
+    if base == "xdg-run" and sub:
+        return (f"{verb} {sub} in your session folder (/run/user), "
+                "where running programs keep the sockets they talk through"), True
+    if base in FILES and sub and not base.startswith("host"):
+        return f"{verb} {sub} inside {FILES[base]}", False
+    if path.startswith(("~/", "/")):
+        return f"{verb} the folder {path}", False
+    return _unknown(f"filesystems={entry}"), True
+
+
+def _bus_sentences(policy, where):
+    """(wide, narrow) for one [Session Bus Policy] or [System Bus Policy] section."""
+    wide, narrow = [], []
+    plain = {"see": [], "talk": [], "own": []}
+    for name, value in policy.items():
+        if value == "none":
+            continue
+        if value not in plain:
+            wide.append(_unknown(f"{name}={value} on the {where} bus"))
+            continue
+        if value != "see" and (name == HOST_COMMAND_NAME or name.startswith(HOST_COMMAND_NAME + ".")):
+            wide.append(f"Start programs outside its sandbox, by talking to Flatpak itself ({name})")
+        elif name == "*":
+            verb = {"see": "See", "talk": "Talk to", "own": "Take the name of"}[value]
+            wide.append(f"{verb} every service on the {where} bus")
+        elif name.endswith(".*"):
+            verb = {"see": "See", "talk": "Talk to", "own": "Take the name of"}[value]
+            wide.append(f"{verb} every service on the {where} bus whose name starts with {name[:-1]}")
+        else:
+            plain[value].append(name)
+    for value, start in (("talk", "Talk to"), ("own", "Take the name of"), ("see", "See")):
+        names = plain[value]
+        if names:
+            narrow.append(f"{start} {len(names)} other service{'s' if len(names) != 1 else ''} "
+                          f"on the {where} bus: {', '.join(names)}")
+    return wide, narrow
+
+
 def parse_permissions(text):
-    """Turn Flatpak's permission text into (wide, narrow): two lists of plain sentences."""
+    """Turn Flatpak's permission text into (wide, narrow): two lists of plain sentences.
+
+    Every permission the text grants ends up in one of the two lists. One this file has
+    no words for is listed by its Flatpak name, so both lists are empty only when the
+    text grants nothing.
+    """
     cp = configparser.ConfigParser(delimiters=("=",), interpolation=None, strict=False)
     cp.optionxform = str
-    cp.read_string(text)
+    try:
+        cp.read_string(text)
+    except configparser.Error:
+        return ["Nizho could not read this app's permission list, so what it can reach is unknown"], []
     wide, narrow = [], []
 
-    def add(table, key):
-        if key in table:
-            sentence, is_wide = table[key]
-            (wide if is_wide else narrow).append(sentence)
+    def put(sentence, is_wide, conditional=False):
+        if conditional:
+            sentence += " (only in some sessions)"
+        target = wide if is_wide else narrow
+        if sentence not in wide and sentence not in narrow:
+            target.append(sentence)
 
     ctx = cp["Context"] if cp.has_section("Context") else {}
-    for k in _opts(ctx.get("shared", "")):
-        if not k.startswith("!"):
-            add(SHARED, k)
-    for k in _opts(ctx.get("sockets", "")):
-        if not k.startswith("!"):
-            add(SOCKETS, k)
-    for k in _opts(ctx.get("devices", "")):
-        if not k.startswith("!"):
-            add(DEVICES, k)
-    for k in _opts(ctx.get("features", "")):
-        if not k.startswith("!"):
-            add(FEATURES, k)
-    for f in _opts(ctx.get("filesystems", "")):
-        if f.startswith("!"):
-            continue
-        path, _, mode = f.partition(":")
-        mode = mode or "rw"
-        if path in FILES:
-            what = FILES[path]
-            verb = "Read" if mode == "ro" else "Read and change"
-            (wide if path in WIDE_FILES else narrow).append(f"{verb} {what}")
-        elif path.startswith(("~", "/")):
-            verb = "Read" if mode == "ro" else "Read and change"
-            narrow.append(f"{verb} the folder {path}")
+    for key, table in CONTEXT_LISTS:
+        for name, conditional in _granted(ctx.get(key, "")):
+            if name in table:
+                put(*table[name], conditional)
+            else:
+                put(_unknown(f"{key}={name}"), True, conditional)
+    for entry, conditional in _granted(ctx.get("filesystems", "")):
+        put(*_file_sentence(entry), conditional)
+    for path in _opts(ctx.get("persistent", "")):
+        what = "home folder" if path.strip("/") in ("", ".") else f"copy of ~/{path}"
+        put(f"Keep its own private {what}, apart from yours", False)
+    known = {k for k, _ in CONTEXT_LISTS} | {"filesystems", "persistent"} | CONTEXT_NOT_ACCESS
+    for key in ctx:
+        if key not in known and ctx[key]:
+            put(_unknown(f"{key}={ctx[key]}"), True)
     for section, where in (("Session Bus Policy", "desktop"), ("System Bus Policy", "system")):
         if cp.has_section(section):
-            talk = [k for k, v in cp[section].items() if v in ("talk", "own")]
-            if talk:
-                narrow.append(f"Talk to {len(talk)} other service{'s' if len(talk) != 1 else ''} on the {where} bus")
+            w, n = _bus_sentences(cp[section], where)
+            for s in w:
+                put(s, True)
+            for s in n:
+                put(s, False)
+    if cp.has_section("USB Devices"):
+        devices = _opts(cp["USB Devices"].get("enumerable-devices", ""))
+        if devices:
+            put(f"List these USB devices and ask to use them: {', '.join(devices)}", False)
+    for section in cp.sections():
+        if section in ("Context", "Session Bus Policy", "System Bus Policy", "USB Devices"):
+            continue
+        if section.startswith(SECTIONS_NOT_ACCESS):
+            continue
+        if any(v for v in cp[section].values()):
+            put(_unknown(f"the [{section}] rules"), True)
     return wide, narrow
 
 
@@ -168,9 +275,15 @@ def die(msg, code=1):
 
 
 def ensure_remote():
-    code, _, err = flatpak("remote-add", "--user", "--if-not-exists", REMOTE, REMOTE_URL, capture=True)
+    """Add Flathub for this account from the file in the image, which carries Flathub's signing key.
+
+    The address and the key come from that file, not from a download, so adding the remote trusts no web page.
+    """
+    if not os.path.isfile(REMOTE_FILE):
+        die(f"Flathub's description is missing from this system ({REMOTE_FILE}).")
+    code, _, err = flatpak("remote-add", "--user", "--if-not-exists", REMOTE, REMOTE_FILE, capture=True)
     if code != 0:
-        die("couldn't reach Flathub: " + (err.strip().splitlines() or ["unknown error"])[-1])
+        die("couldn't add Flathub: " + (err.strip().splitlines() or ["unknown error"])[-1])
 
 
 def resolve(query, any_id):

@@ -255,13 +255,10 @@ RUN mkdir -p /etc/sysctl.d /etc/systemd/system.conf.d && \
     printf '[Manager]\nShowStatus=no\n' \
       > /etc/systemd/system.conf.d/00-nizho-quiet.conf
 
-# First-boot setup wizard + settings utility
+# First-boot setup wizard
 COPY system/nizho-firstboot         /usr/libexec/nizho-firstboot
 COPY system/nizho-firstboot.service /usr/lib/systemd/system/nizho-firstboot.service
-COPY system/nizho-settings          /usr/bin/nizho-settings
-RUN chmod 755 /usr/libexec/nizho-firstboot /usr/bin/nizho-settings && \
-    echo '%wheel ALL=(ALL) NOPASSWD: /usr/bin/nizho-settings' \
-      > /etc/sudoers.d/99-nizho-settings
+RUN chmod 755 /usr/libexec/nizho-firstboot
 
 # First boot must land on the CONSOLE (multi-user.target) so the first-run flow
 # runs and creates the account BEFORE any display manager. The wizard then flips

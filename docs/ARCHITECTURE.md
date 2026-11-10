@@ -55,7 +55,7 @@ nizho-shell/              — GTK4/libadwaita first-party apps (one crate each)
   nizho-dashboard/        — privacy score, enforcer status, timeline, weekly report
   nizho-capsule/          — app store front-end (flatpak)
   nizho-perms/            — permission manager
-  system/nizho-settings/ etc.    — settings, wifi, sound, update, welcome, hotkeys
+  nizho-settings/ etc.    — settings, wifi, sound, update, welcome, hotkeys
 desktop/nizho-design-system/      — canonical design spec v1.0 (tokens, motion, rules)
 desktop/nizho-icons/              — Nizho icon theme (SVG, inherits breeze-dark)
 desktop/plymouth-theme-nizho/   — boot splash (script plugin)
