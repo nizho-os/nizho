@@ -95,6 +95,12 @@ exactly that: we haven't tried it.
   reduce some tracking. They do not prevent fingerprinting. *Configured* means
   the checked setting is in place, not "you are protected". A check that is
   missing or stale shows as unknown. See the [threat model](THREAT-MODEL.md).
+- **What the sandboxed browser check reads.** `nizhod` confirms that
+  `/usr/bin/firefox` resolves to the sandbox wrapper, that the wrapper passes
+  `--tmpfs /home`, `--unshare-pid` and `--cap-drop ALL` to bubblewrap, that the
+  real browser program is present and that bubblewrap runs. It reads the
+  installed files. It does not start a browser or test that the sandbox holds.
+  When the check fails, the event names the reason.
 - **Firewall on by default.** An Nizho firewall zone rejects connections other
   computers try to open to this one. `nizhod` checks the zone's actual rules and
   policies, not just its name. Setup, the dashboard and the tray show the result.
