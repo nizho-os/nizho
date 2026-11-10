@@ -138,7 +138,7 @@ class LoginStep(unittest.TestCase):
     def set_shortcut_calls(self):
         return [c for c in self.calls() if "setShortcut" in c]
 
-    def test_it_frees_kdes_meta_d_and_gives_it_to_the_arkaos_action(self):
+    def test_it_frees_kdes_meta_d_and_gives_it_to_the_nizho_action(self):
         self.assertEqual(self.run_step().returncode, 0)
         calls = self.set_shortcut_calls()
         self.assertEqual(len(calls), 2)

@@ -10,7 +10,10 @@ daily driving, from real experience (`docs/FIELD-NOTES.md`). Candidate future
 work — hardware, FDE, installer, the service-abstraction direction, and the rest
 — lives in `docs/FUTURE-CONSIDERATIONS.md`, which is committed to nothing.
 
-The theme of what has landed so far is *paying down Hyprland → Plasma debt*.
+The theme of the work recorded here was *paying down Hyprland → Plasma debt*.
+This file was written on ArkaOS builds, before the rename to Nizho on 2026-11-01.
+The Hyprland shell crates it mentions were deleted on 2026-10-18 (commit
+`4f695d0`) and there is no `legacy/` folder in the tree today.
 
 ## Carried over from DP1 (fixed on `main`, ships in DP2)
 
@@ -52,22 +55,18 @@ correctness.)
 
 ## Remaining Hyprland-era debt to clear
 
-- **Vestigial shell crates — DONE (moved to `legacy/`, later removed; in git history up to 0d707ca).** `nizho-bar`,
-  `nizho-dock`, `nizho-launcher` were the custom Hyprland shell; under Plasma they
-  are replaced by the panel, icontasks dock, and kickerdash launcher (see
-  `nizho-layout.js`) and were never autostarted. Confirmed no desktop-file,
-  autostart, layout, or keybinding referenced them. They are now:
-  - moved to `legacy/` (own Cargo workspace; see `legacy/README.md`),
-  - removed from the active `nizho-shell` workspace,
-  - no longer built or `COPY`'d into the image, and
-  - the now-unused `gtk4-layer-shell` toolchain was dropped from both the
-    builder and the runtime package set.
-
-  Source kept for a release or two rather than deleted, to preserve project
-  history. Remove for good once confirmed truly unused. (The active `nizho-shell`
-  workspace now `cargo check`s cleanly on a host with no layer-shell.)
+- **Vestigial shell crates: removed.** `nizho-bar`, `nizho-dock` and
+  `nizho-launcher` were the custom Hyprland shell. Under Plasma they are replaced
+  by the panel, Crystal Dock and the launcher widget, and they were never
+  autostarted. They were first moved to a `legacy/` folder and then deleted in
+  commit `4f695d0` (2026-10-18). The `legacy/` folder and its README no longer
+  exist. The source is in git history up to `0d707ca`. They are not built or
+  copied into the image.
 - Audit any other `hyprctl` / `swaymsg` / `foot` / `thunar` / `wofi` residue
   and route real needs through the appropriate abstraction or KDE equivalent.
+  A search of the Rust and shell sources on 2026-11-10 found no call to
+  `hyprctl`, `swaymsg`, `swaylock` or `wofi`. One icon lookup in Capsule still
+  matches the name `thunar`, and one comment mentions `hyprctl`.
 
 ## Capsule distribution model
 

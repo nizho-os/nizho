@@ -14,6 +14,7 @@ exactly one job. Nothing slowly becomes "the roadmap."
 | [`INSTALLATION-ARCHITECTURE.md`](INSTALLATION-ARCHITECTURE.md) | **How it gets onto disk** — delivery strategy |
 | [`BUILDING.md`](BUILDING.md) | **How to build it** — source → image → VM |
 | [`TESTING.md`](TESTING.md) | **How we verify** — doctrine, QA harnesses, budgets |
+| [`EVIDENCE.md`](EVIDENCE.md) | **How claims are labelled** — status, test kind, build family |
 | [`DP1-EXIT-CRITERIA.md`](DP1-EXIT-CRITERIA.md) | **When we shipped DP1** — the gate it had to pass |
 | [`RELEASE-NOTES-DP1.md`](RELEASE-NOTES-DP1.md) | **What's in DP1** — and its honest known issues |
 | [`../CHANGELOG.md`](../CHANGELOG.md) | **What changed** — release by release |

@@ -4,6 +4,20 @@ Nizho aims for an immutable system image, privacy controls users can inspect,
 and a usable desktop across modest and powerful PCs. These are acceptance
 criteria, not a claim that the current source has passed them all.
 
+> **Read this first: every dated result in this file is from ArkaOS builds.** The project was
+> renamed from ArkaOS to Nizho on 2026-11-01 (commit `d3dd912`), and the rename changed the names
+> in this file too. Where a section dated 2026-10-04 to 2026-10-12 says `nizho:dev`,
+> `nizho:rollback-test`, `nizhod` or "Nizho", the test ran on an image that was called ArkaOS at
+> the time. None of these results has been repeated on a Nizho image. The records are kept as
+> written. See [EVIDENCE.md](EVIDENCE.md) for the rule, and [TEST-LOG.md](TEST-LOG.md) for what has
+> been checked on Nizho.
+>
+> The 2026-10-04 validation below reports 119 automated source tests. That number does not
+> describe today's tree. Its 50 local-assistant tests belonged to the research agent, which
+> moved to its own repository on 2026-11-01 (commit `c94b9cc`). A count of `#[test]` attributes
+> on 2026-11-10 found 34 in `nizhod`, 35 in `nizho-pulse`, 130 in `nizho-shell` and 16 in
+> `archon-service`. These were counted in the source, not run.
+
 ## Validation recorded 2026-10-04
 
 - 119 automated source tests passed: 7 privacy-daemon, 35 reliability,

@@ -5,7 +5,9 @@ What has been tested, where, and what has not. The rule is in [TESTING.md](TESTI
 
 **How to read this.** The first table copies each feature's own test statement from the README,
 word for word, ordered by the newest date it mentions. Nothing is added to it that the README does
-not already say. The second section records what was checked on 2026-11-01, and says where.
+not already say. The second section records what was checked on 2026-11-01, and says where. The third
+records the first checks on a published Nizho image, on 2026-11-09. The status words used for claims are
+in [EVIDENCE.md](EVIDENCE.md).
 "Not yet on hardware" means exactly that: no real machine has run it.
 
 ## From the README (copied, not reworded)
@@ -40,7 +42,8 @@ not already say. The second section records what was checked on 2026-11-01, and 
 ## Checked on 2026-11-01
 
 All of this was seen in a booted VM running the stick image built from commit `506bc2d` (Fedora 44 base,
-kernel 7.2.13, XFS root). Nothing here has run on real hardware.
+kernel 7.2.13, XFS root). Nothing here has run on real hardware. Commit `506bc2d` is older than the rename
+commit `d3dd912`, so this was an ArkaOS build.
 
 - **Setup, all 9 pages**, in Dark with Green and Blue, and in Light with Blue: each page rendered, the header
   logo turned blue when Blue was chosen, the time zone step showed a live clock line (Europe/Berlin read one
@@ -79,9 +82,56 @@ in an image.
 
 Minor: a notification after Make smaller on a video says "Converted" rather than "Made smaller".
 
+## Checked on 2026-11-09 (Nizho image)
+
+These are the first checks recorded on a published Nizho image.
+
+- **Image:** the published Nizho image built from `main` at commit `95c2dc8`, and later at `3891a11`. The CI
+  image run for `3891a11` is 42597985923. The run id for `95c2dc8` is not recorded. Which commit each check
+  below ran on is not recorded.
+- **How it was booted:** the Stick image workflow wrote the image to a raw disk (run id not recorded). The
+  disk was booted in a QEMU/KVM VM with OVMF firmware and `-snapshot`, so the disk file was never written.
+- **Where:** a VM only. Nothing ran on real hardware. The screens were viewed only as VM screenshots.
+
+Observed on the booted desktop:
+
+- **Logo on the dark bar**: its contrast against the bar measured 3.39:1 on the real image. Before the fix it
+  measured 1.01:1.
+- **Status pill** read "Privacy: 6 of 6 settings in place". The tray header read "Privacy settings are in place".
+- **Dashboard, Overview**: the rows "Encrypted DNS", "Private network address", "Computer name", "Temporary IPv6
+  addresses", "Sandboxed browser" and "Firewall" each read "Configured". This entry records only what
+  the screen showed.
+- **Dashboard, Activity** showed summary rows with subtitles.
+- **Dashboard, Health** showed "Monitored checks look normal" and "None estimated", with no percentage.
+- **Settings** says "Computer name".
+- **Archon pin**: the image ships the tag `nizho-integration-v1.0.1` (revision
+  `3626b93fda399cbda097016018a4170ee659225a`).
+- **Archon bridge shutdown bug**: reproduced against the old pin, where 52 of 60 runs failed with an
+  interpreter-shutdown abort when the request pipe was held open. The new pin passed 60 of 60.
+
+Not completed:
+
+- **A real Archon install and remove.** The CLI rejected the references that were tried: "Package must identify
+  one exact application reference; use archon search to inspect available references".
+
+Loaded by hand into a fresh Nizho VM on `3891a11`, and **not built into an image**:
+
+- **A user-level icon theme override.**
+- **The Settings Backup page with restic and `nizho-backup`**: set up, back up and restore a file worked. The
+  backup went to a folder on the VM's own disk, not to a real external drive.
+
+Not observed when this was written:
+
+- The CI images built from later branches had not been booted.
+- Nothing ran on real hardware.
+- No screen was seen on a physical display. All were VM screenshots.
+
 ## Not yet checked
 
-- The two fixes above in a booted image.
+- The two fixes found on 2026-11-01, in a booted image.
+- A real Archon install and remove.
+- The icon theme override and the Backup page as built into an image.
+- The CI images built from branches later than `3891a11`.
 - Anything on real hardware, including the Nokia laptop.
 - Several monitors, a real touchpad and a real phone.
 - Whether the plasmashell crash is gone, beyond the two logins above.
