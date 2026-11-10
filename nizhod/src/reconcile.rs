@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::{enforcers::AsyncEnforcer, score, state::SharedState};
@@ -19,6 +19,19 @@ fn drifted() -> &'static Mutex<HashSet<&'static str>> {
     SET.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
+/// Locks a mutex even when another thread panicked while holding it. Rust
+/// marks such a mutex poisoned and `lock().unwrap()` would then panic on every
+/// later use, which here would stop the reconcile loop for good. Only use this
+/// where the guarded value is valid after any interrupted operation. That holds
+/// for the drift set: an insert or remove either happened or did not.
+fn lock_recovering<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|poisoned| {
+        tracing::warn!("a thread panicked while holding a nizhod lock; continuing with its last contents");
+        mutex.clear_poison();
+        poisoned.into_inner()
+    })
+}
+
 /// Called under one shared mutex by the periodic loop and the D-Bus method.
 /// Every failed control is retried, regardless of the aggregate score.
 pub async fn reconcile(enforcers: &[Box<dyn AsyncEnforcer>], state: &SharedState, force: bool) -> Vec<String> {
@@ -29,8 +42,8 @@ pub async fn reconcile(enforcers: &[Box<dyn AsyncEnforcer>], state: &SharedState
         let healthy = state.read().await.control_healthy(e.name());
         if was_healthy && !healthy {
             crate::log::log_event(e.name(), "drift", "Setting could not be confirmed; trying again");
-            drifted().lock().unwrap().insert(e.name());
-        } else if healthy && drifted().lock().unwrap().remove(e.name()) {
+            lock_recovering(drifted()).insert(e.name());
+        } else if healthy && lock_recovering(drifted()).remove(e.name()) {
             crate::log::log_event(e.name(), "recovered", "Setting confirmed again");
         }
         if force || !healthy {
@@ -44,7 +57,7 @@ pub async fn reconcile(enforcers: &[Box<dyn AsyncEnforcer>], state: &SharedState
             if !apply_ok || !verified {
                 failed.push(e.name().to_owned());
             } else if !healthy {
-                drifted().lock().unwrap().remove(e.name());
+                lock_recovering(drifted()).remove(e.name());
                 crate::log::log_event(e.name(), "recovered", "Setting confirmed after applying it again");
             }
         }
@@ -113,10 +126,10 @@ mod drift_tracking_tests {
         assert!(reconcile(&es, &s, false).await.is_empty());
         on.store(false, Ordering::SeqCst);
         assert_eq!(reconcile(&es, &s, false).await, ["ipv6"]);
-        assert!(drifted().lock().unwrap().contains("ipv6"), "drift remembered");
+        assert!(lock_recovering(drifted()).contains("ipv6"), "drift remembered");
         on.store(true, Ordering::SeqCst);
         assert!(reconcile(&es, &s, false).await.is_empty());
-        assert!(!drifted().lock().unwrap().contains("ipv6"), "confirmed again, forgotten");
+        assert!(!lock_recovering(drifted()).contains("ipv6"), "confirmed again, forgotten");
     }
 }
 
@@ -154,5 +167,60 @@ mod freshness_tests {
         task.abort();
         assert!(task.await.unwrap_err().is_cancelled());
         assert_eq!(state.read().await.last_check, completed);
+    }
+}
+
+#[cfg(test)]
+mod poison_tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use crate::{error::NizhodError, state::NizhodState};
+
+    fn poison<T: Send + 'static>(mutex: &'static Mutex<T>) {
+        let panicked = std::thread::spawn(move || {
+            let _guard = mutex.lock().unwrap_or_else(|p| p.into_inner());
+            panic!("deliberate panic to poison the lock (expected in this test)");
+        })
+        .join();
+        assert!(panicked.is_err());
+    }
+
+    #[test]
+    fn a_poisoned_lock_is_recovered_with_its_contents_and_cleared() {
+        static LOCAL: OnceLock<Mutex<HashSet<&'static str>>> = OnceLock::new();
+        let mutex = LOCAL.get_or_init(|| Mutex::new(HashSet::from(["dns"])));
+        poison(mutex);
+        assert!(mutex.is_poisoned());
+        assert!(mutex.lock().is_err(), "a plain lock() would have failed here");
+        assert!(lock_recovering(mutex).contains("dns"));
+        assert!(!mutex.is_poisoned());
+        assert!(mutex.lock().is_ok());
+    }
+
+    // Uses "mac", which no other test in this file tracks in the shared set.
+    struct Switch(Arc<AtomicBool>);
+    #[async_trait::async_trait]
+    impl AsyncEnforcer for Switch {
+        fn name(&self) -> &'static str { "mac" }
+        async fn enforce(&self) -> Result<(), NizhodError> { Err(NizhodError::Enforce("no".into())) }
+        async fn update_state(&self, s: &SharedState) { s.write().await.mac_randomization = self.0.load(Ordering::SeqCst); }
+    }
+
+    #[tokio::test]
+    async fn reconcile_keeps_running_and_tracking_after_the_drift_lock_is_poisoned() {
+        let on = Arc::new(AtomicBool::new(true));
+        let es: Vec<Box<dyn AsyncEnforcer>> = vec![Box::new(Switch(on.clone()))];
+        let s = Arc::new(tokio::sync::RwLock::new(NizhodState::default()));
+        assert!(reconcile(&es, &s, false).await.is_empty());
+        poison(drifted());
+        on.store(false, Ordering::SeqCst);
+        assert_eq!(reconcile(&es, &s, false).await, ["mac"]);
+        assert!(lock_recovering(drifted()).contains("mac"), "drift still remembered");
+        poison(drifted());
+        on.store(true, Ordering::SeqCst);
+        assert!(reconcile(&es, &s, false).await.is_empty());
+        assert!(!lock_recovering(drifted()).contains("mac"), "confirmed again, forgotten");
+        assert!(s.read().await.last_check > 0);
     }
 }
