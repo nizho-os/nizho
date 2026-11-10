@@ -1,0 +1,94 @@
+#!/bin/sh
+# nizho-greenboot-unit-check UNIT WAIT_SECONDS
+# Shared by Nizho's required greenboot checks. Exit 1 means "this boot is
+# bad": greenboot restarts the computer and, after GREENBOOT_MAX_BOOT_ATTEMPTS
+# boots (3), goes back to the previous version. A false alarm therefore throws
+# away a good update, which is worse than missing a bad one. So this fails
+# only on clear evidence and passes, with a warning, on any doubt.
+#
+#   no update is on trial                          -> pass, report the state
+#   active, and still active SETTLE seconds later  -> pass
+#   failed (five checks in a row, or at the end)   -> FAIL
+#   still starting at the end, restarted before    -> FAIL (crash loop)
+#   still starting at the end, never restarted     -> pass, warn (slow start)
+#   not enabled, inactive, unknown, no systemctl   -> pass, warn
+#
+# "On trial" means GRUB's environment holds greenboot_next_deployment_id, which
+# greenboot-set-rollback-trigger writes when an update is applied and greenboot
+# clears after a passed check or a rollback. Without it greenboot 0.16.4 has no
+# version to go back to: a failed check only restarts the computer three times
+# and then stops with "manual intervention required" (src/main.rs,
+# health_check). So on an ordinary boot a failure here could not help and is
+# reported as a warning instead.
+#
+# "inactive" passes on purpose: a unit that systemd has not tried to start yet
+# is not a unit that failed. The second look after SETTLE seconds is there
+# because a service that starts and dies at once reads "active" for a moment.
+# greenboot 0.16.4 gives a check no timeout of its own (src/lib/greenboot.rs,
+# run_scripts) and its unit is Type=oneshot without TimeoutStartSec, so the
+# wait here is the only bound. NIZHO_GREENBOOT_WAIT, NIZHO_GREENBOOT_STEP and
+# NIZHO_GREENBOOT_SETTLE (seconds) override the wait, the pause between checks
+# and the second look, for the tests.
+set -u
+unit=${1:?unit name}
+wait=${NIZHO_GREENBOOT_WAIT:-${2:-60}}
+step=${NIZHO_GREENBOOT_STEP:-2}
+settle=${NIZHO_GREENBOOT_SETTLE:-5}
+case "$wait" in ''|*[!0-9]*) wait=60 ;; esac
+case "$step" in ''|*[!0-9]*|0) step=2 ;; esac
+case "$settle" in ''|*[!0-9]*) settle=5 ;; esac
+pass() { echo "$1"; exit 0; }
+doubt() { echo "$1" >&2; exit 0; }
+
+command -v systemctl >/dev/null 2>&1 || doubt "$unit: systemctl not found, not checked"
+enabled=$(systemctl is-enabled "$unit" 2>/dev/null)
+case "$enabled" in
+    enabled|enabled-runtime|alias|static|indirect) ;;
+    *) doubt "$unit: not enabled (${enabled:-unknown}), not checked" ;;
+esac
+
+if ! grub2-editenv list 2>/dev/null | grep -q '^greenboot_next_deployment_id=.'; then
+    state=$(systemctl is-active "$unit" 2>/dev/null)
+    [ "$state" = active ] && pass "$unit is active (no update on trial)"
+    doubt "$unit is '${state:-unknown}'; no update is on trial, so this cannot be undone by going back and is not treated as a failure"
+fi
+
+waited=0
+failed_in_a_row=0
+state=unknown
+while :; do
+    state=$(systemctl is-active "$unit" 2>/dev/null)
+    if [ "$state" = active ]; then
+        if [ "$settle" -gt 0 ]; then
+            sleep "$settle"
+            waited=$((waited + settle))
+            state=$(systemctl is-active "$unit" 2>/dev/null)
+        fi
+        [ "$state" = active ] && pass "$unit is active (after ${waited}s)"
+    fi
+    if [ "$state" = failed ]; then
+        failed_in_a_row=$((failed_in_a_row + 1))
+        [ "$failed_in_a_row" -ge 5 ] && break
+    else
+        failed_in_a_row=0
+    fi
+    [ "$waited" -ge "$wait" ] && break
+    sleep "$step"
+    waited=$((waited + step))
+done
+
+case "$state" in
+    failed)
+        echo "$unit failed and did not come back within ${waited}s" >&2
+        exit 1 ;;
+    activating)
+        restarts=$(systemctl show -p NRestarts --value "$unit" 2>/dev/null)
+        case "$restarts" in ''|*[!0-9]*) restarts=0 ;; esac
+        if [ "$restarts" -gt 0 ]; then
+            echo "$unit is still not running after ${waited}s and $restarts restarts" >&2
+            exit 1
+        fi
+        doubt "$unit is still starting after ${waited}s with no restarts, not treated as a failure" ;;
+    *)
+        doubt "$unit is '${state:-unknown}' after ${waited}s, not treated as a failure" ;;
+esac

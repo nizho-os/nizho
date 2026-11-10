@@ -114,6 +114,13 @@ COPY system/systemd/nizho-dns-after-clock.service /usr/lib/systemd/system/nizho-
 COPY system/tmpfiles/nizho-nizhosetup.conf /usr/lib/tmpfiles.d/nizho-nizhosetup.conf
 COPY system/systemd/greenboot-healthcheck.service.d/10-nizho-stale-trigger.conf /usr/lib/systemd/system/greenboot-healthcheck.service.d/10-nizho-stale-trigger.conf
 COPY system/systemd/greenboot-set-rollback-trigger.service.d/10-nizho-stop-at-shutdown.conf /usr/lib/systemd/system/greenboot-set-rollback-trigger.service.d/10-nizho-stop-at-shutdown.conf
+# Nizho's own greenboot checks. required.d: the login screen and the privacy daemon
+# run (a failure counts toward going back to the previous version). wanted.d: a
+# display, NetworkManager and firewalld (reported only). greenboot 0.16.4 reads
+# /usr/lib/greenboot and /etc/greenboot; /usr/lib is used so the checks always
+# match the image. See docs/RECOVERY.md and scripts/test-greenboot-checks.py.
+COPY system/greenboot/check/ /usr/lib/greenboot/check/
+COPY system/greenboot/nizho-greenboot-unit-check /usr/libexec/nizho-greenboot-unit-check
 COPY system/nizho-apply-look /usr/libexec/nizho-apply-look
 COPY convert/nizho-convert /usr/bin/nizho-convert
 COPY apps/nizho-install /usr/bin/nizho
@@ -666,6 +673,10 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q google-carlito-fonts google-crosextra-caladea-fonts \
       liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts
 COPY --from=files / /
+# Nizho's greenboot checks sit next to the ones the greenboot package installed
+# above. Fail the build if the package's own checks are missing.
+RUN chmod 755 /usr/libexec/nizho-greenboot-unit-check /usr/lib/greenboot/check/required.d/2?_nizho_*.sh /usr/lib/greenboot/check/wanted.d/2?_nizho_*.sh && \
+    test -f /usr/lib/greenboot/check/required.d/01_repository_dns_check.sh
 RUN chmod 755 /usr/bin/nizho-backup /usr/bin/nizho-import /usr/bin/nizho-hwreport && \
     systemctl --global enable nizho-backup.timer
 RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf && \
