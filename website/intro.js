@@ -77,7 +77,7 @@
     ['Private network address', 'Uses a random hardware address on network connections.'],
     ['Generic device name', 'Uses the generic network name "nizho" instead of yours.'],
     ['Temporary IPv6 addresses', 'Uses temporary IPv6 addresses that change over time.'],
-    ['Sandboxed browser', 'Opens Firefox in a sandbox that sees only your Downloads folder.'],
+    ['Sandboxed browser', 'Opens Firefox in a sandbox. Of your files it sees only Downloads and its own folder.'],
     ['Firewall', 'Rejects connections other computers try to open to this one.']
   ];
   var TABS = ['How to encrypt your DNS', 'Change your MAC address', 'Is my firewall on?', 'Kernel settings, explained', 'sysctl.conf'];

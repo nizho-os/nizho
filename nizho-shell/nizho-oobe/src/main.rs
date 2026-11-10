@@ -1241,7 +1241,7 @@ fn build_ui(app: &adw::Application) {
                 ("Private network address", "Uses a random hardware address on network connections."),
                 ("Computer name", "Keeps the name chosen in setup: \"nizho\" unless you picked your own."),
                 ("Temporary IPv6 addresses", "Uses temporary IPv6 addresses that change over time."),
-                ("Sandboxed browser", "Opens Firefox in a sandbox that sees only your Downloads folder."),
+                ("Sandboxed browser", "Opens Firefox in a sandbox. Of your files it sees only Downloads and its own folder."),
                 ("Firewall", "Rejects connections other computers try to open to this one."),
             ];
             for ((t, s), st) in items.into_iter().zip(states) {
