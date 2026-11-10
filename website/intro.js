@@ -75,7 +75,7 @@
   var ROWS = [
     ['Encrypted DNS', 'Requires system DNS lookups to be encrypted.'],
     ['Private network address', 'Uses a random hardware address on network connections.'],
-    ['Generic device name', 'Uses the generic network name "nizho" instead of yours.'],
+    ['Computer name', 'Keeps the name chosen in setup: "nizho" unless you picked your own.'],
     ['Temporary IPv6 addresses', 'Uses temporary IPv6 addresses that change over time.'],
     ['Sandboxed browser', 'Opens Firefox in a sandbox that sees only your Downloads folder.'],
     ['Firewall', 'Rejects connections other computers try to open to this one.']
@@ -110,12 +110,12 @@
   html += '<div data-k="s6"><div class="a serif" data-k="h6" style="left:120px;top:330px;font-size:92px;line-height:1.08;letter-spacing:-.02em;font-weight:300"></div>';
   html += '<div class="a" data-k="h6s" style="left:124px;top:600px;font-size:34px;color:#4a505b;white-space:normal;width:520px;line-height:1.4"></div>';
   html += '<div class="a tag" data-k="h6t" style="left:124px;top:700px"></div>';
-  html += '<div class="a win" data-k="win"><div class="wbar">' + MARK(30, 'wm2') + '<b data-k="wt">Nizho Setup</b><span data-k="wstep">Step 5 of 5</span></div><div class="wbody"><div class="side" data-k="side"><div class="on">Overview</div><div>Activity</div><div>Health</div><div>Updates &amp; recovery</div></div><div class="main"><h3 data-k="ptitle"></h3><p class="sub" data-k="psub"></p><div data-k="rows">';
+  html += '<div class="a win" data-k="win"><div class="wbar">' + MARK(30, 'wm2') + '<b data-k="wt">Nizho Setup</b><span data-k="wstep">Step 9 of 10</span></div><div class="wbody"><div class="side" data-k="side"><div class="on">Overview</div><div>Activity</div><div>Health</div><div>Updates &amp; recovery</div></div><div class="main"><h3 data-k="ptitle"></h3><p class="sub" data-k="psub"></p><div data-k="rows">';
   ROWS.forEach(function (r) { html += '<div class="row"><s></s><div><p>' + esc(r[0]) + '</p><em>' + esc(r[1]) + '</em></div><b class="st">Checking</b></div>'; });
   html += '</div><p class="note" data-k="pnote"></p></div></div></div></div>';
   /* scene 8 */
   html += '<div data-k="s8"><div class="a serif" data-k="h8" style="left:120px;top:370px;font-size:80px;line-height:1.1;letter-spacing:-.02em;font-weight:300"></div>';
-  html += '<div class="a tag" data-k="h8t" style="left:124px;top:660px">Tested in a VM</div>';
+  html += '<div class="a tag" data-k="h8t" style="left:124px;top:660px">Tested in a VM on an ArkaOS build, not yet on Nizho</div>';
   html += '<div class="a card" data-k="cA"><small data-k="cAs"></small><h4 data-k="cAh"></h4><span data-k="cAp"></span></div>';
   html += '<div class="a card" data-k="cB"><small data-k="cBs"></small><h4 data-k="cBh"></h4><span data-k="cBp"></span><div class="bar"><i data-k="cBb"></i></div></div>';
   html += '<div class="a btn" data-k="rb" style="left:1000px;top:730px;width:520px;height:84px">Restart when you are ready</div></div>';
@@ -310,7 +310,7 @@ function launch() {
       K.win.style.opacity = eo(Math.min(1, win * 1.5));
       var sidew = dash ? eo(seg(t, 21.0, 21.8)) * 236 : 0;
       K.side.style.width = sidew + 'px';
-      K.wt.textContent = dash ? 'Privacy Dashboard' : 'Nizho Setup'; K.wstep.textContent = dash ? '' : 'Step 5 of 5';
+      K.wt.textContent = dash ? 'Privacy Dashboard' : 'Nizho Setup'; K.wstep.textContent = dash ? '' : 'Step 9 of 10';
       K.ptitle.textContent = dash ? 'Privacy' : 'Your privacy settings';
       K.psub.textContent = dash ? "What Nizho has set up on this computer. Covers only what's listed here." : "Nizho sets these up on its own. Here's how they stand right now.";
       rowsAt(t, 15.5, .3, dash);
@@ -401,7 +401,7 @@ function launch() {
       var mk = seg(t, 38.6, 39.2); draw('bg13o', mk); K.bg13i.style.opacity = mk;
       var pl = seg(t, 38.8, 39.4); put('pill', { y: (1 - eo(pl)) * 40, o: eo(pl) });
       K.pfill.style.width = (eo(seg(t, 39.5, 40.3)) * 100) + '%';
-      typed('end1', 'Developer preview. Tested in a VM. Not an installer yet.', seg(t, 40.7, 42.1), true, t);
+      typed('end1', 'Developer preview. Try it in a virtual machine. Not an installer yet.', seg(t, 40.7, 42.1), true, t);
       K.s13.style.opacity = 1 - seg(t, DUR - .9, DUR - .5);
     }
     scenes.forEach(function (k) { vis(k, !!on[k]); });
