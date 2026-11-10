@@ -95,7 +95,7 @@ fn build_ui(app: &adw::Application) {
     rows.set_margin_top(28);
     let items: &[(&str, &str, &str, &str)] = &[
         ("network-wireless-symbolic", "Connect to Wi-Fi", "Choose a network and sign in.", "nizho-wifi"),
-        ("applications-internet-symbolic", "Open Firefox", "Runs in a sandbox that sees only your Downloads folder.", "firefox"),
+        ("applications-internet-symbolic", "Open Firefox", "Runs in a sandbox. Of your files it sees only Downloads and its own folder.", "firefox"),
         ("system-software-install-symbolic", "Install apps", "Browse and install apps with Capsule.", "nizho-capsule"),
         ("security-high-symbolic", "Review privacy settings", "See which privacy settings Nizho has in place right now.", "nizho-dashboard"),
     ];

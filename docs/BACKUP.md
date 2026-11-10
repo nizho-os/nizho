@@ -53,6 +53,9 @@ so its layout and keyboard behaviour are not visually verified.
   a theft that takes both.
 - It skips caches, the trash, thumbnails, `node_modules` folders and anything on another mounted
   drive, so it is smaller than a full copy of your home folder.
+- Firefox's saved profile, `~/.local/share/nizho/firefox-profile`, is in your home folder and is
+  not excluded, so bookmarks, logins, history and extensions are backed up. A backup made while
+  Firefox is open can catch its files half written. A private session saves nothing to back up.
 - Restoring never overwrites your files. It puts the old copy in a folder you choose, and you copy
   back what you need.
 - If you lose the recovery key and this computer, the backup cannot be opened. That is how the

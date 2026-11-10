@@ -3,15 +3,29 @@
 # This file IS /usr/bin/firefox in the deployed image.
 #
 # Usage:
-#   firefox [args]      — launch Firefox in the sandbox
+#   firefox [args]      — launch Firefox in the sandbox with the saved profile
+#   firefox --private-session [args]
+#                       — launch with a throwaway profile; nothing is saved
 #   firefox --shell     — open bash in the IDENTICAL sandbox (isolation testing)
 #   firefox --shell -c 'cmd'  — run cmd in the identical sandbox non-interactively
+#   firefox --private-session --shell  — the same for the private-session sandbox
 #
 # Isolation model:
-#   - /home entirely hidden (tmpfs); only ~/Downloads re-exposed via bind
+#   - /home entirely hidden (tmpfs); ~/Downloads is re-exposed via bind
+#   - Saved profile: ~/.local/share/nizho/firefox-profile is bound read-write
+#     at ~/.mozilla. With --private-session it is not bound and ~/.mozilla
+#     lives on the tmpfs, so it is gone when Firefox exits.
+#   - The host session D-Bus stays hidden. When dbus-daemon is installed the
+#     saved profile gets a private bus (a socket inside the profile folder, no
+#     services on it, a one-line made-up /etc/passwd for dbus-daemon) so a second
+#     launch can hand its address to the Firefox that is already running.
+#     Firefox on Wayland has no other way to reach a running instance.
+#   - Not restricted: the network (host namespace, so loopback services are
+#     reachable), the Wayland socket, and the audio sockets (microphone
+#     included). There is no seccomp filter.
 #   - /etc allowlisted: resolv.conf, ssl, pki, fonts, localtime, nsswitch — no
 #     NM profiles, no nizhod config, no machine-id
-#   - /run: tmpfs (no D-Bus session access; headless Firefox doesn't need it)
+#   - /run: tmpfs (the host session and system D-Bus sockets are not bound)
 #   - New PID, IPC, UTS namespaces; die-with-parent
 
 set -euo pipefail
@@ -26,6 +40,50 @@ mkdir -p -- "$DOWNLOADS"
 [[ "$(realpath -e -- "$DOWNLOADS")" = "$(realpath -e -- "$HOME")/Downloads" ]] || {
     echo 'Downloads resolves outside its expected directory' >&2; exit 1;
 }
+
+PRIVATE=0
+if [[ "${1:-}" == "--private-session" ]]; then
+    PRIVATE=1
+    shift
+fi
+
+# Saved profile. Firefox keeps bookmarks, logins, history and extensions in
+# ~/.mozilla; without a host folder behind it they are lost on every exit.
+PROFILE_PARENT="$HOME/.local/share/nizho"
+PROFILE="$PROFILE_PARENT/firefox-profile"
+PROFILE_ARGS=()
+BUS=
+if (( ! PRIVATE )); then
+    # A link here could point the browser's writable folder at any other folder.
+    [[ ! -L "$PROFILE" ]] || { echo 'The Firefox profile folder must be a real folder, not a link' >&2; exit 1; }
+    if [[ ! -e "$PROFILE" ]]; then
+        mkdir -p -- "$PROFILE_PARENT"
+        mkdir -m 0700 -- "$PROFILE" 2>/dev/null || [[ -d "$PROFILE" ]] || {
+            echo 'The Firefox profile folder could not be created' >&2; exit 1;
+        }
+    fi
+    [[ -d "$PROFILE" ]] || { echo 'The Firefox profile path exists but is not a folder' >&2; exit 1; }
+    [[ "$(realpath -e -- "$PROFILE")" = "$(realpath -e -- "$HOME")/.local/share/nizho/firefox-profile" ]] || {
+        echo 'The Firefox profile folder resolves outside its expected place' >&2; exit 1;
+    }
+    [[ "$(stat -c %u -- "$PROFILE")" = "$(id -u)" ]] || {
+        echo 'The Firefox profile folder belongs to another user' >&2; exit 1;
+    }
+    PROFILE_ARGS=(--bind "$PROFILE" "$HOME/.mozilla")
+    # Private bus for handing a second launch to the running Firefox. A D-Bus
+    # address cannot carry every character unescaped, so an unusual home path
+    # goes without it, as does a system without dbus-daemon. Without the bus a
+    # second launch gets Firefox's own "already running" message.
+    if [[ "$HOME" =~ ^[A-Za-z0-9_/.-]+$ && -x /usr/bin/dbus-daemon ]]; then
+        BUS="$HOME/.mozilla/nizho-bus"
+        PROFILE_ARGS+=(--setenv DBUS_SESSION_BUS_ADDRESS "unix:path=$BUS")
+        # dbus-daemon refuses to start unless it can look up its own user id.
+        # The host /etc/passwd stays hidden; this is one made-up line that
+        # holds only the user id, group id and home path.
+        exec 8<<<"user:x:$(id -u):$(id -g)::$HOME:/usr/sbin/nologin"
+        PROFILE_ARGS+=(--ro-bind-data 8 /etc/passwd)
+    fi
+fi
 WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 [[ "$WAYLAND_DISPLAY" =~ ^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*$ ]] || {
     echo 'Unsupported Wayland socket name' >&2; exit 1;
@@ -86,11 +144,16 @@ BWRAP_ARGS=(
     --setenv XDG_RUNTIME_DIR /run/user/"${UID}"
     --setenv WAYLAND_DISPLAY "${WAYLAND_DISPLAY:-wayland-0}"
     --setenv MOZ_ENABLE_WAYLAND 1
-    # Home isolation: tmpfs hides all of /home, then re-expose Downloads only
+    # Firefox 147 and later keep the profile in ~/.config/mozilla unless told
+    # to use ~/.mozilla. The saved profile is bound at ~/.mozilla.
+    --setenv MOZ_LEGACY_HOME 1
+    # Home isolation: tmpfs hides all of /home, then re-expose Downloads and,
+    # unless this is a private session, the saved profile folder at ~/.mozilla
     --tmpfs /home
     --tmpfs /root
     --dir "$HOME"
     --bind  "${DOWNLOADS}" "${DOWNLOADS}"
+    "${PROFILE_ARGS[@]}"
     --chdir "$HOME"
     # Namespace isolation
     --unshare-pid
@@ -105,6 +168,33 @@ BWRAP_ARGS=(
 if [[ "${1:-}" == "--shell" ]]; then
     shift
     exec bwrap "${BWRAP_ARGS[@]}" /bin/bash "${@:--i}"
+fi
+
+if [[ -n "$BUS" ]]; then
+    # One Firefox owns the saved profile at a time (Firefox locks it itself).
+    # This lock only decides who starts the private bus. It is held by the
+    # sandbox processes through fd 9 and is released when they are all gone.
+    # The lock file sits outside every folder the sandbox can write to.
+    # It is opened read-only because the browser inherits the descriptor.
+    : >>"$PROFILE_PARENT/firefox-profile.lock"
+    exec 9<"$PROFILE_PARENT/firefox-profile.lock"
+    if flock -n 9; then
+        rm -f -- "$PROFILE/nizho-bus"
+        # shellcheck disable=SC2016  # expanded by the shell inside the sandbox
+        START_BUS='conf=/tmp/nizho-bus.conf
+printf "%s\n" "<busconfig><type>session</type><listen>$DBUS_SESSION_BUS_ADDRESS</listen><auth>EXTERNAL</auth><policy context=\"default\"><allow send_destination=\"*\"/><allow receive_sender=\"*\"/><allow own=\"*\"/></policy></busconfig>" >"$conf" &&
+    /usr/bin/dbus-daemon --config-file="$conf" --fork --nopidfile >/dev/null 2>&1 || true
+exec "$@"'
+        exec bwrap "${BWRAP_ARGS[@]}" /bin/bash -c "$START_BUS" nizho-firefox "${BROWSER}" "$@"
+    fi
+    # Another sandbox holds the saved profile. Give its bus a moment to appear,
+    # then let Firefox pass the request on. If that fails, Firefox reports that
+    # the profile is in use and exits; the profile lock is never bypassed.
+    exec 9<&-
+    for _ in {1..50}; do
+        [[ -S "$PROFILE/nizho-bus" ]] && break
+        sleep 0.1
+    done
 fi
 
 exec bwrap "${BWRAP_ARGS[@]}" "${BROWSER}" "$@"

@@ -549,7 +549,7 @@ pub fn build(
     let mac = SettingRow::new(&grid, "Private network address", "Uses a random hardware address on network connections.");
     let host = SettingRow::new(&grid, "Computer name", "Keeps the name chosen in setup: \"nizho\" unless you picked your own.");
     let ipv6 = SettingRow::new(&grid, "Temporary IPv6 addresses", "Uses temporary IPv6 addresses that change over time.");
-    let sandbox = SettingRow::new(&grid, "Sandboxed browser", "Opens Firefox in a sandbox that sees only your Downloads folder.");
+    let sandbox = SettingRow::new(&grid, "Sandboxed browser", "Opens Firefox in a sandbox. Of your files it sees only Downloads and its own folder.");
     let fw = SettingRow::new(&grid, "Firewall", "Rejects connections other computers try to open to this one.");
 
     // Per-network exception for networks that block encrypted DNS (hotels,

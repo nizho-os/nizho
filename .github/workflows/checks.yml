@@ -28,6 +28,8 @@ on:
       - "scripts/test-oobe-apply.py"
       - "system/nizho-firefox"
       - "scripts/test-firefox-wrapper.py"
+      - "system/org.mozilla.firefox.desktop"
+      - "system/firefox-policies.json"
       - "scripts/flash-usb.sh"
       - "scripts/test-flash-preflight.py"
       - "system/systemd/nizho-bootc-status.*"
@@ -75,6 +77,8 @@ on:
       - "scripts/test-oobe-apply.py"
       - "system/nizho-firefox"
       - "scripts/test-firefox-wrapper.py"
+      - "system/org.mozilla.firefox.desktop"
+      - "system/firefox-policies.json"
       - "scripts/flash-usb.sh"
       - "scripts/test-flash-preflight.py"
       - "system/systemd/nizho-bootc-status.*"
@@ -134,7 +138,7 @@ jobs:
       - name: Test USB source preflight without devices
         run: python3 scripts/test-flash-preflight.py
       - name: Test browser sandbox launch boundary
-        run: bash -n system/nizho-firefox && python3 scripts/test-firefox-wrapper.py
+        run: bash -n system/nizho-firefox && python3 -I scripts/test-firefox-wrapper.py
       - name: Test that the format wheel offers only what nizho-convert accepts
         run: python3 scripts/test-wheel-formats.py
       - name: Test the boot counter's failure paths with fake commands

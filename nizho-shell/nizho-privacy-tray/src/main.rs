@@ -197,7 +197,7 @@ async fn read_enforcement(p: &NizhodProxy<'_>) -> Option<Enforcement> {
         firewall,
         browser_ok,
         browser_detail: if browser_ok {
-            "Firefox sees only your Downloads folder".to_string()
+            "Of your files Firefox sees only Downloads".to_string()
         } else {
             "Not confirmed".to_string()
         },

@@ -1,5 +1,11 @@
 {
   "policies": {
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DNSOverHTTPS": {
+      "Enabled": false,
+      "Locked": true
+    },
     "EnableTrackingProtection": {
       "Value": true,
       "Locked": false,

@@ -2,8 +2,14 @@
 
 ## Model
 
-Firefox is sandboxed via bubblewrap (bwrap) by default. The wrapper IS
-`/usr/bin/firefox` in the deployed image — there is no unsandboxed launch path.
+Firefox is sandboxed via bubblewrap (bwrap) by default. The wrapper is
+`/usr/bin/firefox` in the deployed image, so the menu, the dock and a plain
+`firefox` command all start the sandboxed browser.
+
+There is still an unsandboxed launch path. `/usr/bin/firefox-unwrapped` (Fedora's
+own launcher script) and `/usr/lib64/firefox/firefox` stay executable by every
+user. Any program running as you can start Firefox outside the sandbox, and so
+can you. The sandbox covers launches that go through `/usr/bin/firefox`.
 
 **Why bwrap over Flatpak:** Flatpak + Firefox runtime adds ~1GB to an already 2GB
 image and requires network access at build time or first boot. bwrap is ~100KB,
@@ -18,9 +24,9 @@ bootc image where every artifact is baked in.
 
 The real Firefox ELF is at `/usr/bin/firefox-unwrapped`. The rename was done at
 image build time (`mv /usr/bin/firefox /usr/bin/firefox-unwrapped`). Because the
-root filesystem is a composefs overlay (`ro` mount), these paths are immutable at
-runtime — there is no way to replace the symlink or access the unwrapped binary
-as the default launch target without breaking out of the immutable root.
+root filesystem is a composefs overlay (`ro` mount), the symlink cannot be changed
+at runtime. That keeps `/usr/bin/firefox` pointing at the wrapper. It does not stop
+anyone from running `/usr/bin/firefox-unwrapped` directly.
 
 Desktop `.desktop` launchers that call `/usr/bin/firefox` (absolute path) land on
 the sandbox wrapper. PATH-based invocations also resolve to the wrapper.
@@ -34,10 +40,15 @@ Filesystem binds (all read-only unless noted):
   /dev (dev)                     — device nodes
   /proc (proc)                   — process info
   /tmp (tmpfs)                   — ephemeral scratch
-  /run (tmpfs)                   — no D-Bus session access
+  /run (tmpfs)                   — host session and system D-Bus not bound
+  /run/user/UID/wayland-0 (bind) — the Wayland display socket
+  /run/user/UID/pipewire-0 (bind), /run/user/UID/pulse/native (bind)
+                                 — audio sockets, microphone included
   /home (tmpfs)                  — real home HIDDEN
   /root (tmpfs)                  — real root home HIDDEN
-  ~/Downloads (bind rw)          — only home subdir re-exposed
+  ~/Downloads (bind rw)          — your Downloads folder
+  ~/.mozilla (bind rw)           — the saved profile folder (see below);
+                                   not bound with --private-session
 
 /etc allowlist (everything else is hidden):
   resolv.conf, hosts, nsswitch.conf — name resolution
@@ -51,7 +62,11 @@ Hidden from /etc (confirmed absent inside sandbox):
   NetworkManager/     — WiFi credentials not visible to browser
   nizhod/              — privacy daemon config not visible
   machine-id          — unique host identifier not exposed
-  shadow, passwd      — not needed by browser
+  shadow              — not needed by browser
+  passwd              — the host file is hidden. When the private bus is on
+                        (see below) the sandbox gets a one-line made-up
+                        /etc/passwd with your user id, group id and home path,
+                        because dbus-daemon will not start without it.
 
 Namespace isolation:
   --unshare-pid       — isolated PID namespace
@@ -59,15 +74,49 @@ Namespace isolation:
   --unshare-uts       — isolated hostname
   --new-session       — new session ID (no terminal escape)
   --die-with-parent   — sandbox dies when wrapper exits
+  --cap-drop ALL, --clearenv
 
-Network: host network namespace (browser needs internet). nizhod's DNS-over-TLS
-enforcer (Quad9) and IPv6 privacy extensions remain active — they operate at the
-system/kernel/NetworkManager layer, below the bwrap sandbox boundary.
+Not restricted:
+  network             — host network namespace. Services that listen on this
+                        computer's loopback address are reachable, for example
+                        the VARA Hub at 127.0.0.1:8737.
+  user namespace      — no --unshare-user; the browser runs as your user id
+  seccomp             — the wrapper adds no seccomp filter
+  audio               — direct PipeWire and PulseAudio access, which can
+                        record the microphone. This is not a portal grant.
+
+nizhod's DNS-over-TLS enforcer (Quad9) and IPv6 privacy extensions apply to the
+system resolver and the kernel. Firefox's own DNS over HTTPS is turned off and
+locked by policy, so its lookups go to the system resolver. We have not checked
+whether Firefox's own content process sandbox works inside this one.
 ```
 
-Browser profile data (`.mozilla/`) writes to the `/home` tmpfs and is discarded
-on process exit. No persistent browser state accumulates on disk. This is a
-deliberate privacy property, not a limitation.
+## Saved profile and private sessions
+
+By default Firefox keeps its profile. The wrapper binds
+`~/.local/share/nizho/firefox-profile` read and write at `~/.mozilla` inside the
+sandbox, so bookmarks, logins, history and extensions stay after Firefox closes.
+The wrapper creates the folder with mode 0700 the first time. It refuses to start
+if that path is a symlink, is not a folder, resolves somewhere else, or belongs
+to another user. `MOZ_LEGACY_HOME=1` keeps Firefox 147 and later on `~/.mozilla`.
+
+`firefox --private-session` binds no profile folder. `~/.mozilla` is then on the
+`/home` tmpfs, and everything Firefox saved is gone when it exits. Downloads are
+still written to `~/Downloads`. The Firefox launcher has an action for this, "New
+private session, nothing saved". Nizho ships its own copy of Fedora's
+`org.mozilla.firefox.desktop` with that action added.
+
+Firefox allows one running copy per profile. On Wayland a second launch finds the
+first through the session D-Bus. The host session bus stays hidden, so when
+`/usr/bin/dbus-daemon` is installed the first saved-profile launch starts a
+private bus inside its sandbox, with its socket at `~/.mozilla/nizho-bus` and no
+services on it. Later launches use that socket to hand their request to the
+running Firefox. A lock file at `~/.local/share/nizho/firefox-profile.lock`
+decides which launch starts the bus. If the bus is missing (no dbus-daemon, or a
+home path with unusual characters), a second launch gets Firefox's own message
+that it is already running. Firefox's profile lock is never bypassed. The
+Containerfile does not install dbus-daemon itself. Whether another package pulls
+it in has not been checked on a built image.
 
 ## Test mode
 
@@ -81,6 +130,9 @@ It exists for isolation testing and is not a privilege-escalation vector (the
 sandbox is equally restrictive for bash as for Firefox).
 
 ## Isolation proof (verified in VM, 2026-06-08)
+
+This proof predates the Wayland and audio binds and the saved profile folder.
+It has not been repeated since.
 
 Setup:
 ```bash
@@ -126,15 +178,18 @@ There is no gap between what was tested and what ships.
 ## What this demonstrates vs. what it is not
 
 **Demonstrates:**
-- A compromised browser process cannot read files from the user's home directory
+- A compromised browser process cannot read files from the user's home directory,
+  except `~/Downloads` and its own profile folder
 - WiFi credentials (NM), daemon config (nizhod), and host identity (machine-id) are
   not visible to the browser
-- The sandbox is the only available launch path — no unsandboxed escape hatch
 
 **Not yet implemented (known scope boundaries):**
-- Persistent encrypted browser profile (Downloads are unencrypted)
-- Wayland/X11 socket isolation (no display server in headless test)
-- D-Bus session isolation (--tmpfs /run hides session bus; GUI use would need portals)
+- Encryption of the saved profile beyond what the disk itself has
+- Blocking the unsandboxed launch path (`/usr/bin/firefox-unwrapped`)
+- Wayland socket isolation (the compositor socket is bound as is)
+- Portals (no host D-Bus, so no portal file chooser or screen sharing)
+- Microphone control (the audio sockets allow recording)
+- A seccomp filter or a separate network namespace
 - Per-app sandboxing beyond Firefox (Phase 4 scopes to one reference app)
 - TPM-sealed browser profile (requires PCRs 11-15, which are blocked by Phase 3
   platform limitation — see PHASE3-FINDINGS.md)

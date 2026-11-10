@@ -35,7 +35,11 @@ user account are not isolated from each other by this mechanism.
 
 The Firefox wrapper constructs a bubblewrap filesystem with read-only system
 files, limited `/etc`, temporary home directories and writable Downloads.
-Downloads symlinks are rejected. The inherited environment is cleared; only
+Downloads symlinks are rejected. By default it also binds a saved profile folder,
+`~/.local/share/nizho/firefox-profile`, read and write at `~/.mozilla`, so
+bookmarks, logins, history and extensions persist. It refuses a profile path that
+is a symlink, not a folder, or owned by another user. `firefox --private-session`
+binds no profile folder and nothing the browser stores outlives it. The inherited environment is cleared; only
 locale, home, path and Wayland runtime variables are explicitly restored. API
 keys and arbitrary launcher environment variables are not passed to the browser.
 Environment-based proxy settings must instead be configured in the browser.
@@ -44,7 +48,16 @@ The wrapper creates PID/IPC/UTS namespaces, drops capabilities, uses a separate
 session and terminates with its parent. It starts in the sandbox home. The host
 network is shared. Wayland, PipeWire and PulseAudio access is deliberately exposed.
 Direct audio-server access can include microphone recording; this is not a
-playback-only or portal-mediated grant. Downloads are readable and writable.
+playback-only or portal-mediated grant. Downloads and the saved profile are
+readable and writable. Loopback services, such as the VARA Hub on
+127.0.0.1:8737, are reachable from the browser. The host session D-Bus is not
+bound; the saved profile may get a private bus with no services on it, used only
+to pass a second launch to the running Firefox. There is no seccomp filter and no
+separate user namespace from the wrapper.
+
+The sandbox only applies to launches through `/usr/bin/firefox`.
+`/usr/bin/firefox-unwrapped` stays executable by every user, so a program
+running as the user can start Firefox without it.
 
 This does not provide VM isolation or a complete defense against kernel,
 compositor or audio-server exploits, malicious programs already running as the

@@ -39,7 +39,7 @@ The output has one top level folder per browser, so nothing is mixed. If a brows
 
 Left out and counted in the summary: addresses that start with `javascript:` or `data:`, entries with no address, Firefox `place:` shortcuts and tags, and the same address twice in one folder. Titles longer than 500 characters are cut, and control characters are removed.
 
-The file is only written. The tool does not import it into any browser. To import it into Firefox: Menu, then Bookmarks, then Manage bookmarks, then Import and Backup, then Import Bookmarks from HTML, and pick the file.
+The file is only written. The tool does not import it into any browser. To import it into Firefox: Menu, then Bookmarks, then Manage bookmarks, then Import and Backup, then Import Bookmarks from HTML, and pick the file. The sandboxed Firefox sees only your Downloads folder, so move the file there first, or write it there with `--to ~/Downloads`. Nizho's Firefox keeps its profile in `~/.local/share/nizho/firefox-profile`, so imported bookmarks stay after Firefox closes. A private session (`firefox --private-session`) saves nothing, bookmarks included. `nizho-backup` backs up that profile folder with the rest of your home folder.
 
 How the source is protected:
 
