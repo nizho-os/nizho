@@ -119,9 +119,14 @@ don't write our own compositor.
 There is no single gatekeeper. These are three separate pieces.
 
 **The browser has a restricted view of the filesystem.** The wrapper hides your
-real home, except `~/Downloads`, which the browser can read and write. It
+real home, except `~/Downloads` and its own profile folder
+(`~/.local/share/nizho/firefox-profile`), which the browser can read and write.
+`firefox --private-session` leaves out the profile folder and saves nothing. It
 exposes a short list of system files plus the Wayland and audio sockets. Audio
-access can include microphone recording. The session D-Bus is hidden. Our
+access can include microphone recording. The session D-Bus is hidden. The
+network is shared, so services on this computer's loopback address are
+reachable. The unwrapped Firefox (`/usr/bin/firefox-unwrapped`) can still be
+started directly, outside the sandbox. Our
 earlier isolation checks are in [PHASE4-SANDBOX.md](docs/PHASE4-SANDBOX.md). Each
 release still needs to be tested again.
 
