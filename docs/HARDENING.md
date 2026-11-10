@@ -140,6 +140,27 @@ next guest image. A complete dependency advisory scan was not run. The updated
    disposable images or dedicated test hardware. Never operate on the host
    Windows partitions, EFI system partition, bootloader or firmware.
 
+### Time servers, setup account, daemon sandbox, downgrades
+
+These are facts about the current source, listed so nobody has to find them.
+Nothing here is fixed by this section.
+
+- chrony asks four time servers by fixed address over plain NTP:
+  162.159.200.1 and 162.159.200.123 (Cloudflare), 216.239.35.0 and
+  216.239.35.4 (Google). The `Containerfile` sets them. The traffic is not
+  encrypted or authenticated, so a hostile network can read it, forge the time
+  or block it, and the servers see your IP address. NTS exists and is not used.
+- Before setup ends, `nizhosetup` logs in on tty1 with a locked password and
+  may run `nizho-oobe-apply` and `nizho-firstboot` as root through sudo with no
+  password. Anyone at the keyboard in that window can create a `wheel` account.
+  `nizho-oobe-apply` removes the rule when it finishes.
+- `nizhod.service` runs as root with no systemd sandboxing. Proposed and
+  untested: `NoNewPrivileges=`, `ProtectHome=`, `PrivateTmp=`,
+  `ProtectKernelModules=`, `ProtectControlGroups=`, `CapabilityBoundingSet=`.
+- The signed image policy proves who signed an image. It does not prove
+  freshness, so a downgrade to an older signed image is not blocked.
+- Archon's polkit prompt does not name the package it is asking about.
+
 ## Local source checks
 
 ```sh

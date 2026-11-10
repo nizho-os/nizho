@@ -137,6 +137,13 @@ exception is shown as an exception, never as encrypted. Checks can fail, and a
 configured DNS policy does not prove that every app uses it. The tray counts a
 check as current only if it finished less than three 30-second polls ago.
 
+**Time sync is not encrypted.** chrony also asks four time servers by fixed
+address over plain NTP: 162.159.200.1 and 162.159.200.123 (Cloudflare),
+216.239.35.0 and 216.239.35.4 (Google). A hostile network can read these
+requests, forge the time or block them, and the servers see your IP address.
+NTS exists and Nizho does not use it. The dashboard does not check this. See
+the [threat model](docs/THREAT-MODEL.md).
+
 OS rollback picks another system image. It does not restore older personal
 files, and it can't promise the older image will boot.
 
