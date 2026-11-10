@@ -5,6 +5,36 @@ pub enum Operation {
     Rollback,
 }
 
+/// The filesystem that holds every system version: the ostree repository is /sysroot/ostree/repo and
+/// bootc's image store is under /sysroot/ostree/bootc. Nizho installs with no separate /var or /home
+/// partition (system/installer/config.toml), so this is also the disk the user's files are on.
+pub const SYSTEM_STORE: &str = "/sysroot";
+
+/// Free space asked for on SYSTEM_STORE before a download starts: 3 GiB. A heuristic, not a
+/// guarantee. bootc fetches only the layers that changed and Nizho has not measured the largest
+/// update, so a download can still run out above this and a small one could have fitted below it.
+/// It exists to refuse the clear case (a nearly full disk) before bootc fails part way through.
+pub const MIN_FREE_FOR_UPDATE: u64 = 3 * 1024 * 1024 * 1024;
+
+/// Why this operation should not start, or None to go ahead. Only a download is ever refused:
+/// checking fetches metadata only, and going back to the previous version must never be blocked.
+/// Unknown free space (None) is not a reason to refuse.
+pub fn space_refusal(operation: Operation, free_bytes: Option<u64>) -> Option<String> {
+    let free = match (operation, free_bytes) {
+        (Operation::Upgrade, Some(free)) if free < MIN_FREE_FOR_UPDATE => free,
+        _ => return None,
+    };
+    const GIB: f64 = (1024 * 1024 * 1024) as f64;
+    // Round down, so the message never shows the minimum itself as the free amount.
+    let shown = (free as f64 / GIB * 10.0).floor() / 10.0;
+    Some(format!(
+        "Not enough free disk space to download an update. This computer has {shown:.1} GB free and \
+         Nizho asks for at least {:.0} GB before it starts. Free some space, then try again. Nothing \
+         was downloaded.",
+        MIN_FREE_FOR_UPDATE as f64 / GIB
+    ))
+}
+
 impl Operation {
     pub fn script(self) -> String {
         let (command, success) = match self {
@@ -46,6 +76,34 @@ mod tests {
             assert!(text.contains("Press Enter"));
             assert!(!text.contains("Previous deployment selected"));
         }
+    }
+
+    const GIB: u64 = 1024 * 1024 * 1024;
+
+    #[test]
+    fn a_download_is_refused_only_when_space_is_clearly_short() {
+        assert_eq!(MIN_FREE_FOR_UPDATE, 3 * GIB);
+        assert!(space_refusal(Operation::Upgrade, Some(MIN_FREE_FOR_UPDATE)).is_none());
+        assert!(space_refusal(Operation::Upgrade, Some(u64::MAX)).is_none());
+        let text = space_refusal(Operation::Upgrade, Some(MIN_FREE_FOR_UPDATE - 1)).unwrap();
+        assert!(text.contains("2.9 GB free"), "{text}");
+        assert!(text.contains("at least 3 GB"), "{text}");
+        assert!(text.contains("Nothing was downloaded"), "{text}");
+        assert!(space_refusal(Operation::Upgrade, Some(0)).unwrap().contains("0.0 GB free"));
+    }
+
+    #[test]
+    fn unknown_free_space_does_not_refuse() {
+        assert!(space_refusal(Operation::Upgrade, None).is_none());
+    }
+
+    #[test]
+    fn going_back_and_checking_are_never_refused() {
+        for free in [Some(0), Some(1), Some(MIN_FREE_FOR_UPDATE - 1), None] {
+            assert!(space_refusal(Operation::Rollback, free).is_none());
+            assert!(space_refusal(Operation::Check, free).is_none());
+        }
+        assert_eq!(SYSTEM_STORE, "/sysroot");
     }
 
     #[test]

@@ -1,0 +1,106 @@
+#!/usr/bin/python3
+"""nizho-image-ref-check: warn when this computer does not follow Nizho's update image.
+
+The installer ISO ends with `bootc switch ... ghcr.io/nizho-os/nizho:latest`. If that step
+fails, the installed computer keeps following the ISO's embedded copy (localhost/nizho:dev),
+which nobody publishes updates to, and nothing says so. This runs once per boot
+(nizho-image-ref-check.service), reads `bootc status --json` and, when the image being
+followed is another one, writes a plain warning to /run/nizho/image-ref-warning and to the
+journal. The Updates app shows the file when it exists. /run is emptied at every restart,
+so the check runs at every boot, and the warning goes away on the boot after it is fixed.
+
+It only reports. It never runs `bootc switch` and never changes what the computer follows.
+Any doubt (bootc missing, unreadable status, not a bootc system) writes no warning.
+"""
+import json
+import os
+import subprocess
+import sys
+
+EXPECTED = "ghcr.io/nizho-os/nizho"
+SWITCH_COMMAND = "sudo bootc switch " + EXPECTED + ":latest"
+WARNING_FILE = os.environ.get("NIZHO_IMAGE_REF_WARNING", "/run/nizho/image-ref-warning")
+
+
+def repository(reference):
+    """'ghcr.io/nizho-os/nizho:latest' or '...@sha256:...' without the tag or digest."""
+    name = reference.split("@", 1)[0]
+    last = name.rsplit("/", 1)[-1]
+    if ":" in last:
+        name = name[:len(name) - len(last)] + last.split(":", 1)[0]
+    return name
+
+
+def followed_image(status_json):
+    """(reference, transport) of the image this computer follows, or None when it cannot be told.
+
+    A staged version is what the computer follows after the next restart (a `bootc switch`
+    that has not been restarted into yet), so it comes before the booted one.
+    """
+    try:
+        status = json.loads(status_json)["status"]
+        for slot in ("staged", "booted"):
+            image = ((status.get(slot) or {}).get("image") or {}).get("image")
+            if image:
+                reference = image["image"]
+                if not isinstance(reference, str) or not reference:
+                    return None
+                return reference, image.get("transport")
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return None
+    return None
+
+
+def warning_for(status_json):
+    """The warning text, or None when the right image is followed or it cannot be told."""
+    followed = followed_image(status_json)
+    if followed is None:
+        return None
+    reference, transport = followed
+    if repository(reference) == EXPECTED and transport == "registry":
+        return None
+    return (
+        "This computer is not set to receive Nizho updates. It follows the image "
+        f"\"{reference}\", and Nizho updates are published at {EXPECTED}. "
+        "To follow Nizho updates, run this in a terminal and then restart:\n"
+        f"{SWITCH_COMMAND}"
+    )
+
+
+def log(text, priority=6):
+    # "<N>" is the journal priority prefix systemd reads from a service's stderr.
+    print(f"<{priority}>nizho-image-ref-check: {text}", file=sys.stderr)
+
+
+def main():
+    try:
+        result = subprocess.run(["bootc", "status", "--json", "--format-version=1"],
+                                capture_output=True, text=True, timeout=25)
+    except (OSError, subprocess.SubprocessError) as error:
+        log(f"could not run bootc status ({error}); nothing checked")
+        return 0
+    if result.returncode != 0 or followed_image(result.stdout) is None:
+        log("bootc status did not name an image; nothing checked")
+        return 0
+    warning = warning_for(result.stdout)
+    try:
+        if warning is None:
+            if os.path.exists(WARNING_FILE):
+                os.remove(WARNING_FILE)
+            log("this computer follows " + EXPECTED)
+            return 0
+        os.makedirs(os.path.dirname(WARNING_FILE), mode=0o755, exist_ok=True)
+        tmp = WARNING_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as out:
+            out.write(warning + "\n")
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, WARNING_FILE)
+    except OSError as error:
+        log(f"could not update {WARNING_FILE} ({error})", 4)
+    if warning is not None:
+        log(warning.replace("\n", " "), 4)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

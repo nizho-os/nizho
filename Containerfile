@@ -109,11 +109,23 @@ COPY system/nizho-rtc-mode /usr/libexec/nizho-rtc-mode
 COPY system/systemd/nizho-rtc-mode.service /usr/lib/systemd/system/nizho-rtc-mode.service
 COPY system/nizho-hide-system-image /usr/libexec/nizho-hide-system-image
 COPY system/systemd/nizho-hide-system-image.service /usr/lib/systemd/system/nizho-hide-system-image.service
+# Each boot: warn (file in /run for the Updates app, and the journal) when this
+# computer follows an image other than ghcr.io/nizho-os/nizho, for example
+# because the installer's `bootc switch` step failed. Reports only.
+COPY system/nizho-image-ref-check /usr/libexec/nizho-image-ref-check
+COPY system/systemd/nizho-image-ref-check.service /usr/lib/systemd/system/nizho-image-ref-check.service
 COPY system/nizho-dns-after-clock /usr/libexec/nizho-dns-after-clock
 COPY system/systemd/nizho-dns-after-clock.service /usr/lib/systemd/system/nizho-dns-after-clock.service
 COPY system/tmpfiles/nizho-nizhosetup.conf /usr/lib/tmpfiles.d/nizho-nizhosetup.conf
 COPY system/systemd/greenboot-healthcheck.service.d/10-nizho-stale-trigger.conf /usr/lib/systemd/system/greenboot-healthcheck.service.d/10-nizho-stale-trigger.conf
 COPY system/systemd/greenboot-set-rollback-trigger.service.d/10-nizho-stop-at-shutdown.conf /usr/lib/systemd/system/greenboot-set-rollback-trigger.service.d/10-nizho-stop-at-shutdown.conf
+# Nizho's own greenboot checks. required.d: the login screen and the privacy daemon
+# run (a failure counts toward going back to the previous version). wanted.d: a
+# display, NetworkManager and firewalld (reported only). greenboot 0.16.4 reads
+# /usr/lib/greenboot and /etc/greenboot; /usr/lib is used so the checks always
+# match the image. See docs/RECOVERY.md and scripts/test-greenboot-checks.py.
+COPY system/greenboot/check/ /usr/lib/greenboot/check/
+COPY system/greenboot/nizho-greenboot-unit-check /usr/libexec/nizho-greenboot-unit-check
 COPY system/nizho-apply-look /usr/libexec/nizho-apply-look
 COPY convert/nizho-convert /usr/bin/nizho-convert
 COPY apps/nizho-install /usr/bin/nizho
@@ -663,11 +675,15 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q google-carlito-fonts google-crosextra-caladea-fonts \
       liberation-sans-fonts liberation-serif-fonts liberation-mono-fonts
 COPY --from=files / /
+# Nizho's greenboot checks sit next to the ones the greenboot package installed
+# above. Fail the build if the package's own checks are missing.
+RUN chmod 755 /usr/libexec/nizho-greenboot-unit-check /usr/lib/greenboot/check/required.d/2?_nizho_*.sh /usr/lib/greenboot/check/wanted.d/2?_nizho_*.sh && \
+    test -f /usr/lib/greenboot/check/required.d/01_repository_dns_check.sh
 RUN chmod 755 /usr/bin/nizho-backup /usr/bin/nizho-import /usr/bin/nizho-hwreport && \
     systemctl --global enable nizho-backup.timer
 RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf && \
     grep -q '^DefaultZone=nizho' /etc/firewalld/firewalld.conf && \
-    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-phone-link /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
+    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-phone-link /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/libexec/nizho-image-ref-check /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
     mkdir -p /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d && \
     printf '[Service]\nExecStart=\nExecStart=/usr/bin/bootc upgrade --quiet\n' \
       > /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d/10-nizho-no-auto-reboot.conf && \
@@ -700,7 +716,7 @@ RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf 
     printf '\n# Nizho: also ask these time servers by address. With a dead clock battery the date\n# starts wrong, DNS then rejects every answer, and a time service that needs DNS\n# can never fix the date. Cloudflare and Google answer on fixed addresses.\nserver 162.159.200.1 iburst\nserver 162.159.200.123 iburst\nserver 216.239.35.0 iburst\nserver 216.239.35.4 iburst\n' >> /etc/chrony.conf && \
     mkdir -p /usr/share/nizho/nizhosetup && \
     cp -a /var/home/nizhosetup/.bash_profile /var/home/nizhosetup/.hushlogin /usr/share/nizho/nizhosetup/ && \
-    systemctl enable nizhod.service nizho-pulsed.service nizho-rtc-mode.service nizho-hide-system-image.service nizho-dns-after-clock.service
+    systemctl enable nizhod.service nizho-pulsed.service nizho-rtc-mode.service nizho-hide-system-image.service nizho-dns-after-clock.service nizho-image-ref-check.service
 
 # Built binaries go in LAST: they change on every Rust edit, and anything after
 # a changed layer rebuilds. Units and configs that reference them are installed
