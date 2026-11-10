@@ -241,6 +241,7 @@ does anything, and [nizho-wm](https://github.com/nizho-os/nizho-wm), a composito
 | [Installation](docs/INSTALLATION-ARCHITECTURE.md) | VM image, USB image and installer ISO (partly out of date) |
 | [Features](docs/FEATURES.md) | what has been built since DP1 and how each part was tested |
 | [Test log](docs/TEST-LOG.md) | what was tested, where, and what was not |
+| [Evidence](docs/EVIDENCE.md) | how each claim is labelled, and the status of the ten main claims |
 | [Hardware](docs/HARDWARE.md) | the one tested laptop, what is untested, how to send a report |
 | [Backup](docs/BACKUP.md) · [Import](docs/IMPORT.md) | the file backup and file import tools, with limits |
 | [Will my app run?](docs/APP-COMPATIBILITY.md) | what the read-only system means for your apps |
