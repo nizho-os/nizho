@@ -232,7 +232,22 @@ fn current_version() -> String {
     }
 }
 
+/// Space an unprivileged user can still write on the filesystem holding `path` (statvfs f_bavail,
+/// read through GIO). None when it cannot be read.
+fn free_bytes(path: &str) -> Option<u64> {
+    const FREE: &str = "filesystem::free";
+    let info = gtk4::gio::File::for_path(path)
+        .query_filesystem_info(FREE, gtk4::gio::Cancellable::NONE)
+        .ok()?;
+    info.has_attribute(FREE).then(|| info.attribute_uint64(FREE))
+}
+
 fn run_in_terminal(operation: Operation, status: &gtk4::Label, refresh: std::rc::Rc<dyn Fn()>) {
+    // Before the terminal opens: a download onto a nearly full disk fails part way through.
+    if let Some(refusal) = operation::space_refusal(operation, free_bytes(operation::SYSTEM_STORE)) {
+        status.set_label(&refusal);
+        return;
+    }
     match std::process::Command::new("konsole")
         .args(["--nofork", "-e", "sh", "-c", &operation.script()])
         .spawn()
@@ -249,5 +264,16 @@ fn run_in_terminal(operation: Operation, status: &gtk4::Label, refresh: std::rc:
             });
         }
         Err(error) => status.set_label(&format!("Could not open the update terminal: {error}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::free_bytes;
+
+    #[test]
+    fn free_space_is_read_for_a_real_path_and_unknown_for_a_missing_one() {
+        assert!(free_bytes("/").is_some());
+        assert!(free_bytes("/nonexistent-nizho-update-test/path").is_none());
     }
 }
