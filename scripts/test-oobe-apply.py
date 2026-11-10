@@ -29,6 +29,9 @@ if name == 'id':
     existing.update((root / 'accounts').read_text().splitlines())
     sys.exit(0 if user in existing else 1)
 if name == 'useradd':
+    marker = root / 'var/lib/nizho-oobe-partial'
+    with (root / 'marker-at-useradd').open('a') as seen:
+        seen.write(marker.read_text() if marker.exists() else 'absent\n')
     with (root / 'accounts').open('a') as accounts:
         accounts.write(sys.argv[-1] + '\n')
 if name == 'chpasswd':
@@ -220,13 +223,143 @@ class ApplyTests(unittest.TestCase):
         self.assertNotEqual(self.run_helper().returncode, 0)
         self.assert_no_account_changes()
 
-    def test_failed_password_cannot_reset_account_on_retry(self):
-        self.env['OOBE_TEST_FAIL'] = 'chpasswd'
+    # Interrupted setup. /var/lib/nizho-oobe-partial names the account this
+    # helper is creating; only that account may be continued.
+    def marker(self):
+        return self.root / 'var/lib/nizho-oobe-partial'
+
+    def sudo_rule(self):
+        return self.root / 'etc/sudoers.d/95-nizho-oobe'
+
+    def test_the_marker_is_written_before_useradd_and_removed_on_success(self):
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'marker-at-useradd').read_text(), 'alice\n')
+        self.assertFalse(self.marker().exists())
+        self.assertFalse(Path(str(self.marker()) + '.new').exists())
+        self.assertFalse(self.sudo_rule().exists())
+
+    def test_a_crash_after_useradd_leaves_a_private_marker_and_the_sudo_rule(self):
+        self.env['OOBE_TEST_FAIL'] = 'runuser'
         self.assertNotEqual(self.run_helper().returncode, 0)
+        self.assertEqual((self.root / 'accounts').read_text(), 'alice\n')
+        self.assertEqual(self.marker().read_text(), 'alice\n')
+        self.assertEqual(self.marker().stat().st_mode & 0o777, 0o600)
+        self.assertTrue(self.sudo_rule().exists())
         self.assertFalse((self.root / 'var/lib/nizho-firstboot-done').exists())
+
+    def test_setup_continues_after_a_crash_after_useradd(self):
+        for failing in ('chpasswd', 'runuser', 'systemctl'):
+            with self.subTest(failing=failing):
+                self.setUp()
+                self.env['OOBE_TEST_FAIL'] = failing
+                self.assertNotEqual(self.run_helper(password='first-password\n').returncode, 0)
+                self.assertTrue(self.sudo_rule().exists())
+                self.env.pop('OOBE_TEST_FAIL')
+                result = self.run_helper(password='second-password\n')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('continuing the interrupted setup', result.stderr)
+                # The account is made once and gets the password from the run that finished.
+                self.assertEqual((self.root / 'accounts').read_text(), 'alice\n')
+                self.assertEqual(len(self.calls_to('useradd')), 1)
+                self.assertEqual((self.root / 'password-input').read_text(), 'alice:second-password\n')
+                self.assertEqual((self.root / 'home/alice/.config/nizho-look').read_text(), 'dark\n')
+                self.assertTrue((self.root / 'var/lib/nizho-firstboot-done').exists())
+                self.assertFalse(self.marker().exists())
+                self.assertFalse(self.sudo_rule().exists())
+
+    def test_a_continued_setup_undoes_choices_the_interrupted_run_made(self):
+        self.env['OOBE_TEST_FAIL'] = 'systemctl'
+        self.assertNotEqual(self.run_helper(look='light', host='laptop', accent='blue', phone='yes').returncode, 0)
+        self.assertTrue(self.autostart().exists())
+        (self.root / 'usr/share/color-schemes/Nizho.colors').write_text('green-scheme')
         self.env.pop('OOBE_TEST_FAIL')
-        self.assertNotEqual(self.run_helper().returncode, 0)
+        result = self.run_helper(look='dark', accent='green', phone='no')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(['nizho-phone-link', 'off'], self.calls_to('nizho-phone-link'))
+        self.assertFalse(self.autostart().exists())
+        self.assertIn('[hostname]\nname = "nizho"', (self.root / 'etc/nizhod/nizhod.toml').read_text())
+        self.assertEqual((self.root / 'etc/sddm.conf.d/30-nizho-theme.conf').read_text(), '[Theme]\nCurrent=nizho\n')
+        self.assertEqual((self.root / 'var/lib/sddm/.config/kdeglobals').read_text(), 'green-scheme')
+
+    def test_a_marker_for_another_half_made_account_refuses(self):
+        (self.root / 'accounts').write_text('bob\n')
+        self.marker().write_text('bob\n')
+        self.marker().chmod(0o600)
+        result = self.run_helper(user='alice')
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("'bob'", result.stderr)
+        self.assertEqual((self.root / 'accounts').read_text(), 'bob\n')
         self.assertFalse((self.root / 'password-input').exists())
+        self.assertEqual(self.marker().read_text(), 'bob\n')
+        self.assertTrue(self.sudo_rule().exists())
+
+    def test_a_marker_for_another_user_never_adopts_this_account(self):
+        (self.root / 'accounts').write_text('alice\n')
+        self.marker().write_text('bob\n')
+        self.marker().chmod(0o600)
+        result = self.run_helper(user='alice')
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn('account already exists', result.stderr)
+        self.assertFalse((self.root / 'password-input').exists())
+        self.assertFalse((self.root / 'var/lib/nizho-firstboot-done').exists())
+        self.assertTrue(self.sudo_rule().exists())
+
+    def test_a_marker_from_a_run_that_made_no_account_is_replaced(self):
+        self.marker().write_text('bob\n')
+        self.marker().chmod(0o600)
+        result = self.run_helper(user='alice')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'marker-at-useradd').read_text(), 'alice\n')
+        self.assertFalse(self.marker().exists())
+
+    def test_an_existing_account_without_a_marker_refuses(self):
+        (self.root / 'accounts').write_text('alice\n')
+        result = self.run_helper(user='alice')
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn('account already exists', result.stderr)
+        self.assertFalse((self.root / 'password-input').exists())
+        self.assertEqual(self.calls_to('useradd'), [])
+        self.assertEqual(self.calls_to('runuser'), [])
+        self.assertFalse(self.marker().exists())
+        self.assertTrue(self.sudo_rule().exists())
+
+    def test_a_damaged_marker_stops_setup(self):
+        target = self.root / 'elsewhere'
+        target.write_text('alice\n')
+        for damage in ('symlink', 'directory', 'two lines', 'bad name', 'empty'):
+            with self.subTest(damage=damage):
+                self.setUp()
+                (self.root / 'accounts').write_text('alice\n')
+                if damage == 'symlink':
+                    self.marker().symlink_to(target)
+                elif damage == 'directory':
+                    self.marker().mkdir()
+                else:
+                    self.marker().write_text({'two lines': 'alice\nalice\n', 'bad name': 'Alice\n', 'empty': ''}[damage])
+                result = self.run_helper(user='alice')
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn('setup cannot continue', result.stderr)
+                self.assertFalse((self.root / 'password-input').exists())
+                self.assertTrue(self.sudo_rule().exists())
+
+    def test_a_failed_useradd_removes_the_marker_and_keeps_the_sudo_rule(self):
+        self.env['OOBE_TEST_FAIL'] = 'useradd'
+        self.assertEqual(self.run_helper().returncode, 1)
+        self.assertFalse(self.marker().exists())
+        self.assertTrue(self.sudo_rule().exists())
+
+    def test_the_done_flag_means_nothing_runs_even_with_a_marker(self):
+        (self.root / 'accounts').write_text('alice\n')
+        self.marker().write_text('alice\n')
+        self.marker().chmod(0o600)
+        (self.root / 'var/lib/nizho-firstboot-done').touch()
+        result = self.run_helper(user='alice')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('already complete', result.stderr)
+        self.assertFalse((self.root / 'calls').exists())
+        self.assertEqual(self.marker().read_text(), 'alice\n')
+        self.assertTrue(self.sudo_rule().exists())
 
     def test_failed_desktop_configuration_keeps_setup_incomplete(self):
         self.env['OOBE_TEST_FAIL'] = 'systemctl'

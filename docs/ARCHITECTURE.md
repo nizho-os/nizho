@@ -49,10 +49,10 @@ Containerfile            — THE OS. Every byte of the image is declared here.
 nizhod/                   — privacy daemon (Rust, static musl, no GTK)
   src/enforcers/         — mac, dns, hostname, ipv6, sandbox: one invariant each
   src/ipc/               — D-Bus interface (org.nizho.nizhod)
-  src/score.rs           — privacy score aggregation (0–100)
+  src/score.rs           — internal number (0–90) from checked settings; no UI shows it
 nizho-shell/              — GTK4/libadwaita first-party apps (one crate each)
   nizho-shell-common/     — design tokens (theme.rs) + typed IPC contract
-  nizho-dashboard/        — privacy score, enforcer status, timeline, weekly report
+  nizho-dashboard/        — status of each setting, timeline, weekly report
   nizho-capsule/          — app store front-end (flatpak)
   nizho-perms/            — permission manager
   nizho-settings/ etc.    — settings, wifi, sound, update, welcome, hotkeys
@@ -74,6 +74,11 @@ subprocesses have timeouts. Failures stay unconfirmed and are retried. Selected
 enforcement/drift/recovery events are appended to
 `/var/log/nizho/privacy.jsonl` — that file supplies the
 dashboard timeline and weekly event counts, not traffic or DNS uptime.
+The file is mode 0644 because the dashboard and the tray read it as the desktop
+user. It is rotated before it passes 5 MiB. One older file is kept as
+`privacy.jsonl.1`, and the dashboard and the tray read only the current file.
+If the log cannot be written, nizhod keeps running and reports the failure in
+the system journal once per kind of failure.
 Enforcement goes through well-known CLI
 tools (nmcli, hostnamectl, sysctl, resolved drop-ins), never bespoke netlink:
 auditable and boring on purpose. Config: `/etc/nizhod/nizhod.toml`

@@ -275,7 +275,8 @@ configure_account() {
 if ! spin "Creating account and configuring desktop" configure_account; then
     unset password confirm
     printf '\n   Setup failed. The first-run flow has not completed.\n'
-    printf '   Choose a new username if an account was partially created.\n'
+    printf '   If setup stopped after making your account, use the same username to continue.\n'
+    printf '   If the username belongs to another account, choose a new one.\n'
     exit 1
 fi
 unset password confirm

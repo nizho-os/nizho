@@ -86,10 +86,21 @@ exactly that: we haven't tried it.
 - **Privacy Dashboard without a score.** It lists each setting as *Configured*
   or not, says how long ago it was checked, and has a page for updates and for
   going back to the previous version.
+  `nizhod` still publishes a number on D-Bus as `PrivacyScore`. It is an
+  internal number and no Nizho program reads or shows it. It runs from 0 to 90
+  and every point comes from a setting that `nizhod` checked. It used to add 10
+  fixed points for "telemetry blocked" and "tracking blocked". Nothing checked
+  those, so they were removed.
 - **How we word privacy.** Firefox's tracking and fingerprinting-script blocking
   reduce some tracking. They do not prevent fingerprinting. *Configured* means
   the checked setting is in place, not "you are protected". A check that is
   missing or stale shows as unknown. See the [threat model](THREAT-MODEL.md).
+- **What the sandboxed browser check reads.** `nizhod` confirms that
+  `/usr/bin/firefox` resolves to the sandbox wrapper, that the wrapper passes
+  `--tmpfs /home`, `--unshare-pid` and `--cap-drop ALL` to bubblewrap, that the
+  real browser program is present and that bubblewrap runs. It reads the
+  installed files. It does not start a browser or test that the sandbox holds.
+  When the check fails, the event names the reason.
 - **Firewall on by default.** An Nizho firewall zone rejects connections other
   computers try to open to this one. `nizhod` checks the zone's actual rules and
   policies, not just its name. Setup, the dashboard and the tray show the result.
@@ -97,6 +108,12 @@ exactly that: we haven't tried it.
   (some hotels and sign-in pages), the dashboard notices that names aren't
   resolving and offers to allow unencrypted DNS **on that network only**. It then
   shows *Off on this network*, and other networks stay strict.
+  The exception is the NetworkManager setting `connection.dns-over-tls=no` on
+  that connection. Any program running as the desktop user can set it without a
+  password. `nizhod` writes an event with the connection name when it first
+  sees a connection using the exception and another when that ends. The events
+  are informational. `nizhod` forgets what it has seen when it restarts, so a
+  connection that is still excepted is logged once more.
 - **Kernel hardening.** Stricter kernel boot options (memory wiping, lockdown in
   integrity mode, and others) and some runtime settings. User namespaces stay
   on, because Firefox's sandbox and Flatpak need them.

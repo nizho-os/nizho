@@ -49,8 +49,6 @@ pub struct NizhodState {
     pub firewall: bool,
     pub sandbox_status: SandboxStatus,
     pub browser_sandbox: BrowserSandbox,
-    pub telemetry_blocked: bool,
-    pub tracking_blocked: bool,
 }
 
 impl Default for NizhodState {
@@ -65,9 +63,6 @@ impl Default for NizhodState {
             firewall: false,
             sandbox_status: SandboxStatus::Unknown("Initializing".into()),
             browser_sandbox: BrowserSandbox::Unknown("Initializing".into()),
-            // Nizho ships no telemetry or tracking by default
-            telemetry_blocked: true,
-            tracking_blocked: true,
         }
     }
 }

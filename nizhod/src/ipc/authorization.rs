@@ -63,9 +63,15 @@ async fn check_sender(
     );
     let response = match tokio::time::timeout(timeout, call).await {
         Ok(Ok(reply)) => reply,
-        Ok(Err(_)) => return Err(denied("Authorization service unavailable; no changes made")),
+        Ok(Err(error)) => {
+            // The caller gets a fixed text. The cause goes to the journal.
+            tracing::warn!(%error, "authorization check could not be made; request denied");
+            return Err(denied("Authorization service unavailable; no changes made"));
+        }
         Err(_) => {
-            let _ = tokio::time::timeout(
+            // The request is denied either way. A failed cancel only means the
+            // prompt may stay on screen, so it is logged and nothing else.
+            let cancel = tokio::time::timeout(
                 Duration::from_secs(1),
                 conn.call_method(
                     Some(AUTHORITY),
@@ -76,6 +82,11 @@ async fn check_sender(
                 ),
             )
             .await;
+            match cancel {
+                Ok(Ok(_)) => (),
+                Ok(Err(error)) => tracing::warn!(%error, "could not cancel the timed-out authorization request; its prompt may stay open"),
+                Err(_) => tracing::warn!("cancelling the timed-out authorization request got no reply; its prompt may stay open"),
+            }
             return Err(denied(
                 "Administrator authentication timed out; no changes made",
             ));
@@ -107,8 +118,12 @@ mod tests {
     struct TestBus(Child);
     impl Drop for TestBus {
         fn drop(&mut self) {
-            let _ = self.0.kill();
-            let _ = self.0.wait();
+            if let Err(error) = self.0.kill() {
+                eprintln!("could not stop the private test bus: {error}");
+            }
+            if let Err(error) = self.0.wait() {
+                eprintln!("could not reap the private test bus: {error}");
+            }
         }
     }
 

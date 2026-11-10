@@ -24,6 +24,18 @@
 #
 # tools is the optional version control from setup's Advanced options: a comma
 # list of vara and git, each set up with the name and email for commits.
+#
+# Interrupted setup. The account is created early and /var/lib/nizho-firstboot-done
+# is written last. If this script stops in between (power loss, a failed step),
+# the account exists and setup is not complete. /var/lib/nizho-oobe-partial holds
+# the username this script is creating. It is written, mode 0600, before the
+# account is made, and removed when setup completes. A later run with the same
+# username continues from the start with that account: it sets the password
+# again and repeats every step. An account that this file does not name is
+# never taken over. A continued run puts back the phone link, computer name,
+# login theme and login accent defaults when it leaves them out. It does not
+# undo a time zone, language, keyboard or version control identity that the
+# interrupted run set and this run leaves out.
 set -euo pipefail
 
 if [ "$#" -lt 2 ] || [ "$#" -gt 12 ] || [ "$#" -eq 5 ] || [ "$#" -eq 6 ]; then
@@ -127,9 +139,35 @@ if [ -n "$tools" ]; then
     fi
 fi
 
-# Never reset an existing account, including root or the setup user.
+# The username an interrupted run was creating, if any. The file must be a plain
+# file owned by this script's user (root) holding one valid username. Anything
+# else stops setup: a damaged file is never guessed at.
+partial=/var/lib/nizho-oobe-partial
+partial_user=
+if [ -e "$partial" ] || [ -L "$partial" ]; then
+    if [ -L "$partial" ] || [ ! -f "$partial" ] || [ ! -O "$partial" ]; then
+        echo "nizho-oobe-apply: $partial is not a file this setup wrote; setup cannot continue" >&2
+        exit 1
+    fi
+    IFS= read -r partial_user < "$partial" || true
+    if [[ ! "$partial_user" =~ ^[a-z][a-z0-9_-]{0,30}$ ]] || [ "$(wc -l < "$partial")" -ne 1 ]; then
+        echo "nizho-oobe-apply: $partial does not hold one valid username; setup cannot continue" >&2
+        exit 1
+    fi
+fi
+
+# Never reset an existing account, including root or the setup user. The one
+# exception is the account an interrupted run of this script created.
+resume=0
 if id -u "$user" >/dev/null 2>&1; then
-    echo "nizho-oobe-apply: account already exists; choose a new username" >&2
+    if [ "$partial_user" != "$user" ]; then
+        echo "nizho-oobe-apply: account already exists; choose a new username" >&2
+        exit 2
+    fi
+    resume=1
+elif [ -n "$partial_user" ] && [ "$partial_user" != "$user" ] && id -u "$partial_user" >/dev/null 2>&1; then
+    # Another account is half set up. Making a second one would leave it behind.
+    echo "nizho-oobe-apply: setup stopped earlier while creating the account '$partial_user'; use that username to continue" >&2
     exit 2
 fi
 
@@ -140,7 +178,23 @@ if [ "${#pass}" -lt 8 ]; then
     exit 2
 fi
 trap 'unset pass' EXIT
-useradd -m -G wheel -s /bin/bash "$user"
+if [ "$resume" = 0 ]; then
+    # Name the account on disk before it exists, so a run that stops after
+    # useradd can be told apart from an unrelated account of the same name.
+    # A file left by a run that never made its account is replaced here.
+    rm -f "$partial.new"
+    ( umask 077 && printf '%s\n' "$user" > "$partial.new" )
+    mv -f "$partial.new" "$partial"
+    sync -f "$partial"
+    if ! useradd -m -G wheel -s /bin/bash "$user"; then
+        # No account was made, so there is nothing to continue.
+        id -u "$user" >/dev/null 2>&1 || rm -f "$partial"
+        echo "nizho-oobe-apply: could not create the account" >&2
+        exit 1
+    fi
+else
+    echo "nizho-oobe-apply: continuing the interrupted setup of the account '$user'" >&2
+fi
 printf '%s:%s\n' "$user" "$pass" | chpasswd
 unset pass
 
@@ -245,11 +299,19 @@ if [ "$phone" = "yes" ]; then
     else
         echo "nizho-oobe-apply: warning: could not link your phone; turn it on later in Settings, Internet" >&2
     fi
+elif [ "$resume" = 1 ]; then
+    # The interrupted run may have said yes. This run says no, so close the rule
+    # and remove the autostart entry that run may have written.
+    /usr/libexec/nizho-phone-link off ||
+        echo "nizho-oobe-apply: warning: could not close the phone link rule; check Settings, Internet" >&2
+    runuser -u "$user" -- rm -f -- "/home/$user/.config/autostart/org.kde.kdeconnect.daemon.desktop" ||
+        echo "nizho-oobe-apply: warning: could not remove the KDE Connect autostart entry" >&2
 fi
 
 # A computer name other than the default goes into nizhod's settings, so nizhod sets it
-# now and puts it back if anything changes it.
-if [ "$host" != "nizho" ]; then
+# now and puts it back if anything changes it. A continued setup writes the name
+# even when it is the default, in case the interrupted run saved another one.
+if [ "$host" != "nizho" ] || [ "$resume" = 1 ]; then
     sed -i "/^\[hostname\]/,/^\[/ s/^name = .*/name = \"$host\"/" /etc/nizhod/nizhod.toml
     grep -q "^name = \"$host\"" /etc/nizhod/nizhod.toml ||
         echo "nizho-oobe-apply: warning: could not save the computer name" >&2
@@ -262,7 +324,8 @@ mkdir -p /etc/sddm.conf.d
 theme=nizho
 [ "$look" = "light" ] && theme=nizho-light
 [ "$accent" = "blue" ] && theme="$theme-blue"
-if [ "$theme" != "nizho" ]; then
+# A continued setup writes the default theme too, in case the interrupted run chose another.
+if [ "$theme" != "nizho" ] || [ "$resume" = 1 ]; then
     printf '[Theme]\nCurrent=%s\n' "$theme" > /etc/sddm.conf.d/30-nizho-theme.conf
 fi
 # The login screen takes its accent from the sddm account's colour scheme (see the Containerfile),
@@ -274,6 +337,13 @@ if [ "$accent" = "blue" ]; then
         chown sddm:sddm /var/lib/sddm/.config /var/lib/sddm/.config/kdeglobals &&
         chmod 0644 /var/lib/sddm/.config/kdeglobals; } ||
         echo "nizho-oobe-apply: warning: could not give the login screen the blue accent" >&2
+elif [ "$resume" = 1 ] && [ -e /var/lib/sddm/.config/kdeglobals ]; then
+    # The interrupted run may have chosen blue. Put the image's green scheme back.
+    scheme=/usr/share/color-schemes/Nizho.colors
+    { [ -r "$scheme" ] && cp "$scheme" /var/lib/sddm/.config/kdeglobals &&
+        chown sddm:sddm /var/lib/sddm/.config/kdeglobals &&
+        chmod 0644 /var/lib/sddm/.config/kdeglobals; } ||
+        echo "nizho-oobe-apply: warning: could not give the login screen the green accent back" >&2
 fi
 if [ "$autologin" = "1" ]; then
     printf '[Autologin]\nUser=%s\nSession=plasma.desktop\n' "$user" \
@@ -289,6 +359,11 @@ printf '[Last]\nUser=%s\nSession=/usr/share/wayland-sessions/plasma.desktop\n' "
 chown sddm:sddm /var/lib/sddm/state.conf
 
 # Hand the machine to the graphical target and stop the first-run flow for good.
+# Order matters. Every step above can fail and leave setup resumable: the done
+# flag is absent, the partial file names the account and the setup account
+# keeps the sudo rule it needs to run this script again. The rule is removed
+# only here, after the done flag is written.
 systemctl set-default graphical.target
 touch /var/lib/nizho-firstboot-done
+rm -f "$partial"
 rm -f /etc/sudoers.d/95-nizho-oobe

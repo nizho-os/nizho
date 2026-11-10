@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(enforcers::hostname::HostnameEnforcer::new(&cfg)),
         Box::new(enforcers::ipv6::Ipv6Enforcer::new(&cfg)),
         Box::new(enforcers::firewall::FirewallEnforcer::new(&cfg)),
-        Box::new(enforcers::sandbox::SandboxEnforcer),
+        Box::new(enforcers::sandbox::SandboxEnforcer::new()),
     ]);
 
     let shared: SharedState = Arc::new(tokio::sync::RwLock::new(NizhodState::default()));
