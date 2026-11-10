@@ -86,6 +86,11 @@ exactly that: we haven't tried it.
 - **Privacy Dashboard without a score.** It lists each setting as *Configured*
   or not, says how long ago it was checked, and has a page for updates and for
   going back to the previous version.
+  `nizhod` still publishes a number on D-Bus as `PrivacyScore`. It is an
+  internal number and no Nizho program reads or shows it. It runs from 0 to 90
+  and every point comes from a setting that `nizhod` checked. It used to add 10
+  fixed points for "telemetry blocked" and "tracking blocked". Nothing checked
+  those, so they were removed.
 - **How we word privacy.** Firefox's tracking and fingerprinting-script blocking
   reduce some tracking. They do not prevent fingerprinting. *Configured* means
   the checked setting is in place, not "you are protected". A check that is

@@ -49,10 +49,10 @@ Containerfile            — THE OS. Every byte of the image is declared here.
 nizhod/                   — privacy daemon (Rust, static musl, no GTK)
   src/enforcers/         — mac, dns, hostname, ipv6, sandbox: one invariant each
   src/ipc/               — D-Bus interface (org.nizho.nizhod)
-  src/score.rs           — privacy score aggregation (0–100)
+  src/score.rs           — internal number (0–90) from checked settings; no UI shows it
 nizho-shell/              — GTK4/libadwaita first-party apps (one crate each)
   nizho-shell-common/     — design tokens (theme.rs) + typed IPC contract
-  nizho-dashboard/        — privacy score, enforcer status, timeline, weekly report
+  nizho-dashboard/        — status of each setting, timeline, weekly report
   nizho-capsule/          — app store front-end (flatpak)
   nizho-perms/            — permission manager
   system/nizho-settings/ etc.    — settings, wifi, sound, update, welcome, hotkeys
