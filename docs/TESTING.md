@@ -5,6 +5,9 @@ until it has been observed working in a booted VM, and nothing is committed
 before that. Security claims additionally require a proof that exercises the
 exact deployed artifact (same path, same args, same user).
 
+How a claim is labelled and how a result is recorded is in [EVIDENCE.md](EVIDENCE.md). Results go in
+[TEST-LOG.md](TEST-LOG.md).
+
 ## The standard verification pass
 
 After every image build:
@@ -38,12 +41,13 @@ magick /tmp/shot.ppm shot.png
 ```
 
 sendkey gotchas: `_` = `shift-minus`, `[` = `bracket_left`, capitals =
-`shift-<letter>`. Serial login (ram/nizho) is more reliable than sendkey for
-anything longer than a password.
+`shift-<letter>`. A serial login is more reliable than sendkey for anything
+longer than a password. The image has no built-in account: log in with the
+account you created in setup.
 
 GUI apps that shell out to hardware tools (bluetoothctl, brightnessctl) hang
 forever in a VM with no such hardware — anything of the sort must run under
-`timeout` (see nizho-bar's `cmd_stdout()` for the pattern).
+`timeout` (see `nizho-shell/nizho-wifi/src/net.rs` for the pattern).
 
 ## Quality engineering (the current phase)
 
@@ -53,7 +57,10 @@ Feature set is frozen. The work is now reliability, performance, consistency.
 
 Boots the image N times headless, records: reached graphical.target (y/n),
 time to graphical.target, failed units, nizhod active. Any failure is a bug.
-Target: 100/100 clean boots before Developer Preview 1.
+The target set for Developer Preview 1 was 100/100 clean boots. DP1 was released
+on 2026-07-11 and that line of its exit checklist
+([DP1-EXIT-CRITERIA.md](DP1-EXIT-CRITERIA.md)) was never ticked. No 100-boot run
+is recorded for any image.
 
 ### Memory budget
 

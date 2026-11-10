@@ -1,5 +1,7 @@
 # Field notes — living with Nizho
 
+Entries dated before 2026-11-01 describe ArkaOS-era images, from before the rename to Nizho.
+
 > **First-contact ≠ lived-in.** First impressions measure *excitement*; living
 > with something measures *quality*. They are different metrics — always label
 > which one an entry is.
