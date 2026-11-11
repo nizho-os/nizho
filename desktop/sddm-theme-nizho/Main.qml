@@ -91,7 +91,11 @@ Rectangle {
     // While dimmed, the clock and the hint sit above the dim layer in a light colour: dark text under
     // the black layer read at about 1.8:1 (booted image, 2026-11-06).
     readonly property color hiText: dimmed ? "#E8EAED" : c.textHi
-    property bool askName: userModel.lastUser.length === 0
+    // Who signs in: the last user, or, on a computer with one account that nobody has signed in to
+    // yet, that account. Only when neither is known does the screen ask for a username.
+    readonly property string onlyUser: userInfo.count === 1 && userInfo.itemAt(0) ? userInfo.itemAt(0).n : ""
+    readonly property string knownUser: userModel.lastUser.length > 0 ? userModel.lastUser : onlyUser
+    property bool askName: knownUser.length === 0
     property int sessionIndex: sessionModel.lastIndex >= 0 ? sessionModel.lastIndex : 0
     property string errorText: ""
 
@@ -622,7 +626,7 @@ Rectangle {
                 selectedTextColor: c.onAccent
                 font.family: c.font
                 font.pixelSize: root.px(15)
-                text: userModel.lastUser
+                text: root.knownUser
                 enabled: !root.busy
                 KeyNavigation.tab: pwd
                 Accessible.role: Accessible.EditableText
@@ -814,10 +818,10 @@ Rectangle {
             Pill {
                 label: "Sign in as"
                 value: root.askName ? "Back" : "Other user…"
-                visible: userModel.lastUser.length > 0
+                visible: root.knownUser.length > 0
                 onActivated: {
                     root.askName = !root.askName
-                    if (!root.askName) { userField.text = userModel.lastUser; pwd.forceActiveFocus() }
+                    if (!root.askName) { userField.text = root.knownUser; pwd.forceActiveFocus() }
                     else { userField.text = ""; userField.forceActiveFocus() }
                 }
             }
