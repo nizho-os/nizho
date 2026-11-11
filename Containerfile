@@ -542,6 +542,7 @@ COPY desktop/plasma-launcher /usr/share/plasma/plasmoids/org.nizho.launcher
 COPY desktop/plasma-brand /usr/share/plasma/plasmoids/org.nizho.brand
 COPY desktop/plasma-search /usr/share/plasma/plasmoids/org.nizho.search
 COPY desktop/plasma-statuspill /usr/share/plasma/plasmoids/org.nizho.statuspill
+COPY desktop/plasma-quicksettings /usr/share/plasma/plasmoids/org.nizho.quicksettings
 COPY desktop/plasma-spaces /usr/share/plasma/plasmoids/org.nizho.spaces
 # Apps pinned in the launcher for a new account. Fedora's kde-settings pins
 # Kontact and KWrite through its own kicker-extra-favoritesrc; /etc/xdg comes

@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "Nizho" }],
+        "Category": "System Information",
+        "Description": "Wi-Fi, Bluetooth, Do Not Disturb, phone link, volume and brightness in one panel",
+        "Icon": "configure",
+        "Id": "org.nizho.quicksettings",
+        "License": "GPL-3.0-or-later",
+        "Name": "Quick settings",
+        "Website": "https://github.com/nizho-os/nizho"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
