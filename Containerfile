@@ -688,13 +688,16 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
 #  - printing: CUPS and its filters.
 #  - fonts for the setup's language list: Tamil, Hindi, and Chinese, Japanese and Korean.
 #  - scanning (new): SANE drivers and Skanpage, a small KDE scanning app.
+#  - browser: dbus-daemon, so the Firefox sandbox can run its own private message bus and a second
+#    launch opens a window in the running Firefox (system/nizho-firefox). Fedora's own bus is dbus-broker.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q \
       orca speech-dispatcher espeak-ng plasma-keyboard \
       fwupd bolt alsa-sof-firmware \
       cups cups-filters \
       default-fonts-ta default-fonts-hi default-fonts-cjk-sans \
-      sane-backends-drivers-scanners skanpage
+      sane-backends-drivers-scanners skanpage \
+      dbus-daemon
 COPY --from=files / /
 # Nizho's greenboot checks sit next to the ones the greenboot package installed
 # above. Fail the build if the package's own checks are missing.
