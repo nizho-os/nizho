@@ -31,6 +31,14 @@ struct State {
 }
 
 /// Opens the window. `done` runs once, when the person restores something or asks to type a path.
+/// The restore button says what it will restore: "Restore note.txt", or "Restore selected" before a pick.
+fn restore_label(selected: Option<&str>) -> String {
+    match selected.and_then(|p| p.rsplit('/').next()).filter(|n| !n.is_empty()) {
+        Some(name) => format!("Restore {name}"),
+        None => "Restore selected".to_string(),
+    }
+}
+
 pub fn open(parent: &adw::ApplicationWindow, done: impl Fn(Pick) + 'static) {
     let win = adw::Window::builder()
         .transient_for(parent)
@@ -147,6 +155,7 @@ pub fn open(parent: &adw::ApplicationWindow, done: impl Fn(Pick) + 'static) {
             *st.selected.borrow_mut() = None;
             st.checks.borrow_mut().clear();
             restore.set_sensitive(false);
+            restore.set_label(&restore_label(None));
             while let Some(r) = list.first_child() {
                 list.remove(&r);
             }
@@ -204,6 +213,7 @@ pub fn open(parent: &adw::ApplicationWindow, done: impl Fn(Pick) + 'static) {
                                         *st.selected.borrow_mut() = None;
                                     }
                                     restore.set_sensitive(st.selected.borrow().is_some());
+                                    restore.set_label(&restore_label(st.selected.borrow().as_deref()));
                                 });
                             }
                             row.add_prefix(&check);
@@ -314,5 +324,18 @@ fn row_opener(st: &Rc<State>, cell: &LoadCell, target: &str) -> impl Fn() + 'sta
         if let Some(load) = load {
             load();
         }
+    }
+}
+
+#[cfg(test)]
+mod label_tests {
+    use super::restore_label;
+
+    #[test]
+    fn the_restore_button_names_the_one_item_it_restores() {
+        assert_eq!(restore_label(None), "Restore selected");
+        assert_eq!(restore_label(Some("Documents/note.txt")), "Restore note.txt");
+        assert_eq!(restore_label(Some("Pictures")), "Restore Pictures");
+        assert_eq!(restore_label(Some("")), "Restore selected");
     }
 }
