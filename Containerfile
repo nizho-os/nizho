@@ -698,6 +698,14 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
       default-fonts-ta default-fonts-hi default-fonts-cjk-sans \
       sane-backends-drivers-scanners skanpage \
       dbus-daemon
+# Remove two Fedora packages that only fail on Nizho:
+#  - PackageKit-command-not-found: PackageKit never runs on an image-based system, so every mistyped
+#    command in a terminal printed a "PackageKit unit failed" error.
+#  - imsettings: an X11 input-method starter that exits with an error at every sign-in. Plasma on
+#    Wayland sets up input methods itself (System Settings > Keyboard > Virtual Keyboard).
+RUN dnf remove -y -q $(rpm -q --qf '%{NAME}\n' PackageKit-command-not-found imsettings imsettings-qt imsettings-libs | grep -v ' ') && \
+    ! rpm -q PackageKit-command-not-found imsettings >/dev/null && \
+    test ! -e /etc/xdg/autostart/imsettings-start.desktop
 COPY --from=files / /
 # Nizho's greenboot checks sit next to the ones the greenboot package installed
 # above. Fail the build if the package's own checks are missing.
