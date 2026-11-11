@@ -181,17 +181,8 @@ exactly that: we haven't tried it.
   login screen does, so its white clock stays readable. New accounts' trays
   leave out Weather and Vaults. Both can be switched back on in the tray's
   settings. Tested in a VM (2026-10-20).
-- **Phosphor icon set.** The Nizho icon theme (`desktop/nizho-icons/`) draws app icons as coloured tiles
-  with [Phosphor](https://phosphoricons.com) line symbols (MIT licence, copy in
-  `THIRD-PARTY-PHOSPHOR-LICENSE.txt`). It covers 39 app icons and two action icons (suspend, switch user):
-  the Nizho apps and launcher button, Dolphin, Konsole, Discover, System Settings, System Monitor, Okular,
-  Gwenview, KCalc and the LibreOffice apps. Firefox is not in the set and keeps its own icon, because its
-  logo is a trademark. Trash stays the stock theme's icon, because the tile clashed with the line icons in
-  Dolphin's sidebar. The theme inherits Breeze Dark for everything else, so other icons are not Phosphor.
-  A critic panel scored the set about 6.7 against 6.5 for the old set on a strict rubric. That is a small
-  gain, not a transformation, and the panel's notes are not kept in this repository. That score is the only
-  test recorded for it. No run of a booted image with this theme is recorded, and it has not been seen on
-  hardware.
+- **App icons.** One family with a distinct colour per app. Firefox and the file
+  manager keep their own icons.
 - **Night light.** Settings › Appearance has a switch for warmer screen colours
   from 8 pm to 6 am. KDE's own schedule looks up your location by default. This
   one uses fixed times, so the switch asks for no location (we read this in the

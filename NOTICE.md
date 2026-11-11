@@ -8,7 +8,6 @@ repository holds no record of where something came from, this file says so and d
 
 | Material | Where | Licence | What the repository shows |
 |---|---|---|---|
-| Phosphor icons, used as the base of the tile icon set | `desktop/nizho-icons/` | MIT, Copyright (c) 2023 Phosphor Icons | The licence text is in [desktop/nizho-icons/THIRD-PARTY-PHOSPHOR-LICENSE.txt](desktop/nizho-icons/THIRD-PARTY-PHOSPHOR-LICENSE.txt). |
 | Crystal Dock | `desktop/crystal-dock/` | GPL-3.0-only, as stated in Fedora's `crystal-dock` package | The repository holds two patches and settings, and no copy of the dock's source. The image build rebuilds Fedora's source package with those patches. See [desktop/crystal-dock/README.md](desktop/crystal-dock/README.md). |
 
 ## Installed from Fedora packages, not bundled
