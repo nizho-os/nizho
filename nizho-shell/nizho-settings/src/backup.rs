@@ -4,6 +4,10 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+/// How many older copies nizho-backup keeps, in words. Must match KEEP in backup/nizho-backup
+/// (--keep-daily 7 --keep-weekly 4 --keep-monthly 6); a test reads that file to check.
+pub const KEEP_TEXT: &str = "One a day for the last 7 days, one a week for 4 weeks, one a month for 6 months";
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Status {
     pub configured: bool,
@@ -406,5 +410,14 @@ mod tests {
         assert_eq!(std::fs::read_to_string(d.path().join("args")).unwrap().trim(), "restore --to /tmp/r --snapshot abc123 -- Documents/a.txt");
         restore("Pictures", Path::new("/tmp/r"), None).unwrap();
         assert_eq!(std::fs::read_to_string(d.path().join("args")).unwrap().trim(), "restore --to /tmp/r -- Pictures");
+    }
+
+    #[test]
+    fn the_kept_copies_text_matches_what_nizho_backup_keeps() {
+        let tool = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../backup/nizho-backup"))
+            .expect("backup/nizho-backup");
+        let line = tool.lines().find(|l| l.starts_with("KEEP = ")).expect("KEEP line");
+        assert_eq!(line, r#"KEEP = ["--keep-daily", "7", "--keep-weekly", "4", "--keep-monthly", "6"]"#);
+        assert!(KEEP_TEXT.contains("7 days") && KEEP_TEXT.contains("4 weeks") && KEEP_TEXT.contains("6 months"));
     }
 }

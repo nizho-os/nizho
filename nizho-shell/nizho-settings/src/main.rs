@@ -38,6 +38,9 @@ fn build_ui(app: &adw::Application) {
     row .subtitle { opacity: 0.8; }
     /* The chosen Light/Dark and Green/Blue: the accent fill, not a grey that read about 2:1 against its neighbour. */
     .linked > button:checked { background-color: @accent_bg_color; color: @accent_fg_color; }
+    .backup-status { padding: 20px 24px; border-radius: 16px; }
+    .backup-status-title { font-size: 20px; font-weight: 600; }
+    .backup-status-icon { padding: 12px; border-radius: 12px; background-color: alpha(@accent_bg_color, 0.14); color: @accent_color; }
     ");
     gtk4::style_context_add_provider_for_display(
         &gtk4::gdk::Display::default().expect("display"),
@@ -817,7 +820,7 @@ fn recovery_key_dialog(window: &adw::ApplicationWindow, key: &str, folder: &str)
 }
 
 /// The old way: type the path of the file or folder. Returns None if they cancel or the path is not usable.
-async fn ask_typed_path(window: &adw::ApplicationWindow, status_row: &adw::ActionRow) -> Option<String> {
+async fn ask_typed_path(window: &adw::ApplicationWindow, status_row: &gtk4::Label) -> Option<String> {
     let entry = gtk4::Entry::new();
     entry.set_placeholder_text(Some("Documents/report.odt"));
     entry.set_activates_default(true);
@@ -837,22 +840,22 @@ async fn ask_typed_path(window: &adw::ApplicationWindow, status_row: &adw::Actio
     }
     let path = entry.text().to_string();
     if !backup::valid_restore_path(&path) {
-        status_row.set_subtitle("Write the file or folder as it appears in your home folder, for example Documents/report.odt.");
+        status_row.set_text("Write the file or folder as it appears in your home folder, for example Documents/report.odt.");
         return None;
     }
     Some(path)
 }
 
 /// Asks for an empty folder, then restores `path` there (from one chosen backup, or the newest).
-async fn restore_into_folder(window: &adw::ApplicationWindow, status_row: &adw::ActionRow, path: String, snapshot: Option<String>) {
+async fn restore_into_folder(window: &adw::ApplicationWindow, status_row: &gtk4::Label, path: String, snapshot: Option<String>) {
     let dlg = gtk4::FileDialog::builder().title("Choose an empty folder for the older copy").build();
     let Ok(folder) = dlg.select_folder_future(Some(window)).await else { return };
     let Some(target) = folder.path() else { return };
-    status_row.set_subtitle("Restoring\u{2026}");
+    status_row.set_text("Restoring\u{2026}");
     let res = gtk4::gio::spawn_blocking(move || backup::restore(&path, &target, snapshot.as_deref()))
         .await
         .unwrap_or_else(|_| Err("The restore did not finish.".into()));
-    status_row.set_subtitle(&match res { Ok(m) => m, Err(e) => e });
+    status_row.set_text(&match res { Ok(m) => m, Err(e) => e });
 }
 
 fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
@@ -861,30 +864,44 @@ fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
         "Saves your files, encrypted, to a drive you choose, and keeps older copies so you can get back \
          something you deleted. It does not copy the system.",
     );
-    let group = adw::PreferencesGroup::new();
-    group.set_title("Your files");
-
-    let status_row = adw::ActionRow::new();
-    status_row.set_title("Backup");
-    status_row.set_subtitle("Checking\u{2026}");
-    group.add(&status_row);
-
-    let setup_row = adw::ActionRow::new();
-    setup_row.set_title("Choose a drive for your backup");
-    setup_row.set_subtitle("Pick a folder on an external drive. It cannot be inside your home folder.");
-    setup_row.set_activatable(true);
-    setup_row.add_suffix(&gtk4::Image::from_icon_name("go-next-symbolic"));
+    // Status card (design 2026-11-11): what the backup is doing in large type, the main action beside it.
+    let status_title = gtk4::Label::new(Some("Checking\u{2026}"));
+    status_title.add_css_class("backup-status-title");
+    status_title.set_xalign(0.0);
+    status_title.set_wrap(true);
+    let status_row = gtk4::Label::new(Some("Encrypted, on the drive you choose."));
+    status_row.add_css_class("dim-label");
+    status_row.set_xalign(0.0);
+    status_row.set_wrap(true);
+    let status_icon = gtk4::Image::from_icon_name("drive-harddisk-symbolic");
+    status_icon.set_pixel_size(22);
+    status_icon.add_css_class("backup-status-icon");
+    status_icon.set_valign(gtk4::Align::Center);
+    let status_col = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
+    status_col.set_hexpand(true);
+    status_col.set_valign(gtk4::Align::Center);
+    status_col.append(&status_title);
+    status_col.append(&status_row);
+    let setup_row = gtk4::Button::with_label("Choose a drive\u{2026}");
+    setup_row.add_css_class("suggested-action");
+    setup_row.add_css_class("pill");
+    setup_row.set_valign(gtk4::Align::Center);
+    setup_row.set_tooltip_text(Some("Pick a folder on an external drive. It cannot be inside your home folder."));
     setup_row.set_visible(false);
-    group.add(&setup_row);
-
-    let now_row = adw::ActionRow::new();
-    now_row.set_title("Back up now");
-    now_row.set_subtitle("Also runs once a day while the drive is plugged in.");
-    now_row.set_activatable(true);
-    now_row.add_suffix(&gtk4::Image::from_icon_name("go-next-symbolic"));
+    let now_row = gtk4::Button::with_label("Back up now");
+    now_row.add_css_class("suggested-action");
+    now_row.add_css_class("pill");
+    now_row.set_valign(gtk4::Align::Center);
     now_row.set_visible(false);
-    group.add(&now_row);
+    let status_card = gtk4::Box::new(gtk4::Orientation::Horizontal, 18);
+    status_card.add_css_class("card");
+    status_card.add_css_class("backup-status");
+    status_card.append(&status_icon);
+    status_card.append(&status_col);
+    status_card.append(&setup_row);
+    status_card.append(&now_row);
 
+    let group = adw::PreferencesGroup::new();
     let restore_row = adw::ActionRow::new();
     restore_row.set_title("Get a file back");
     restore_row.set_subtitle("Puts an older copy in a folder you choose. Your current files are not changed.");
@@ -892,6 +909,17 @@ fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
     restore_row.add_suffix(&gtk4::Image::from_icon_name("go-next-symbolic"));
     restore_row.set_visible(false);
     group.add(&restore_row);
+    for (title, sub) in [
+        ("Schedule", "Once a day, while the drive is plugged in"),
+        ("Older copies kept", backup::KEEP_TEXT),
+        ("Recovery key", "Shown once, when backups were set up. If this computer is lost and you do not have the key, \
+                          the backup cannot be opened."),
+    ] {
+        let r = adw::ActionRow::new();
+        r.set_title(title);
+        r.set_subtitle(sub);
+        group.add(&r);
+    }
 
     let limits = gtk4::Label::new(Some(
         "A backup drive kept next to this computer does not protect against fire or theft. \
@@ -902,14 +930,15 @@ fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
     limits.add_css_class("dim-label");
 
     let refresh: std::rc::Rc<dyn Fn()> = {
-        let (status_row, setup_row, now_row, restore_row) =
-            (status_row.clone(), setup_row.clone(), now_row.clone(), restore_row.clone());
+        let (status_title, status_row, setup_row, now_row, restore_row) =
+            (status_title.clone(), status_row.clone(), setup_row.clone(), now_row.clone(), restore_row.clone());
         std::rc::Rc::new(move || {
-            let (status_row, setup_row, now_row, restore_row) =
-                (status_row.clone(), setup_row.clone(), now_row.clone(), restore_row.clone());
+            let (status_title, status_row, setup_row, now_row, restore_row) =
+                (status_title.clone(), status_row.clone(), setup_row.clone(), now_row.clone(), restore_row.clone());
             glib::spawn_future_local(async move {
                 let st = gtk4::gio::spawn_blocking(backup::status).await.unwrap_or_else(|_| backup::Status::unknown());
-                status_row.set_subtitle(&st.text);
+                status_title.set_text(&st.text);
+                status_row.set_text(if st.configured { "Encrypted, on the drive you chose." } else { "Encrypted, on a drive you choose." });
                 setup_row.set_visible(!st.configured);
                 now_row.set_visible(st.configured && st.connected);
                 restore_row.set_visible(st.configured && st.connected);
@@ -920,14 +949,14 @@ fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
 
     {
         let (window, refresh, setup_row, status_row) = (window.clone(), refresh.clone(), setup_row.clone(), status_row.clone());
-        setup_row.clone().connect_activated(move |_| {
+        setup_row.clone().connect_clicked(move |_| {
             let (window, refresh, setup_row, status_row) = (window.clone(), refresh.clone(), setup_row.clone(), status_row.clone());
             glib::spawn_future_local(async move {
                 let dlg = gtk4::FileDialog::builder().title("Choose the drive or folder for your backup").build();
                 let Ok(file) = dlg.select_folder_future(Some(&window)).await else { return };
                 let Some(path) = file.path() else { return };
                 setup_row.set_sensitive(false);
-                status_row.set_subtitle("Setting up\u{2026}");
+                status_row.set_text("Setting up\u{2026}");
                 let dest = path.join("nizho-backup");
                 let res = gtk4::gio::spawn_blocking(move || backup::setup(&dest))
                     .await
@@ -942,7 +971,7 @@ fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
                         }
                         break;
                     },
-                    Err(e) => status_row.set_subtitle(&e),
+                    Err(e) => status_row.set_text(&e),
                 }
                 refresh();
             });
@@ -950,17 +979,17 @@ fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
     }
 
     {
-        let (refresh, now_row, status_row) = (refresh.clone(), now_row.clone(), status_row.clone());
-        now_row.clone().connect_activated(move |_| {
+        let (refresh, now_row, status_row) = (refresh.clone(), now_row.clone(), status_title.clone());
+        now_row.clone().connect_clicked(move |_| {
             let (refresh, now_row, status_row) = (refresh.clone(), now_row.clone(), status_row.clone());
             glib::spawn_future_local(async move {
                 now_row.set_sensitive(false);
-                status_row.set_subtitle("Backing up\u{2026}");
+                status_row.set_text("Backing up\u{2026}");
                 let res = gtk4::gio::spawn_blocking(backup::backup_now).await.unwrap_or_else(|_| Err("The backup did not finish.".into()));
                 now_row.set_sensitive(true);
                 refresh();
                 if let Err(e) = res {
-                    status_row.set_subtitle(&e);
+                    status_row.set_text(&e);
                 }
             });
         });
@@ -986,6 +1015,7 @@ fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
         });
     }
 
+    b.append(&status_card);
     b.append(&group);
     b.append(&limits);
     b.upcast()
