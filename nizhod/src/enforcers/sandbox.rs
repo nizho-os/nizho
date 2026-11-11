@@ -72,6 +72,17 @@ impl SandboxEnforcer {
         Ok(())
     }
 
+    /// Persistent when the wrapper binds the saved profile folder and offers a private session,
+    /// Ephemeral otherwise. Only called after check_files succeeded, so the wrapper is readable.
+    fn profile_mode(&self) -> BrowserSandbox {
+        let script = std::fs::read(&self.wrapper).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
+        if script.contains("firefox-profile") && script.contains("--private-session") {
+            BrowserSandbox::Persistent
+        } else {
+            BrowserSandbox::Ephemeral
+        }
+    }
+
     async fn check_bwrap(&self) -> Result<(), String> {
         crate::command::run(&self.bwrap, &["--version"]).await
             .map(|_| ())
@@ -122,10 +133,11 @@ impl AsyncEnforcer for SandboxEnforcer {
         };
         self.note(&all);
 
-        // The wrapper hides /home behind a tmpfs and re-exposes only ~/Downloads,
-        // so Firefox's whole profile is discarded on close — the sandbox is
-        // Ephemeral, not Persistent. Report it honestly (see docs/PHASE4-SANDBOX.md).
-        let browser = if files.is_ok() { BrowserSandbox::Ephemeral } else { BrowserSandbox::None };
+        // The wrapper hides /home behind a tmpfs. A wrapper that also binds a saved profile folder
+        // (and offers --private-session for a profile that is thrown away) keeps bookmarks and
+        // logins between launches: Persistent. An older wrapper without it discards the whole
+        // profile on close: Ephemeral. Report what the installed wrapper does (docs/PHASE4-SANDBOX.md).
+        let browser = if files.is_ok() { self.profile_mode() } else { BrowserSandbox::None };
         let status = if all.is_ok() { SandboxStatus::Active } else { SandboxStatus::Inactive };
 
         let mut s = state.write().await;
@@ -200,6 +212,17 @@ mod tests {
         let bin = Bin::new();
         let (e, events) = bin.enforcer();
         assert_eq!(observe(&e).await, (SandboxStatus::Active, BrowserSandbox::Ephemeral, true));
+        assert!(events.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_wrapper_with_a_saved_profile_is_reported_as_persistent() {
+        let bin = Bin::new();
+        bin.script("firefox-sandbox", &format!(
+            "{WRAPPER}\n# --private-session keeps nothing\nPROFILE=\"$HOME/.local/share/nizho/firefox-profile\"\n"
+        ));
+        let (e, events) = bin.enforcer();
+        assert_eq!(observe(&e).await, (SandboxStatus::Active, BrowserSandbox::Persistent, true));
         assert!(events.lock().unwrap().is_empty());
     }
 
