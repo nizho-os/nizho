@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Image tag to install (latest, or a sha-xxxxxxx tag)"
+        description: "Image tag to install (latest, a sha-xxxxxxx tag, or candidate for a test branch)"
         default: latest
       size:
         description: "Disk image size (the stick must be at least this big)"
