@@ -170,6 +170,8 @@ PlasmoidItem {
         }
         PlasmaComponents.Button {
             Layout.fillWidth: true
+            Keys.onReturnPressed: clicked()
+            Keys.onEnterPressed: clicked()
             text: i18n("Open Privacy Dashboard")
             icon.name: "security-high-symbolic"
             onClicked: root.openDashboard()

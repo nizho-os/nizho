@@ -73,8 +73,10 @@ PlasmoidItem {
             var t = out.trim()
             root.bt = t === "none" || t.length === 0 ? "none" : t.indexOf("yes") >= 0 ? "on" : "off"
         })
-        run("timeout 3 firewall-cmd --zone=nizho --query-service=kdeconnect", function (code, out) {
-            root.phone = code === 0 ? "on" : out.trim() === "no" ? "off" : "unknown"
+        // The state file the phone-link helper writes. Anyone can read it; asking firewalld instead needs an
+        // administrator password, and opening this panel must never ask for one (VM test, 12 November 2026).
+        run("cat /etc/nizho/phone-link", function (code, out) {
+            root.phone = out.trim() === "on" ? "on" : "off"
         })
         run("timeout 2 wpctl get-volume @DEFAULT_AUDIO_SINK@", function (code, out) {
             var m = /Volume:\s*([0-9.]+)/.exec(out)
@@ -162,6 +164,8 @@ PlasmoidItem {
         Accessible.checkable: true
         Accessible.checked: on
         Accessible.name: title + ": " + state
+        Keys.onReturnPressed: clicked()
+        Keys.onEnterPressed: clicked()
         background: Rectangle {
             radius: Kirigami.Units.cornerRadius * 2
             color: tile.on ? Qt.rgba(Kirigami.Theme.positiveTextColor.r, Kirigami.Theme.positiveTextColor.g, Kirigami.Theme.positiveTextColor.b, 0.16)
@@ -235,7 +239,7 @@ PlasmoidItem {
                 on: root.phone === "on"
                 enabled: !root.busy && (root.phone === "on" || root.phone === "off")
                 state: root.busy ? i18n("Waiting for your password…") : root.phone === "unknown" ? i18n("Unavailable")
-                     : root.phone === "on" ? i18n("On") : i18n("Off · asks for your password")
+                     : root.phone === "on" ? i18n("On") : i18n("Off · needs a password")
                 onClicked: root.togglePhone()
             }
         }
@@ -276,18 +280,24 @@ PlasmoidItem {
         RowLayout {
             Layout.fillWidth: true
             PlasmaComponents.ToolButton {
+                Keys.onReturnPressed: clicked()
+                Keys.onEnterPressed: clicked()
                 text: i18n("All settings")
                 icon.name: "configure-symbolic"
                 onClicked: root.launch("nizho-settings-gtk")
             }
             Item { Layout.fillWidth: true }
             PlasmaComponents.ToolButton {
+                Keys.onReturnPressed: clicked()
+                Keys.onEnterPressed: clicked()
                 icon.name: "system-lock-screen-symbolic"
                 Accessible.name: i18n("Lock screen")
                 PlasmaComponents.ToolTip { text: i18n("Lock screen") }
                 onClicked: root.launch("loginctl lock-session")
             }
             PlasmaComponents.ToolButton {
+                Keys.onReturnPressed: clicked()
+                Keys.onEnterPressed: clicked()
                 icon.name: "system-shutdown-symbolic"
                 Accessible.name: i18n("Shut down, restart or sign out")
                 PlasmaComponents.ToolTip { text: i18n("Shut down, restart or sign out") }
