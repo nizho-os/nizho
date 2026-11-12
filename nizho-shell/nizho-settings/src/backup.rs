@@ -94,8 +94,10 @@ pub fn valid_restore_path(p: &str) -> bool {
 
 /// Restores from one chosen backup (its id), or the newest when there is none. The path goes after
 /// `--`, so a name that starts with a dash is never read as an option.
-pub fn restore(path: &str, target: &Path, snapshot: Option<&str>) -> Result<String, String> {
-    if !valid_restore_path(path) {
+/// Restores every one of `paths` into the one empty folder `target`, in a single run of the tool (it
+/// refuses a folder that is not empty, so the items cannot be restored one call at a time).
+pub fn restore(paths: &[&str], target: &Path, snapshot: Option<&str>) -> Result<String, String> {
+    if paths.is_empty() || !paths.iter().all(|p| valid_restore_path(p)) {
         return Err("Write the file or folder as it appears in your home folder, for example Documents/report.odt.".into());
     }
     let t = target.to_string_lossy().into_owned();
@@ -103,9 +105,15 @@ pub fn restore(path: &str, target: &Path, snapshot: Option<&str>) -> Result<Stri
     if let Some(id) = snapshot {
         args.extend(["--snapshot", id]);
     }
-    args.extend(["--", path.trim()]);
+    args.push("--");
+    args.extend(paths.iter().map(|p| p.trim()));
     let out = run(&args)?;
-    Ok(out.lines().find(|l| l.starts_with("Restored to ")).unwrap_or("Restored.").to_string())
+    let done: Vec<&str> = out.lines().filter(|l| l.starts_with("Restored to ")).collect();
+    Ok(match done.as_slice() {
+        [one] => one.to_string(),
+        [] => "Restored.".to_string(),
+        many => format!("Restored {} items to {}. Your current files were not changed.", many.len(), t),
+    })
 }
 
 // ── Browsing a backup ───────────────────────────────────────────────────────
@@ -313,10 +321,12 @@ mod tests {
     #[test]
     fn restore_reports_where_the_file_went_and_refuses_bad_paths_without_running_anything() {
         let (d, _g) = fake("echo ran >> \"$(dirname \"$0\")/ran\"; echo 'Restored to /tmp/r/home/u/Documents/a.txt'; echo 'Your existing files were not touched.'");
-        assert!(restore("/etc/passwd", Path::new("/tmp/r"), None).is_err());
-        assert!(restore("../x", Path::new("/tmp/r"), None).is_err());
+        assert!(restore(&["/etc/passwd"], Path::new("/tmp/r"), None).is_err());
+        assert!(restore(&["../x"], Path::new("/tmp/r"), None).is_err());
+        assert!(restore(&["Documents/a.txt", "../x"], Path::new("/tmp/r"), None).is_err(), "one bad path refuses all");
+        assert!(restore(&[], Path::new("/tmp/r"), None).is_err());
         assert!(!d.path().join("ran").exists(), "a refused path never reaches the tool");
-        assert_eq!(restore("Documents/a.txt", Path::new("/tmp/r"), None).unwrap(), "Restored to /tmp/r/home/u/Documents/a.txt");
+        assert_eq!(restore(&["Documents/a.txt"], Path::new("/tmp/r"), None).unwrap(), "Restored to /tmp/r/home/u/Documents/a.txt");
         assert!(d.path().join("ran").exists());
     }
 
@@ -406,10 +416,19 @@ mod tests {
     #[test]
     fn restoring_from_a_chosen_backup_passes_its_id_and_the_path_after_double_dash() {
         let (d, _g) = fake("echo \"$@\" > \"$(dirname \"$0\")/args\"; echo 'Restored to /tmp/r/x'");
-        restore("Documents/a.txt", Path::new("/tmp/r"), Some("abc123")).unwrap();
+        restore(&["Documents/a.txt"], Path::new("/tmp/r"), Some("abc123")).unwrap();
         assert_eq!(std::fs::read_to_string(d.path().join("args")).unwrap().trim(), "restore --to /tmp/r --snapshot abc123 -- Documents/a.txt");
-        restore("Pictures", Path::new("/tmp/r"), None).unwrap();
+        restore(&["Pictures"], Path::new("/tmp/r"), None).unwrap();
         assert_eq!(std::fs::read_to_string(d.path().join("args")).unwrap().trim(), "restore --to /tmp/r -- Pictures");
+    }
+
+    #[test]
+    fn several_items_go_to_the_tool_in_one_call_and_are_counted() {
+        let (d, _g) = fake("echo \"$@\" > \"$(dirname \"$0\")/args\"; echo 'Restored to /tmp/r/Documents/a.txt'; echo 'Restored to /tmp/r/Pictures'");
+        let msg = restore(&["Documents/a.txt", "Pictures"], Path::new("/tmp/r"), Some("abc123")).unwrap();
+        assert_eq!(std::fs::read_to_string(d.path().join("args")).unwrap().trim(),
+                   "restore --to /tmp/r --snapshot abc123 -- Documents/a.txt Pictures");
+        assert_eq!(msg, "Restored 2 items to /tmp/r. Your current files were not changed.");
     }
 
     #[test]

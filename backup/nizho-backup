@@ -360,22 +360,31 @@ def cmd_restore(a):
     if not drive_connected(cfg):
         raise Fail("The backup drive is not connected: " + cfg["repo"])
     target = os.path.abspath(os.path.expanduser(a.to))
-    if os.path.abspath(a.path) == a.path:
-        raise Fail("Give PATH relative to your home folder, for example Documents/report.odt.")
     home = os.path.expanduser("~")
-    sub = os.path.normpath(os.path.join(home, a.path))
-    if not (sub == home or sub.startswith(home + os.sep)):
-        raise Fail("PATH must stay inside your home folder.")
+    rels = []
+    for path in a.paths:
+        if os.path.abspath(path) == path:
+            raise Fail("Give PATH relative to your home folder, for example Documents/report.odt.")
+        sub = os.path.normpath(os.path.join(home, path))
+        if not (sub == home or sub.startswith(home + os.sep)):
+            raise Fail("PATH must stay inside your home folder.")
+        rel = os.path.relpath(sub, home)
+        if rel == ".":
+            raise Fail("Choose a file or folder inside your home folder, not the whole home folder.")
+        if rel not in rels:
+            rels.append(rel)
+    # One item inside another would be restored twice; ask for just one of them.
+    for r in rels:
+        for o in rels:
+            if r != o and r.startswith(o + os.sep):
+                raise Fail(f"{r} is inside {o}. Choose only one of them.")
     if a.snapshot and not (a.snapshot == "latest" or re.fullmatch(r"[0-9a-fA-F]{4,64}", a.snapshot)):
         raise Fail("The snapshot must be an id from 'nizho-backup list', or left out for the latest.")
     if os.path.exists(target) and not os.path.isdir(target):
         raise Fail("The restore folder is a file, not a folder. Choose an empty folder.")
     if os.path.exists(target) and os.listdir(target):
         raise Fail("The restore folder is not empty. Restoring never overwrites your files; choose an empty folder.")
-    rel = os.path.relpath(sub, home)
-    if rel == ".":
-        raise Fail("Choose a file or folder inside your home folder, not the whole home folder.")
-    # Ask restic for the item under the home folder's name INSIDE this backup, as browsing does: on Nizho
+    # Ask restic for each item under the home folder's name INSIDE this backup, as browsing does: on Nizho
     # /home is a link to /var/home, so a backup made as /home/NAME and a session whose HOME is
     # /var/home/NAME (or the other way round) name the same file differently (seen in the VM, 2026-11-13).
     snaps = snapshots(cfg)
@@ -387,18 +396,29 @@ def cmd_restore(a):
         raise Fail("This backup does not hold your home folder.")
     os.makedirs(target, exist_ok=True)
     staging = tempfile.mkdtemp(prefix=".nizho-restore-", dir=target)
+    done = []
     try:
-        run_restic(cfg, ["restore", snap["id"], "--target", staging, "--include", glob_escape(base + "/" + rel)],
-                   capture=True)
-        found = find_restored(staging, rel)
-        if not found:
-            raise Fail(f"{rel} was not found in that backup.")
-        dest = os.path.join(target, rel)
-        os.makedirs(os.path.dirname(dest), exist_ok=True)
-        shutil.move(found, dest)
+        # Every item in one restic run, so several items land in the one empty folder chosen.
+        includes = []
+        for rel in rels:
+            includes += ["--include", glob_escape(base + "/" + rel)]
+        run_restic(cfg, ["restore", snap["id"], "--target", staging] + includes, capture=True)
+        # All or nothing: if one is missing, nothing is moved and the folder stays empty.
+        found = {}
+        for rel in rels:
+            f = find_restored(staging, rel)
+            if not f:
+                raise Fail(f"{rel} was not found in that backup.")
+            found[rel] = f
+        for rel in rels:
+            dest = os.path.join(target, rel)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            shutil.move(found[rel], dest)
+            done.append(dest)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
-    print(f"Restored to {dest}")
+    for dest in done:
+        print(f"Restored to {dest}")
     print("Your existing files were not touched. Copy back what you need.")
 
 
@@ -434,7 +454,7 @@ def main(argv=None):
     n = sub.add_parser("now"); n.add_argument("--quiet", action="store_true"); n.set_defaults(f=cmd_now)
     t = sub.add_parser("status"); t.add_argument("--json", action="store_true"); t.set_defaults(f=cmd_status)
     sub.add_parser("list").set_defaults(f=cmd_list)
-    r = sub.add_parser("restore"); r.add_argument("path"); r.add_argument("--to", required=True); r.add_argument("--snapshot"); r.set_defaults(f=cmd_restore)
+    r = sub.add_parser("restore"); r.add_argument("paths", nargs="+", metavar="PATH"); r.add_argument("--to", required=True); r.add_argument("--snapshot"); r.set_defaults(f=cmd_restore)
     q = sub.add_parser("snapshots"); q.add_argument("--json", action="store_true"); q.set_defaults(f=cmd_snapshots)
     l = sub.add_parser("ls"); l.add_argument("path", nargs="?"); l.add_argument("--snapshot"); l.add_argument("--json", action="store_true"); l.set_defaults(f=cmd_ls)
     sub.add_parser("tidy").set_defaults(f=cmd_tidy)

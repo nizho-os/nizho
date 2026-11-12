@@ -240,6 +240,33 @@ class RealRestic(Env):
                     self.assertEqual(rf.read(), "quarterly numbers\n")
         os.environ["HOME"] = self.home
 
+    def test_restore_several_items_into_one_empty_folder(self):
+        with open(os.path.join(self.home, "Documents", "notes.txt"), "w") as f:
+            f.write("notes\n")
+        os.makedirs(os.path.join(self.home, "Pictures"))
+        with open(os.path.join(self.home, "Pictures", "cat.png"), "w") as f:
+            f.write("png\n")
+        self.run_cli("setup", "--to", self.repo)
+        code, _, err = self.run_cli("now")
+        self.assertEqual(code, 0, err)
+        target = os.path.join(self.tmp, "several")
+        code, out, err = self.run_cli("restore", "Documents/report.txt", "Pictures", "--to", target)
+        self.assertEqual(code, 0, err)
+        self.assertTrue(os.path.isfile(os.path.join(target, "Documents", "report.txt")))
+        self.assertTrue(os.path.isfile(os.path.join(target, "Pictures", "cat.png")))
+        self.assertFalse(os.path.exists(os.path.join(target, "Documents", "notes.txt")), "only what was asked")
+        self.assertEqual(out.count("Restored to "), 2)
+        # one missing item restores nothing, so the folder stays empty for another try
+        empty = os.path.join(self.tmp, "partial")
+        code, _, err = self.run_cli("restore", "Documents/report.txt", "Documents/gone.txt", "--to", empty)
+        self.assertEqual(code, 1)
+        self.assertIn("gone.txt was not found", err)
+        self.assertEqual(os.listdir(empty), [])
+        # an item inside another one is refused before anything runs
+        code, _, err = self.run_cli("restore", "Documents", "Documents/report.txt", "--to", os.path.join(self.tmp, "x"))
+        self.assertEqual(code, 1)
+        self.assertIn("is inside", err)
+
     def test_repository_is_unreadable_without_the_key(self):
         self.run_cli("setup", "--to", self.repo)
         self.run_cli("now")
