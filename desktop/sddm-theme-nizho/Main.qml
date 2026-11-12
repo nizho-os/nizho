@@ -80,7 +80,8 @@ Rectangle {
     }
 
     // One scale factor so 1366x768 laptops and 2560x1600 panels both look right.
-    readonly property real s: Math.max(0.75, Math.min(1.6, Math.min(width / 1920, height / 1080)))
+    // Never below 0.85: at 0.75 a 1440x900 laptop drew the hint and pills at 10-11 px (VM, 12 November 2026).
+    readonly property real s: Math.max(0.85, Math.min(1.6, Math.min(width / 1920, height / 1080)))
     function px(v) { return Math.round(v * s) }
 
     // --- state -----------------------------------------------------------------
