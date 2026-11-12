@@ -846,16 +846,32 @@ async fn ask_typed_path(window: &adw::ApplicationWindow, status_row: &gtk4::Labe
     Some(path)
 }
 
-/// Asks for an empty folder, then restores `path` there (from one chosen backup, or the newest).
-async fn restore_into_folder(window: &adw::ApplicationWindow, status_row: &gtk4::Label, path: String, snapshot: Option<String>) {
-    let dlg = gtk4::FileDialog::builder().title("Choose an empty folder for the older copy").build();
+/// Asks once for an empty folder, then restores each of `paths` there, one after another (from one chosen
+/// backup, or the newest). Stops at the first failure and says which item it was.
+async fn restore_into_folder(window: &adw::ApplicationWindow, status_row: &gtk4::Label, paths: Vec<String>, snapshot: Option<String>) {
+    let title = if paths.len() == 1 { "Choose an empty folder for the older copy" } else { "Choose an empty folder for the older copies" };
+    let dlg = gtk4::FileDialog::builder().title(title).build();
     let Ok(folder) = dlg.select_folder_future(Some(window)).await else { return };
     let Some(target) = folder.path() else { return };
-    status_row.set_text("Restoring\u{2026}");
-    let res = gtk4::gio::spawn_blocking(move || backup::restore(&path, &target, snapshot.as_deref()))
-        .await
-        .unwrap_or_else(|_| Err("The restore did not finish.".into()));
-    status_row.set_text(&match res { Ok(m) => m, Err(e) => e });
+    let total = paths.len();
+    let mut last = String::new();
+    for (i, path) in paths.into_iter().enumerate() {
+        status_row.set_text(&if total == 1 { "Restoring\u{2026}".to_string() } else { format!("Restoring {} of {total}\u{2026}", i + 1) });
+        let (t, s, p) = (target.clone(), snapshot.clone(), path.clone());
+        let res = gtk4::gio::spawn_blocking(move || backup::restore(&p, &t, s.as_deref()))
+            .await
+            .unwrap_or_else(|_| Err("The restore did not finish.".into()));
+        match res {
+            Ok(m) => last = m,
+            Err(e) => {
+                status_row.set_text(&if total == 1 { e } else { format!("Stopped at {path}: {e}") });
+                return;
+            }
+        }
+    }
+    status_row.set_text(&if total == 1 { last } else {
+        format!("Restored {total} items to {}. Your current files were not changed.", target.display())
+    });
 }
 
 fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
@@ -1003,10 +1019,10 @@ fn page_backup(window: &adw::ApplicationWindow) -> gtk4::Widget {
                 let (window, status_row) = (window2.clone(), status_row2.clone());
                 glib::spawn_future_local(async move {
                     match pick {
-                        restore_browser::Pick::Item { path, snapshot } => restore_into_folder(&window, &status_row, path, Some(snapshot)).await,
+                        restore_browser::Pick::Items { paths, snapshot } => restore_into_folder(&window, &status_row, paths, Some(snapshot)).await,
                         restore_browser::Pick::TypeInstead => {
                             if let Some(path) = ask_typed_path(&window, &status_row).await {
-                                restore_into_folder(&window, &status_row, path, None).await;
+                                restore_into_folder(&window, &status_row, vec![path], None).await;
                             }
                         }
                     }

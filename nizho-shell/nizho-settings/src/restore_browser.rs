@@ -10,8 +10,8 @@ use std::rc::Rc;
 
 /// What the person chose in the window.
 pub enum Pick {
-    /// A path from the list, and the backup it was listed in.
-    Item { path: String, snapshot: String },
+    /// One or more paths from the list (in the order they were ticked), and the backup they were listed in.
+    Items { paths: Vec<String>, snapshot: String },
     /// They asked to type a path instead.
     TypeInstead,
 }
@@ -25,17 +25,22 @@ fn today() -> (i32, u32, u32) {
 struct State {
     snaps: RefCell<Vec<backup::Snap>>,
     folder: RefCell<String>,
-    selected: RefCell<Option<String>>,
+    selected: RefCell<Vec<String>>,
     checks: RefCell<Vec<(String, gtk4::CheckButton)>>,
     generation: Cell<u32>,
 }
 
 /// Opens the window. `done` runs once, when the person restores something or asks to type a path.
-/// The restore button says what it will restore: "Restore note.txt", or "Restore selected" before a pick.
-fn restore_label(selected: Option<&str>) -> String {
-    match selected.and_then(|p| p.rsplit('/').next()).filter(|n| !n.is_empty()) {
-        Some(name) => format!("Restore {name}"),
-        None => "Restore selected".to_string(),
+/// The restore button says what it will restore: "Restore note.txt", "Restore 3 items", or
+/// "Restore selected" before a pick.
+fn restore_label(selected: &[String]) -> String {
+    match selected {
+        [] => "Restore selected".to_string(),
+        [one] => match one.rsplit('/').next().filter(|n| !n.is_empty()) {
+            Some(name) => format!("Restore {name}"),
+            None => "Restore selected".to_string(),
+        },
+        many => format!("Restore {} items", many.len()),
     }
 }
 
@@ -60,7 +65,7 @@ pub fn open(parent: &adw::ApplicationWindow, done: impl Fn(Pick) + 'static) {
     let st = Rc::new(State {
         snaps: RefCell::new(vec![]),
         folder: RefCell::new(String::new()),
-        selected: RefCell::new(None),
+        selected: RefCell::new(Vec::new()),
         checks: RefCell::new(vec![]),
         generation: Cell::new(0),
     });
@@ -152,10 +157,10 @@ pub fn open(parent: &adw::ApplicationWindow, done: impl Fn(Pick) + 'static) {
             let folder = st.folder.borrow().clone();
             path_label.set_text(&if folder.is_empty() { "Home folder".to_string() } else { format!("Home folder / {}", folder.replace('/', " / ")) });
             back.set_sensitive(!folder.is_empty());
-            *st.selected.borrow_mut() = None;
+            st.selected.borrow_mut().clear();
             st.checks.borrow_mut().clear();
             restore.set_sensitive(false);
-            restore.set_label(&restore_label(None));
+            restore.set_label(&restore_label(&[]));
             while let Some(r) = list.first_child() {
                 list.remove(&r);
             }
@@ -202,18 +207,16 @@ pub fn open(parent: &adw::ApplicationWindow, done: impl Fn(Pick) + 'static) {
                             {
                                 let (st, restore, path) = (st.clone(), restore.clone(), path.clone());
                                 check.connect_toggled(move |c| {
-                                    if c.is_active() {
-                                        *st.selected.borrow_mut() = Some(path.clone());
-                                        for (p, other) in st.checks.borrow().iter() {
-                                            if *p != path && other.is_active() {
-                                                other.set_active(false);
-                                            }
+                                    {
+                                        let mut sel = st.selected.borrow_mut();
+                                        if c.is_active() {
+                                            if !sel.contains(&path) { sel.push(path.clone()); }
+                                        } else {
+                                            sel.retain(|p| p != &path);
                                         }
-                                    } else if st.selected.borrow().as_deref() == Some(path.as_str()) {
-                                        *st.selected.borrow_mut() = None;
                                     }
-                                    restore.set_sensitive(st.selected.borrow().is_some());
-                                    restore.set_label(&restore_label(st.selected.borrow().as_deref()));
+                                    restore.set_sensitive(!st.selected.borrow().is_empty());
+                                    restore.set_label(&restore_label(&st.selected.borrow()));
                                 });
                             }
                             row.add_prefix(&check);
@@ -261,11 +264,11 @@ pub fn open(parent: &adw::ApplicationWindow, done: impl Fn(Pick) + 'static) {
     {
         let (st, done, win, when) = (st.clone(), done.clone(), win.clone(), when.clone());
         restore.connect_clicked(move |_| {
-            let path = st.selected.borrow().clone();
+            let paths = st.selected.borrow().clone();
             let snap = st.snaps.borrow().get(when.selected() as usize).cloned();
-            if let (Some(path), Some(snap)) = (path, snap) {
+            if let (false, Some(snap)) = (paths.is_empty(), snap) {
                 win.close();
-                done(Pick::Item { path, snapshot: snap.id });
+                done(Pick::Items { paths, snapshot: snap.id });
             }
         });
     }
@@ -332,10 +335,12 @@ mod label_tests {
     use super::restore_label;
 
     #[test]
-    fn the_restore_button_names_the_one_item_it_restores() {
-        assert_eq!(restore_label(None), "Restore selected");
-        assert_eq!(restore_label(Some("Documents/note.txt")), "Restore note.txt");
-        assert_eq!(restore_label(Some("Pictures")), "Restore Pictures");
-        assert_eq!(restore_label(Some("")), "Restore selected");
+    fn the_restore_button_names_one_item_and_counts_several() {
+        let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        assert_eq!(restore_label(&[]), "Restore selected");
+        assert_eq!(restore_label(&s(&["Documents/note.txt"])), "Restore note.txt");
+        assert_eq!(restore_label(&s(&["Pictures"])), "Restore Pictures");
+        assert_eq!(restore_label(&s(&[""])), "Restore selected");
+        assert_eq!(restore_label(&s(&["Documents/a.txt", "Documents/b.txt"])), "Restore 2 items");
     }
 }
