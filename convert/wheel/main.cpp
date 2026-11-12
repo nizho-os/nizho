@@ -29,6 +29,7 @@
 #include <QQmlContext>
 #include <QQuickImageProvider>
 #include <QQuickWindow>
+#include <QMimeDatabase>
 #include <QMouseEvent>
 #include <QRegion>
 #include <QStandardPaths>
@@ -50,6 +51,9 @@ static QStringList formatsForFile(const QString &path)
     static const QStringList audio{"mp3", "wav", "flac", "ogg", "oga", "opus", "m4a", "aac"};
     static const QStringList video{"mp4", "mkv", "webm", "mov", "avi", "m4v", "ogv"};
     static const QStringList office{"doc", "docx", "odt", "rtf", "xls", "xlsx", "ods", "ppt", "pptx", "odp"};
+    // The same list as TEXT in nizho-convert.
+    static const QStringList text{"txt", "text", "log", "md", "markdown", "rst", "csv", "tsv", "json", "xml", "yaml",
+                                  "yml", "ini", "conf", "cfg"};
     QString ext = QFileInfo(path).suffix().toLower();
     QStringList out;
     if (image.contains(ext))
@@ -62,6 +66,8 @@ static QStringList formatsForFile(const QString &path)
         out = {"png", "smaller-pdf", "docx", "text", "zip"};
     else if (office.contains(ext))
         out = {"pdf", "zip"};
+    else if (text.contains(ext))
+        out = {"docx", "pdf", "odt", "zip"};
     else if (QFileInfo(path).isFile())
         out = {"zip"}; // any other file can still be put in a ZIP
     out.removeAll(ext == "jpeg" ? QStringLiteral("jpg") : ext == "tif" ? QStringLiteral("tiff") : ext); // not the format it already is
@@ -96,6 +102,8 @@ static QStringList toolsForFile(const QString &path)
         out = {"trim", "split-media", "bleep", "smaller", "clean"};
     } else if (video.contains(ext)) {
         out = {"trim", "crop", "redact", "bleep", "smaller", "split-media", "clean"};
+    } else if (QMimeDatabase().mimeTypeForFile(path).inherits(QStringLiteral("text/plain"))) {
+        out = {"open-editor"};   // any text file (notes, Markdown, code) is edited in the text editor
     }
     if (!trimmable.contains(ext))
         out.removeAll(QStringLiteral("trim"));
@@ -284,6 +292,9 @@ public:
             QProcess::startDetached(QStringLiteral("nizho-convert"), QStringList{"join-media"} + files);
         } else if (tool == QLatin1String("clean"))
             QProcess::startDetached(QStringLiteral("nizho-convert"), QStringList{"clean"} + files);
+        else if (tool == QLatin1String("open-editor"))
+            // KWrite, not the default app: Nizho opens text files in LibreOffice Writer by default.
+            QProcess::startDetached(QStringLiteral("kwrite"), {files.first()});
         else if (tool == QLatin1String("rotate-left"))
             QProcess::startDetached(QStringLiteral("nizho-convert"), {"rotate", files.first(), "left"});
         else if (tool == QLatin1String("rotate-right"))

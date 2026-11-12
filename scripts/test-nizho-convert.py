@@ -64,8 +64,9 @@ class NizhoConvertTest(unittest.TestCase):
         pic = self.png()
         got = convert("--targets", str(pic)).stdout.split()
         self.assertEqual(got, ["jpg", "webp", "avif", "pdf", "text", "tiff", "bmp", "smaller-image", "clean", "zip"])
-        # any other file can still be zipped, and nothing else
-        self.assertEqual(convert("--targets", str(self.dir / "x.txt")).stdout.split(), ["zip"])
+        # plain text can become a document; any other file can still be zipped, and nothing else
+        self.assertEqual(convert("--targets", str(self.dir / "x.txt")).stdout.split(), ["docx", "pdf", "odt", "zip"])
+        self.assertEqual(convert("--targets", str(self.dir / "x.dat")).stdout.split(), ["zip"])
         # a GIF cannot be made smaller; a ZIP cannot be zipped again
         self.assertNotIn("smaller-image", convert("--targets", str(self.dir / "x.gif")).stdout.split())
         self.assertEqual(convert("--targets", str(self.dir / "x.zip")).stdout.split(), [])
@@ -542,6 +543,29 @@ class NizhoConvertTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         xml = zipfile.ZipFile(self.dir / "doc.docx").read("word/document.xml").decode()
         self.assertIn("real text that should survive", " ".join(re.sub(r"<[^>]+>", " ", xml).split()))
+        self.assertFalse(any(n.startswith(".nizho-convert-") for n in self.names()))
+
+    @unittest.skipUnless(shutil.which("soffice"), "needs LibreOffice (Nizho has it)")
+    def test_plain_text_becomes_word_pdf_and_odt_with_its_words_and_accents(self):
+        import re
+        import zipfile
+        line = "Café notes: naïve text that should survive"
+        (self.dir / "notes.txt").write_text(line + "\n\nSecond paragraph.\n", encoding="utf-8")
+        (self.dir / "old.txt").write_bytes("Résumé from an old Windows machine\n".encode("cp1252"))
+        for fmt in ("docx", "pdf", "odt"):
+            r = convert(fmt, str(self.dir / "notes.txt"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+        words = lambda xml: " ".join(re.sub(r"<[^>]+>", " ", xml).split())
+        self.assertIn(line, words(zipfile.ZipFile(self.dir / "notes.docx").read("word/document.xml").decode()))
+        self.assertIn(line, words(zipfile.ZipFile(self.dir / "notes.odt").read("content.xml").decode()))
+        pdf_text = subprocess.run(["pdftotext", str(self.dir / "notes.pdf"), "-"], capture_output=True, text=True).stdout
+        self.assertIn(line, " ".join(pdf_text.split()))
+        # text that is not UTF-8 is read as Windows-1252, so its accents survive too
+        r = convert("docx", str(self.dir / "old.txt"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Résumé from an old Windows machine",
+                      words(zipfile.ZipFile(self.dir / "old.docx").read("word/document.xml").decode()))
+        self.assertTrue((self.dir / "notes.txt").exists())   # the original stays
         self.assertFalse(any(n.startswith(".nizho-convert-") for n in self.names()))
 
     @unittest.skipUnless(shutil.which("soffice"), "needs LibreOffice (Nizho has it)")

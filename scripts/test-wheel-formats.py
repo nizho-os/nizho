@@ -27,7 +27,8 @@ def wheel_slots():
     slots = {}
     for kind, cond in (("image", "image.contains(ext)"), ("audio", "audio.contains(ext)"),
                        ("video", "video.contains(ext)"), ("pdf", 'ext == "pdf"'),
-                       ("office", "office.contains(ext)"), ("other", "QFileInfo(path).isFile()")):
+                       ("office", "office.contains(ext)"), ("text", "text.contains(ext)"),
+                       ("other", "QFileInfo(path).isFile()")):
         m = re.search(re.escape(cond) + r"\)\s*out = \{([^}]*)\};", SOURCE)
         slots[kind] = re.findall(r'"([^"]+)"', m.group(1))
     return slots
@@ -48,7 +49,7 @@ def targets(filename):
 class WheelFormatsTest(unittest.TestCase):
     def test_every_wheel_slot_is_accepted_by_nizho_convert(self):
         exts = {"image": cpp_list("image"), "audio": cpp_list("audio"), "video": cpp_list("video"), "pdf": ["pdf"],
-                "office": cpp_list("office"), "other": ["txt"]}
+                "office": cpp_list("office"), "text": cpp_list("text"), "other": ["dat"]}
         for kind, slots in wheel_slots().items():
             for ext in exts[kind]:
                 accepted = targets(f"file.{ext}")

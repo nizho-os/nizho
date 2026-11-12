@@ -61,11 +61,12 @@ Window {
                                     crop: "Crop", redact: "Black out", background: "Background", "rotate-left": "Rotate left",
                                     "rotate-right": "Rotate right", split: "Split pages", merge: "Merge PDFs", trim: "Trim",
                                     annotate: "Annotate", bleep: "Bleep", "split-media": "Split", join: "Join in name order",
-                                    smaller: "Smaller", clean: "Remove details", "hide-private": "Find private text" })
+                                    smaller: "Smaller", clean: "Remove details", "hide-private": "Find private text",
+                                    odt: "ODT", "open-editor": "Text editor" })
     // A theme icon for each edit, so a slot is recognised before it is read. Formats stay as words.
     readonly property var icons: ({ more: "overflow-menu", crop: "transform-crop", annotate: "draw-freehand", redact: "view-hidden",
                                     background: "color-fill", smaller: "view-restore", clean: "document-cleanup", "hide-private": "document-scan",
-                                    "rotate-left": "object-rotate-left", "rotate-right": "object-rotate-right",
+                                    "rotate-left": "object-rotate-left", "rotate-right": "object-rotate-right", "open-editor": "document-edit",
                                     trim: "edit-cut", "split-media": "view-split-left-right", split: "view-split-left-right",
                                     bleep: "audio-volume-muted", join: "media-playlist-append", merge: "media-playlist-append",
                                     "zip-all": "archive-insert", zip: "archive-insert" })
@@ -73,6 +74,7 @@ Window {
     function label(f) {
         if (!edit && isPdf() && f === "png") return "PNG pages"
         if (!edit && isVideo() && f === "mp3") return "MP3 audio"
+        if (!edit && isText() && f === "docx") return "Word"   // from plain text nothing is lost
         if (!edit && f === "zip" && files.length > 1) return "ZIP each"
         return names[f] || f.toUpperCase()   // an unknown format name is written as formats are
     }
@@ -82,7 +84,7 @@ Window {
                     avif: "image-x-generic", pdf: "x-office-document", "smaller-pdf": "x-office-document", mp3: "audio-mpeg",
                     wav: "audio-x-wav", flac: "audio-flac", ogg: "audio-ogg", opus: "audio-x-generic", m4a: "audio-mp4",
                     mp4: "video-mp4", mkv: "video-x-matroska", webm: "video-webm", zip: "application-zip",
-                    "zip-all": "application-zip", docx: "x-office-document", text: "text-x-generic" }
+                    "zip-all": "application-zip", docx: "x-office-document", odt: "x-office-document", text: "text-x-generic" }
         if (m[f]) return m[f]
         if (String(f).indexOf("smaller") === 0) return "view-restore"
         return ""
@@ -95,19 +97,22 @@ Window {
                     clean: "Save a copy without hidden details such as location", trim: "Open the trim window",
                     "split-media": "Open the split window", bleep: "Open the bleep window", join: "Join them in name order",
                     merge: "Merge the PDFs in name order", more: "Show more choices", split: "Save each page as its own PDF",
-                    "rotate-left": "Save a copy turned left", "rotate-right": "Save a copy turned right" }
+                    "rotate-left": "Save a copy turned left", "rotate-right": "Save a copy turned right",
+                    "open-editor": "Open it in the text editor" }
         if (d[f]) return d[f]
         if (String(f).indexOf("smaller") === 0) return "Save a smaller copy"
         return "Save a copy as " + label(f)
     }
     function ext() { return files.length ? String(files[0]).split(".").pop().toLowerCase() : "" }
     function isPdf() { return ext() === "pdf" }
+    function isText() { return ["txt", "text", "log", "md", "markdown", "rst", "csv", "tsv", "json", "xml", "yaml", "yml",
+                                "ini", "conf", "cfg"].indexOf(ext()) >= 0 }
     // iPhone photos: the HEVC decoder is not in Fedora (patented), so there is no honest way to offer them yet.
     function isHeic() { return ["heic", "heif"].indexOf(ext()) >= 0 }
     // What the hint says when the ring is empty.
     function emptyHint() {
         if (!files.length) return "Move the file you are dragging over the wheel, or press Esc"
-        if (edit) return "Edits work on pictures, PDFs, sound and video"
+        if (edit) return "Edits work on pictures, PDFs, sound, video and text files"
         if (isHeic()) return "iPhone HEIC photos can't be converted yet: Fedora has no decoder for them"
         return "This file can't be converted yet"
     }
@@ -121,7 +126,7 @@ Window {
     readonly property var effects: ({ crop: "Choose what to keep", annotate: "Draw and write on it", redact: "Cover parts in black",
                                       "hide-private": "Suggest boxes over private text", background: "Set it on a colour",
                                       smaller: "Choose how much smaller", clean: "A copy without hidden details",
-                                      "rotate-left": "A copy turned left", "rotate-right": "A copy turned right",
+                                      "rotate-left": "A copy turned left", "rotate-right": "A copy turned right", "open-editor": "Change the words",
                                       trim: "Keep one part", "split-media": "Cut it in two", bleep: "A tone over words",
                                       join: "One file, in name order", merge: "One PDF, in name order",
                                       split: "One PDF per page", more: "More choices", zip: "Put it in a ZIP",

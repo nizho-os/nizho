@@ -58,6 +58,9 @@ AUDIO = {"mp3", "wav", "flac", "ogg", "oga", "opus", "m4a", "aac"}
 VIDEO = {"mp4", "mkv", "webm", "mov", "avi", "m4v", "ogv"}
 # Word, Excel and PowerPoint files, and their open-format twins. LibreOffice turns them into PDFs.
 OFFICE = {"doc", "docx", "odt", "rtf", "xls", "xlsx", "ods", "ppt", "pptx", "odp"}
+# Plain text, and the text kinds Dolphin counts as plain text (it shows "Convert to" for them too).
+# LibreOffice opens each as plain text, so it can become Word, PDF or ODT with its words as they are.
+TEXT = {"txt", "text", "log", "md", "markdown", "rst", "csv", "tsv", "json", "xml", "yaml", "yml", "ini", "conf", "cfg"}
 # Pictures that "smaller" can shrink. Animated and old formats are left alone.
 SMALLER_IMAGE = {"png", "jpg", "jpeg", "webp"}
 
@@ -68,6 +71,7 @@ TARGETS = {
     "audio": ["mp3", "flac", "wav", "ogg", "opus", "m4a", "smaller-audio", "clean", "zip"],
     "video": ["mp4", "mkv", "webm", "mp3", "smaller-video", "clean", "zip"],
     "office": ["pdf", "zip"],
+    "text": ["docx", "pdf", "odt", "zip"],
 }
 
 # "clean" (mat2) removes hidden details such as location, camera, author and
@@ -80,7 +84,7 @@ NAMES = {"png": "PNG", "jpg": "JPEG", "webp": "WebP", "avif": "AVIF", "tiff": "T
          "m4a": "AAC (m4a)", "mp4": "MP4", "mkv": "MKV", "webm": "WebM",
          "smaller-pdf": "a smaller PDF", "smaller-image": "a smaller picture",
          "smaller-audio": "a smaller MP3", "smaller-video": "a smaller MP4",
-         "docx": "Word (layout may differ)", "zip": "a ZIP file", "text": "text (read by OCR, may have mistakes)",
+         "docx": "Word (layout may differ)", "odt": "ODT (LibreOffice)", "zip": "a ZIP file", "text": "text (read by OCR, may have mistakes)",
          "clean": "a copy without hidden details"}
 
 # ffmpeg output options for each target. -vn drops any cover art or video.
@@ -148,6 +152,8 @@ def kind_of(path):
         return "video"
     if ext in OFFICE:
         return "office"
+    if ext in TEXT:
+        return "text"
     return None
 
 
@@ -413,6 +419,22 @@ def convert_one(src, fmt, on_progress=None, level="light"):
                           "--norestore", "--convert-to", "pdf", "--outdir", str(scratch), str(work)],
                 timeout=240, private_tmp=True)
             made = [scratch / "in.pdf"]
+        elif kind == "text":
+            # LibreOffice opens the text as a document and saves it, inside the same sandbox, on a copy
+            # with a plain name. Text that is not UTF-8 is read as Windows-1252, which never fails.
+            work = scratch / "in.txt"   # the .txt name makes LibreOffice read it as plain text
+            shutil.copyfile(src, work)
+            try:
+                work.read_bytes().decode("utf-8")
+                charset = "UTF8"
+            except UnicodeDecodeError:
+                charset = "MS_1252"
+            out_filter = {"docx": "docx:MS Word 2007 XML", "pdf": "pdf:writer_pdf_Export", "odt": "odt:writer8"}[fmt]
+            run(scratch, ["soffice", f"-env:UserInstallation=file://{scratch}/lo-profile", "--headless",
+                          "--norestore", f"--infilter=Text (encoded):{charset},LF,,,", "--convert-to", out_filter,
+                          "--outdir", str(scratch), str(work)],
+                timeout=240, private_tmp=True)
+            made = [scratch / f"in.{fmt}"]
         elif fmt == "docx":
             # Word from a PDF carries the text over; the layout will differ, and a scanned PDF
             # has no text to carry (there is no text recognition yet), so that is said plainly.
@@ -1806,7 +1828,7 @@ def main(argv):
             return 2
     # "smaller" means the smaller-... action that fits each file, so one menu entry covers a mixed selection.
     per_file = {"image": "smaller-image", "pdf": "smaller-pdf", "audio": "smaller-audio", "video": "smaller-video"}
-    heavy = any(kind_of(f) in ("audio", "video", "office") for f in files) or fmt == "docx"
+    heavy = any(kind_of(f) in ("audio", "video", "office", "text") for f in files) or fmt == "docx"
     nid = notify("Making smaller" if fmt == "smaller" else f"Converting to {NAMES.get(fmt, fmt)}",
                  files[0] if len(files) == 1 else f"{len(files)} files", urgency="low") if heavy else None
     made, failed = [], []

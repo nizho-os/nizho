@@ -152,6 +152,7 @@ COPY hardware/nizho-hwreport /usr/bin/nizho-hwreport
 COPY convert/nizho-convert-image.desktop /usr/share/kio/servicemenus/nizho-convert-image.desktop
 COPY convert/nizho-convert-pdf.desktop /usr/share/kio/servicemenus/nizho-convert-pdf.desktop
 COPY convert/nizho-convert-office.desktop /usr/share/kio/servicemenus/nizho-convert-office.desktop
+COPY convert/nizho-convert-text.desktop /usr/share/kio/servicemenus/nizho-convert-text.desktop
 COPY convert/nizho-smaller.desktop /usr/share/kio/servicemenus/nizho-smaller.desktop
 COPY convert/nizho-zip.desktop /usr/share/kio/servicemenus/nizho-zip.desktop
 COPY convert/nizho-convert-audio.desktop /usr/share/kio/servicemenus/nizho-convert-audio.desktop
