@@ -74,6 +74,12 @@ RUN git clone --quiet --depth 1 --branch "$VARA_TAG" https://github.com/thulasir
 # about a minute and a half (the layer diff walks the whole image), so the
 # final stage takes each tree in ONE step instead of ~35. COPY into an empty
 # stage is near-instant.
+# Stage 2f: the boot menu theme (fonts need grub2-mkfont, images need ImageMagick; neither ships).
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS grub-theme-builder
+RUN dnf install -y -q --setopt=retries=25 grub2-tools-extra rsms-inter-fonts ImageMagick fontconfig
+COPY desktop/grub-theme-nizho/ /src/
+RUN sh /src/make-theme.sh "" /out && ls /out/theme.txt /out/sans-18.pf2 /out/select_c.png
+
 FROM scratch AS files
 COPY --from=archon-builder /archon/target/release/archon /usr/bin/archon
 COPY --from=archon-builder /service/target/release/nizho-archon-service /usr/libexec/nizho-archon-service
@@ -480,11 +486,15 @@ RUN plymouth-set-default-theme nizho && \
     mkdir -p /usr/lib/bootc/kargs.d && \
     printf 'kargs = ["rhgb", "quiet", "plymouth.ignore-serial-consoles"]\n' > /usr/lib/bootc/kargs.d/10-nizho-splash.toml
 
-# Keep the boot screen clean from power-on to setup: hide the GRUB menu (it
-# still waits 1s; hold Esc to show it; bootupd's menu_show_once still forces
-# it when set) and keep kernel/udev chatter off the screen.
-RUN printf 'set timeout_style=hidden\nset timeout=1\n' \
-      > /usr/lib/bootupd/grub2-static/configs.d/12_nizho_menu_hidden.cfg && \
+# The boot menu: shown for 5 s, centred, in the Nizho theme (desktop/grub-theme-nizho). New installs
+# get the drop-in in grub.cfg; nizho-grub-theme.service copies the theme to /boot and updates the
+# block on machines installed earlier (bootupd never rewrites grub.cfg on updates).
+COPY desktop/grub-theme-nizho/12_nizho_menu.cfg /usr/lib/bootupd/grub2-static/configs.d/12_nizho_menu.cfg
+COPY --from=grub-theme-builder /out/ /usr/lib/nizho/grub-theme/
+COPY desktop/grub-theme-nizho/nizho-grub-theme /usr/libexec/nizho-grub-theme
+COPY desktop/grub-theme-nizho/nizho-grub-theme.service /usr/lib/systemd/system/nizho-grub-theme.service
+# Keep kernel and udev chatter off the boot screen.
+RUN systemctl enable nizho-grub-theme.service && \
     printf 'kargs = ["loglevel=3", "rd.udev.log_level=3"]\n' > /usr/lib/bootc/kargs.d/11-nizho-quiet.toml
 
 # Build the UKI only after the final initramfs and OS identity are ready.
