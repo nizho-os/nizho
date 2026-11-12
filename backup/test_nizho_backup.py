@@ -221,6 +221,25 @@ class RealRestic(Env):
         self.assertEqual(code, 1)
         self.assertIn("not empty", err)
 
+    def test_restore_works_whichever_name_the_home_folder_had(self):
+        # On Nizho /home is a link to /var/home: a backup made as one name must restore as the other.
+        link = os.path.join(self.tmp, "linked-home")
+        os.symlink(self.home, link)
+        code, _, err = self.run_cli("setup", "--to", self.repo)
+        self.assertEqual(code, 0, err)
+        for made_as, restored_as in ((link, self.home), (self.home, link)):
+            with self.subTest(made_as=made_as):
+                os.environ["HOME"] = made_as
+                code, _, err = self.run_cli("now")
+                self.assertEqual(code, 0, err)
+                os.environ["HOME"] = restored_as
+                target = os.path.join(self.tmp, "restored-" + os.path.basename(made_as))
+                code, out, err = self.run_cli("restore", "Documents/report.txt", "--to", target)
+                self.assertEqual(code, 0, err)
+                with open(os.path.join(target, "Documents", "report.txt")) as rf:
+                    self.assertEqual(rf.read(), "quarterly numbers\n")
+        os.environ["HOME"] = self.home
+
     def test_repository_is_unreadable_without_the_key(self):
         self.run_cli("setup", "--to", self.repo)
         self.run_cli("now")

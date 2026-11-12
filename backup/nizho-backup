@@ -375,10 +375,21 @@ def cmd_restore(a):
     rel = os.path.relpath(sub, home)
     if rel == ".":
         raise Fail("Choose a file or folder inside your home folder, not the whole home folder.")
+    # Ask restic for the item under the home folder's name INSIDE this backup, as browsing does: on Nizho
+    # /home is a link to /var/home, so a backup made as /home/NAME and a session whose HOME is
+    # /var/home/NAME (or the other way round) name the same file differently (seen in the VM, 2026-11-13).
+    snaps = snapshots(cfg)
+    if not snaps:
+        raise Fail("There are no backups yet.")
+    snap = pick_snapshot(snaps, a.snapshot)
+    base = snapshot_node_dir(snap, home)
+    if base is None:
+        raise Fail("This backup does not hold your home folder.")
     os.makedirs(target, exist_ok=True)
     staging = tempfile.mkdtemp(prefix=".nizho-restore-", dir=target)
     try:
-        run_restic(cfg, ["restore", a.snapshot or "latest", "--target", staging, "--include", glob_escape(sub)], capture=True)
+        run_restic(cfg, ["restore", snap["id"], "--target", staging, "--include", glob_escape(base + "/" + rel)],
+                   capture=True)
         found = find_restored(staging, rel)
         if not found:
             raise Fail(f"{rel} was not found in that backup.")
