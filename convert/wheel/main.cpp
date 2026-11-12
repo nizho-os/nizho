@@ -29,6 +29,7 @@
 #include <QQmlContext>
 #include <QQuickImageProvider>
 #include <QQuickWindow>
+#include <QClipboard>
 #include <QMimeDatabase>
 #include <QMouseEvent>
 #include <QRegion>
@@ -43,6 +44,17 @@
 static const QString Service = QStringLiteral("org.nizho.Wheel");
 static const QString Path = QStringLiteral("/Wheel");
 
+// ZIP and TAR archives, which "Extract here" unpacks (ARCHIVE_SUFFIXES in nizho-convert).
+static bool isArchive(const QString &path)
+{
+    static const QStringList suffixes{".zip", ".tar", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar.bz2", ".tbz2", ".tbz"};
+    const QString name = QFileInfo(path).fileName().toLower();
+    for (const QString &s : suffixes)
+        if (name.endsWith(s) && name.size() > s.size())
+            return true;
+    return false;
+}
+
 // The formats each kind of file can become, in wheel order. Every entry must
 // also be a target in nizho-convert, which checks the request again anyway.
 static QStringList formatsForFile(const QString &path)
@@ -56,6 +68,8 @@ static QStringList formatsForFile(const QString &path)
                                   "yml", "ini", "conf", "cfg"};
     QString ext = QFileInfo(path).suffix().toLower();
     QStringList out;
+    if (isArchive(path))
+        return {"extract"};   // the same list as ARCHIVE_SUFFIXES in nizho-convert
     if (image.contains(ext))
         out = {"png", "jpg", "webp", "avif", "pdf", "smaller-image", "text", "tiff", "bmp", "zip"};
     else if (audio.contains(ext))
@@ -92,12 +106,14 @@ static QStringList toolsForFile(const QString &path)
     const QString ext = QFileInfo(path).suffix().toLower();
     QStringList out;
     if (image.contains(ext)) {
-        out = {"crop", "annotate", "redact", "hide-private", "smaller", "background", "clean", "rotate-left",
+        out = {"crop", "annotate", "redact", "hide-private", "smaller", "resize", "background", "clean", "rotate-left",
                "rotate-right"};
+        if (ext == QLatin1String("avif"))
+            out.removeAll(QStringLiteral("resize"));   // resize keeps the format, and Pillow writes no AVIF
         if (ext != "png" && ext != "jpg" && ext != "jpeg" && ext != "webp")
             out.removeAll(QStringLiteral("smaller"));   // animated and old formats are left alone
     } else if (ext == "pdf") {
-        out = {"split", "smaller", "clean"};
+        out = {"split", "smaller", "searchable", "clean"};
     } else if (audio.contains(ext)) {
         out = {"trim", "split-media", "bleep", "smaller", "clean"};
     } else if (video.contains(ext)) {
@@ -109,6 +125,8 @@ static QStringList toolsForFile(const QString &path)
         out.removeAll(QStringLiteral("trim"));
     if (!cleanable.contains(ext))
         out.removeAll(QStringLiteral("clean"));
+    if (QFileInfo(path).isFile())
+        out << QStringLiteral("copy-path");   // last: behind "More" when the ring is full
     return out;
 }
 
@@ -196,9 +214,14 @@ public:
         // does not depend on what the others share. It comes first, so it keeps the same place
         // on the ring each time.
         if (urls.size() >= 2) {
-            bool all = true;
-            for (const QUrl &u : urls)
+            bool all = true, pictures = true;
+            for (const QUrl &u : urls) {
                 all = all && QFileInfo::exists(u.toLocalFile());
+                pictures = pictures && kindOf(u.toLocalFile()) == QLatin1String("image");
+            }
+            // Several pictures can become one PDF, a page each, in the order they were picked.
+            if (pictures)
+                common.prepend(QStringLiteral("pdf-combine"));
             if (all)
                 common.prepend(QStringLiteral("zip-all"));
         }
@@ -227,6 +250,11 @@ public:
                 allClean = allClean && one.contains(QStringLiteral("clean"));
             }
             QStringList multi;
+            bool allResize = true;
+            for (const QUrl &u : urls)
+                allResize = allResize && toolsForFile(u.toLocalFile()).contains(QStringLiteral("resize"));
+            if (kind == QLatin1String("image") && allResize)
+                multi << QStringLiteral("resize");
             if (kind == QLatin1String("pdf"))
                 multi << QStringLiteral("merge");
             else if (kind == QLatin1String("audio") || kind == QLatin1String("video"))
@@ -292,6 +320,13 @@ public:
             QProcess::startDetached(QStringLiteral("nizho-convert"), QStringList{"join-media"} + files);
         } else if (tool == QLatin1String("clean"))
             QProcess::startDetached(QStringLiteral("nizho-convert"), QStringList{"clean"} + files);
+        else if (tool.startsWith(QLatin1String("resize:")))
+            QProcess::startDetached(QStringLiteral("nizho-convert"), QStringList{"resize", tool.mid(7)} + files);
+        else if (tool == QLatin1String("searchable"))
+            QProcess::startDetached(QStringLiteral("nizho-convert"), {"searchable", files.first()});
+        else if (tool == QLatin1String("copy-path"))
+            // The wheel keeps running, so the clipboard keeps the text after the ring closes.
+            QGuiApplication::clipboard()->setText(files.join(QLatin1Char('\n')));
         else if (tool == QLatin1String("open-editor"))
             // KWrite, not the default app: Nizho opens text files in LibreOffice Writer by default.
             QProcess::startDetached(QStringLiteral("kwrite"), {files.first()});
