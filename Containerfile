@@ -708,6 +708,9 @@ RUN dnf remove -y -q $(rpm -q --qf '%{NAME}\n' PackageKit-command-not-found imse
     ! rpm -q PackageKit-command-not-found imsettings >/dev/null && \
     test ! -e /etc/xdg/autostart/imsettings-start.desktop
 COPY --from=files / /
+# Session lock screen (Meta+L): the Nizho clock placement. The script stops the build if Plasma's file changed.
+COPY desktop/lockscreen/nizho-lockscreen-patch.py /tmp/nizho-lockscreen-patch.py
+RUN python3 /tmp/nizho-lockscreen-patch.py && rm /tmp/nizho-lockscreen-patch.py
 # Nizho's greenboot checks sit next to the ones the greenboot package installed
 # above. Fail the build if the package's own checks are missing.
 RUN chmod 755 /usr/libexec/nizho-greenboot-unit-check /usr/lib/greenboot/check/required.d/2?_nizho_*.sh /usr/lib/greenboot/check/wanted.d/2?_nizho_*.sh && \
