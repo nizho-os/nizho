@@ -9,6 +9,16 @@ var ROWS = [
     { id: "sandbox",   title: "Browser sandbox",     name: "Sandboxed browser",        prop: "BrowserSandbox", kind: "sandbox" },
     { id: "firewall",  title: "Firewall",            name: "Firewall",                 prop: "Firewall",       kind: "bool" }
 ]
+// Exceptions the user turned on, read alongside the rows. They open a port on home networks only, so the
+// firewall still counts as in place, but the count never stands alone while one is on.
+var EXCEPTIONS = ["PhoneLinkAtHome", "RemoteLoginAtHome"]
+function exceptionsNote(values) {
+    if (!values) return ""
+    var phone = values.PhoneLinkAtHome === true, remote = values.RemoteLoginAtHome === true
+    return phone && remote ? "phone link and remote login on at home"
+         : phone ? "phone link on at home"
+         : remote ? "remote login on at home" : ""
+}
 var STALE_SECS = 90   // nizhod checks about every 60 s; the tray expires a check after three 30 s polls
 
 var CONFIGURED = "Configured", ATTENTION = "Needs attention", NOT_SET = "Not configured", UNAVAILABLE = "Unavailable"

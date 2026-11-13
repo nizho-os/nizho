@@ -24,7 +24,7 @@ PlasmoidItem {
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
     toolTipMainText: label
 
-    readonly property var props: ["LastCheck"].concat(R.ROWS.map(function (r) { return r.prop }))
+    readonly property var props: ["LastCheck"].concat(R.ROWS.map(function (r) { return r.prop })).concat(R.EXCEPTIONS)
     readonly property string readCmd: "busctl " + Plasmoid.configuration.busFlag + " --json=short get-property org.nizho.nizhod /org/nizho/nizhod org.nizho.nizhod " + props.join(" ")
     property var values: null
     property double nowSecs: Date.now() / 1000
@@ -40,14 +40,16 @@ PlasmoidItem {
     readonly property int total: R.ROWS.length
     // "ok", "partial" or "none"
     readonly property string level: stale ? "none" : configured === total ? "ok" : "partial"
+    readonly property string exceptions: stale ? "" : R.exceptionsNote(values)
+    readonly property string withExceptions: exceptions ? " · " + i18n(exceptions) : ""
     readonly property string label: !values ? i18n("Privacy status unavailable")
                                  : stale ? i18n("Privacy check is out of date")
-                                 : configured === total ? i18n("Privacy: %1 of %2 settings in place", configured, total)
-                                 : i18n("Privacy: %1 of %2 settings in place, open to see which", configured, total)
+                                 : configured === total ? i18n("Privacy: %1 of %2 settings in place", configured, total) + withExceptions
+                                 : i18n("Privacy: %1 of %2 settings in place, open to see which", configured, total) + withExceptions
     readonly property string heading: !values ? i18n("Can't check right now")
                                    : stale ? i18n("Not recently checked")
-                                   : configured === total ? i18n("%1 of %2 settings in place", configured, total)
-                                   : i18n("%1 of %2 in place", configured, total)
+                                   : configured === total ? i18n("%1 of %2 settings in place", configured, total) + withExceptions
+                                   : i18n("%1 of %2 in place", configured, total) + withExceptions
     readonly property string note: !values ? i18n("The privacy service isn't answering. Nothing is shown as in place until it does.")
                                 : i18n("Checked %1. Covers only what is listed here.", R.ago(nowSecs - checkedAt))
     function colorFor(state) {

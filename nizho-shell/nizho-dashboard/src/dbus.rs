@@ -24,6 +24,10 @@ trait Nizhod {
     #[zbus(property)]
     fn firewall(&self) -> zbus::Result<bool>;
     #[zbus(property)]
+    fn phone_link_at_home(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn remote_login_at_home(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
     fn sandbox_status(&self) -> zbus::Result<String>;
     #[zbus(property)]
     fn browser_sandbox(&self) -> zbus::Result<String>;
@@ -104,6 +108,9 @@ async fn fetch_full(
         ipv6_privacy:      proxy.ipv6_privacy().await?,
         // Older nizhod builds have no firewall check: show it as not configured.
         firewall:          proxy.firewall().await.unwrap_or(false),
+        // Older nizhod builds open no exceptions at home: none to name.
+        phone_link_at_home:   proxy.phone_link_at_home().await.unwrap_or(false),
+        remote_login_at_home: proxy.remote_login_at_home().await.unwrap_or(false),
         sandbox_status:    SandboxStatus::from(proxy.sandbox_status().await?),
         browser_sandbox:   BrowserSandbox::from(proxy.browser_sandbox().await?),
         last_check,

@@ -41,6 +41,10 @@ pub struct DashboardState {
     pub hostname_privacy: bool,
     pub ipv6_privacy: bool,
     pub firewall: bool,
+    /// Phone linking is allowed on home networks: a scoped exception the user chose.
+    pub phone_link_at_home: bool,
+    /// Remote login is allowed on home networks: a scoped exception the user chose.
+    pub remote_login_at_home: bool,
     pub sandbox_status: SandboxStatus,
     pub browser_sandbox: BrowserSandbox,
     /// Unix seconds of nizhod's last completed check (0 = never/unknown).
@@ -57,6 +61,8 @@ impl Default for DashboardState {
             hostname_privacy: false,
             ipv6_privacy: false,
             firewall: false,
+            phone_link_at_home: false,
+            remote_login_at_home: false,
             sandbox_status: SandboxStatus::Unknown("…".into()),
             browser_sandbox: BrowserSandbox::Unknown("…".into()),
             last_check: 0,

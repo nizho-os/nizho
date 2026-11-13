@@ -178,11 +178,15 @@ impl SettingRow {
 struct Summary { dot: gtk4::Box, title: gtk4::Label, segs: Vec<gtk4::Box> }
 
 impl Summary {
-    fn set(&self, states: &[Row]) {
+    fn set(&self, states: &[Row], exceptions: Option<&str>) {
         let in_place = states.iter().filter(|s| **s == Row::Configured).count();
         let attention = states.iter().filter(|s| matches!(s, Row::Attention | Row::OffHere)).count();
         let unknown = states.iter().all(|s| matches!(s, Row::Unavailable));
-        self.title.set_text(&summary_title(states));
+        let title = summary_title(states);
+        self.title.set_text(&match exceptions {
+            Some(e) if states.iter().all(|s| !matches!(s, Row::Unavailable | Row::Checking)) => format!("{title} · {e}"),
+            _ => title,
+        });
         for c in ["ok", "warn"] { self.dot.remove_css_class(c); }
         if !unknown {
             self.dot.add_css_class(if attention > 0 { "warn" } else if in_place == states.len() { "ok" } else { "none" });
@@ -195,6 +199,17 @@ impl Summary {
                 _ => {}
             }
         }
+    }
+}
+
+/// The exceptions the user turned on, named next to the count so it never reads as all closed:
+/// "phone link on at home". None when there are none.
+fn exceptions_note(phone: bool, remote: bool) -> Option<&'static str> {
+    match (phone, remote) {
+        (true, true) => Some("phone link and remote login on at home"),
+        (true, false) => Some("phone link on at home"),
+        (false, true) => Some("remote login on at home"),
+        (false, false) => None,
     }
 }
 
@@ -879,6 +894,10 @@ mod presentation_tests {
         assert_eq!(summary_title(&[Stale, Configured, Configured, Configured, Configured, Configured]),
                    "5 of 6 settings in place");
         assert_eq!(summary_title(&[Unavailable; 6]), "Can't check right now");
+        assert_eq!(exceptions_note(false, false), None);
+        assert_eq!(exceptions_note(true, false), Some("phone link on at home"));
+        assert_eq!(exceptions_note(false, true), Some("remote login on at home"));
+        assert_eq!(exceptions_note(true, true), Some("phone link and remote login on at home"));
         assert_eq!(summary_title(&[Checking, Configured, Configured, Configured, Configured, Configured]), "Checking…");
         for t in [summary_title(&[Configured; 6]), summary_title(&[Unavailable; 6])] {
             assert!(!t.contains('%') && !t.contains("score") && !t.contains("safe"), "{t}");
@@ -939,7 +958,7 @@ mod presentation_tests {
 fn apply_privacy(s: &DashboardState, rows: [&SettingRow; 6], summary: &Summary, fresh: &gtk4::Label, tech: &gtk4::Label) {
     if !s.available {
         for r in rows { r.set(Row::Unavailable); }
-        summary.set(&[Row::Unavailable; 6]);
+        summary.set(&[Row::Unavailable; 6], None);
         fresh.set_text("The Nizho privacy service isn't answering. Statuses can't be shown until it does.");
         tech.set_text("Service: org.nizho.nizhod on the system D-Bus — not reachable");
         return;
@@ -962,7 +981,7 @@ fn apply_privacy(s: &DashboardState, rows: [&SettingRow; 6], summary: &Summary, 
     for (r, st) in rows.into_iter().zip(shown) {
         r.set(st);
     }
-    summary.set(&shown);
+    summary.set(&shown, exceptions_note(s.phone_link_at_home, s.remote_login_at_home));
     fresh.set_text(&if s.last_check == 0 {
         "Waiting for the privacy service's first check…".to_string()
     } else if s.last_check > now {
