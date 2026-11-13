@@ -9,25 +9,27 @@ with stand-ins. Nothing has been tried with a real phone. `scripts/vm-test-phone
 The phone link lets a phone running the KDE Connect app talk to this computer over the local network.
 It can send files, show phone notifications, share the clipboard and ring the phone.
 
-It is off by default. When KDE Connect runs, the computer announces itself to every device on the
-network, and Nizho rejects incoming connections otherwise. You turn it on when you want it.
+It is off by default, and when on it works only on networks you marked as home (Settings, Internet,
+"Home networks"). You turn it on when you want it.
 
 ## What turning it on changes
 
-1. The firewall zone `nizho` gets the firewalld service `kdeconnect`, in the running firewall and in
-   the saved configuration. firewalld defines that service as TCP and UDP ports 1714 to 1764
+1. The firewall zone `nizho-home` gets the firewalld service `kdeconnect`, in the running firewall and
+   in the saved configuration. `nizho-home` is the zone of networks marked as home; every other network
+   is in the zone `nizho`, which never gets the service. firewalld defines that service as TCP and UDP ports 1714 to 1764
    (https://github.com/firewalld/firewalld/blob/main/config/services/kdeconnect.xml).
 2. The file `/etc/nizho/phone-link` is created and contains the word `on`.
 3. Settings starts the KDE Connect daemon (`kdeconnectd`) in your session. The helper
    `/usr/libexec/nizho-phone-link` does steps 1 and 2 only. It runs as root through polkit
    (action `org.nizho.phone-link`).
 
-The rule applies to the zone, so it applies to every network this computer joins while the link is on.
-Turning the link off removes the rule and the file and stops the daemon.
+The rule applies to the home zone only. Turning the link off removes the rule and the file and stops
+the daemon.
 
-Nizho's privacy daemon (`nizhod`) checks about every minute. The design is that it removes the rule
-when the file is missing and adds it back when the file says `on`. Whether it does both has to be
-confirmed by the VM test; see the end of this page.
+Nizho's privacy daemon (`nizhod`) checks about every minute. It removes the rule from `nizho` always, removes
+it from `nizho-home` when the file is missing, and adds it back to `nizho-home` when the file says `on`.
+A machine that had the rule in `nizho` from an older Nizho gets it moved to `nizho-home` on the first
+check.
 
 ## Ports, from KDE's source
 
@@ -91,19 +93,18 @@ The phone app is a separate program. Update it from F-Droid or the Play Store.
 
 ## Public Wi-Fi
 
-The rule is not tied to a network. In a cafe, an airport or any shared Wi-Fi, other people on the same
-network can reach the KDE Connect ports while the link is on. The attack in CVE-2025-66270 needs the
-attacker to send packets to your computer, so the local network is where it would be tried. KDE's own
-firewall page tells firewalld users to avoid running KDE Connect in the `public` zone.
+Networks you did not mark as home, such as a café, an airport or work Wi-Fi, are in the zone `nizho`.
+There the KDE Connect ports stay closed while the link is on, so other people on that network cannot
+connect or ask to pair. The attack in CVE-2025-66270 needs the attacker to send packets to your
+computer, and those packets are rejected on such networks.
 
-Advice: turn the phone link off on networks you do not trust, and unpair phones you no longer use.
+The computer also stays quiet there: a firewalld policy, `nizho-away-quiet`, drops the discovery
+packets KDE Connect sends to UDP port 1716 on networks in the zone `nizho`. Not covered: if KDE
+Connect also announces itself by mDNS (port 5353), that is not blocked, because blocking it would
+also stop name lookups for printers and other local devices.
 
-Limiting the rule to trusted networks is possible in principle. NetworkManager has a per connection
-setting `connection.zone`, and an unset value means the default zone
-(https://networkmanager.dev/docs/api/latest/settings-connection.html). It would need a second
-zone that has the service, and the home connection set to that zone. Not built, not tried. The
-firewall check in `nizhod` expects only the `nizho` zone to be active, so a second zone would show as
-"Needs attention" until that check is changed.
+On a home network everyone on it can reach the ports. Mark a network as home only if you trust
+everyone on it.
 
 ## Turning it on and off
 
@@ -113,10 +114,11 @@ on to pair, and off when you are done with it.
 To see the rule:
 
 ```
-sudo firewall-cmd --zone=nizho --list-services
+sudo firewall-cmd --zone=nizho-home --list-services
+sudo firewall-cmd --get-active-zones
 ```
 
-With the link on the list contains `kdeconnect`. With it off, it does not. The file
+With the link on the first list contains `kdeconnect`. With it off, it does not. The file
 `/etc/nizho/phone-link` exists only while the link is on. `sudo /usr/libexec/nizho-phone-link status`
 prints `on` or `off`, and also `mismatch` with exit code 3 if the file and the firewall disagree.
 
