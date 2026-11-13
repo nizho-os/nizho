@@ -1,0 +1,115 @@
+#!/bin/sh
+# nizho-remote-login on [passwords] [1h] | off | status: let other computers on your home networks sign in to this
+# one over SSH. Runs as root only (through pkexec; see org.nizho.remote-login.policy).
+#
+# State: /etc/nizho/remote-login holding the word "on" means remote login is allowed. Absent or anything else is off.
+# Firewall: the firewalld service "ssh" in the zone "nizho-home" only (networks marked as home; nizho-home-network).
+#   nizhod removes it from anywhere else, and from nizho-home too while the flag is not on.
+# Server: sshd.service, enabled only while on. A drop-in, /etc/ssh/sshd_config.d/10-nizho-remote-login.conf, turns
+#   off root login and, unless "passwords" was given, password and keyboard-interactive login, so only keys in
+#   ~/.ssh/authorized_keys work. It is readable by everyone (it holds no secrets) so Settings can show the choice.
+#   It is named 10- because sshd keeps the first value it reads for each setting
+#   and Fedora's own file is 50-redhat.conf.
+# "1h" starts a transient timer (nizho-remote-login-off.timer) that runs "off" an hour later.
+#
+# Ordering, as in nizho-phone-link: the flag says "on" only after everything else is in place, and "off" clears
+# the flag first, so a crash in between never leaves something open that the flag vouches for.
+#
+# Tests: NIZHO_REMOTE_LOGIN_TEST=1 allows running unprivileged and honours NIZHO_REMOTE_LOGIN_STATE,
+# NIZHO_REMOTE_LOGIN_DROPIN, NIZHO_FIREWALL_CMD, NIZHO_SYSTEMCTL, NIZHO_SYSTEMD_RUN and NIZHO_SSHD.
+# Without that variable all are ignored.
+
+ZONE=nizho-home
+SERVICE=ssh
+STATE=/etc/nizho/remote-login
+DROPIN=/etc/ssh/sshd_config.d/10-nizho-remote-login.conf
+FW=firewall-cmd
+SYSTEMCTL=systemctl
+SYSTEMD_RUN=systemd-run
+SSHD=/usr/sbin/sshd
+TIMER=nizho-remote-login-off
+
+if [ "${NIZHO_REMOTE_LOGIN_TEST:-}" = 1 ]; then
+    STATE=${NIZHO_REMOTE_LOGIN_STATE:-$STATE}
+    DROPIN=${NIZHO_REMOTE_LOGIN_DROPIN:-$DROPIN}
+    FW=${NIZHO_FIREWALL_CMD:-$FW}
+    SYSTEMCTL=${NIZHO_SYSTEMCTL:-$SYSTEMCTL}
+    SYSTEMD_RUN=${NIZHO_SYSTEMD_RUN:-$SYSTEMD_RUN}
+    SSHD=${NIZHO_SSHD:-$SSHD}
+elif [ "$(id -u)" != 0 ]; then
+    echo "nizho-remote-login: must run as root (use pkexec)" >&2
+    exit 77
+fi
+
+usage() { echo "usage: nizho-remote-login on [passwords] [1h] | off | status" >&2; exit 2; }
+die() { echo "nizho-remote-login: $*" >&2; exit 1; }
+
+atomic_write() { # path content mode
+    dir=$(dirname "$1")
+    mkdir -p "$dir" || return 1
+    tmp=$(umask 077; mktemp "$dir/.nizho-remote-login.XXXXXX") || return 1
+    if printf '%s' "$2" >"$tmp" && chmod "$3" "$tmp" && mv -f "$tmp" "$1"; then return 0; fi
+    rm -f "$tmp"; return 1
+}
+
+fw() { "$FW" "$@" --zone=$ZONE >/dev/null 2>&1; }
+
+close_everything() {
+    fw --permanent --remove-service=$SERVICE
+    fw --remove-service=$SERVICE
+    "$SYSTEMCTL" disable --now sshd.service >/dev/null 2>&1
+    rm -f "$DROPIN"
+}
+
+do_on() {
+    passwords=no timer=no
+    for a in "$@"; do
+        case $a in passwords) passwords=yes ;; 1h) timer=yes ;; *) usage ;; esac
+    done
+    "$SYSTEMCTL" stop "$TIMER.timer" >/dev/null 2>&1
+    pw=no; [ $passwords = yes ] && pw=yes
+    conf="# Written by nizho-remote-login. Turn remote login off in Settings to remove it.
+PermitRootLogin no
+PasswordAuthentication $pw
+KbdInteractiveAuthentication no
+"
+    atomic_write "$DROPIN" "$conf" 644 || die "could not write $DROPIN; nothing was changed"
+    if ! "$SSHD" -t >/dev/null 2>&1; then
+        rm -f "$DROPIN"; die "the SSH server rejected its settings; nothing was changed"
+    fi
+    fw --permanent --add-service=$SERVICE || { close_everything; die "could not add the SSH rule to the firewall (is firewalld running?); remote login stays off"; }
+    fw --add-service=$SERVICE || { close_everything; die "could not open the SSH port in the running firewall; remote login stays off"; }
+    "$SYSTEMCTL" enable --now sshd.service >/dev/null 2>&1 || { close_everything; die "could not start the SSH server; remote login stays off"; }
+    # Already running from before: pick up the new settings.
+    "$SYSTEMCTL" reload sshd.service >/dev/null 2>&1
+    atomic_write "$STATE" on 644 || { close_everything; die "could not write $STATE; remote login stays off"; }
+    if [ $timer = yes ]; then
+        "$SYSTEMD_RUN" --unit="$TIMER" --on-active=1h --timer-property=AccuracySec=1s \
+            /usr/libexec/nizho-remote-login off >/dev/null 2>&1 \
+            || echo "nizho-remote-login: remote login is on, but the one-hour timer could not be started" >&2
+    fi
+}
+
+do_off() {
+    rm -f "$STATE" || die "could not remove $STATE; nothing was changed"
+    "$SYSTEMCTL" stop "$TIMER.timer" >/dev/null 2>&1
+    bad=0
+    fw --permanent --remove-service=$SERVICE || bad=1
+    fw --remove-service=$SERVICE || bad=1
+    "$SYSTEMCTL" disable --now sshd.service >/dev/null 2>&1 || bad=1
+    rm -f "$DROPIN" || bad=1
+    [ $bad = 0 ] || die "remote login is off, but something could not be undone; Nizho closes the port on its next check"
+}
+
+do_status() {
+    if [ "$(cat "$STATE" 2>/dev/null)" = on ]; then echo on; else echo off; fi
+    if grep -qx 'PasswordAuthentication yes' "$DROPIN" 2>/dev/null; then echo passwords; else echo keys; fi
+    if "$SYSTEMCTL" is-active --quiet "$TIMER.timer" 2>/dev/null; then echo 1h; fi
+}
+
+case ${1:-} in
+    on)     shift; [ $# -le 2 ] || usage; do_on "$@" ;;
+    off)    [ $# = 1 ] || usage; do_off ;;
+    status) [ $# = 1 ] || usage; do_status ;;
+    *)      usage ;;
+esac
