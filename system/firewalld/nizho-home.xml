@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nizho home zone: the zone of networks you marked as home in Settings.
+     The same rules as the nizho zone. Phone linking and remote login, when
+     you turn them on, open their ports in this zone only, so they never
+     open on other networks such as café Wi-Fi. nizhod keeps it that way. -->
+<zone target="%%REJECT%%">
+  <short>Nizho home</short>
+  <description>Networks marked as home. Rejects incoming connections this computer did not ask for, except phone linking and remote login while you have them on.</description>
+  <service name="dhcpv6-client"/>
+</zone>

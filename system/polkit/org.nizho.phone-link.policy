@@ -4,8 +4,8 @@
 <policyconfig>
   <vendor>Nizho</vendor>
   <action id="org.nizho.phone-link">
-    <description>Allow phones on your network to find this computer</description>
-    <message>Administrator authentication is required to allow or stop phones on your network finding this computer.</message>
+    <description>Allow phones on your home networks to find this computer</description>
+    <message>Administrator authentication is required to allow or stop phones on your home networks finding this computer.</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>

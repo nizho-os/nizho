@@ -28,7 +28,7 @@ for a in "$@"; do
         --add-service=*|--remove-service=*|--query-service=*) action=$a ;;
     esac
 done
-[ "$zone" = nizho ] || exit 2
+[ "$zone" = nizho-home ] || exit 2
 svc=${action#*=}
 touch "$list"
 case $action in
@@ -126,7 +126,7 @@ class PhoneLinkTest(unittest.TestCase):
         r = self.run_helper("on", FAKE_FAIL_AT="2")
         self.assertEqual(r.returncode, 1)
         self.assertClosed()
-        self.assertIn("--permanent --zone=nizho --remove-service=kdeconnect", self.log())
+        self.assertIn("--permanent --zone=nizho-home --remove-service=kdeconnect", self.log())
 
     def test_firewalld_not_running_never_leaves_the_flag_on(self):
         r = self.run_helper("on", FAKE_DOWN="1")
@@ -194,14 +194,14 @@ class PhoneLinkTest(unittest.TestCase):
             self.assertIn("usage", r.stderr)
         self.assertEqual(self.log(), [])
 
-    def test_only_the_nizho_zone_and_only_kdeconnect(self):
+    def test_only_the_home_zone_and_only_kdeconnect(self):
         self.run_helper("on")
         self.run_helper("status")
         self.run_helper("off")
         calls = self.log()
         self.assertTrue(calls)
         for c in calls:
-            self.assertIn("--zone=nizho", c.split())
+            self.assertIn("--zone=nizho-home", c.split())
             self.assertEqual(sum(w.startswith("--") and "service" in w for w in c.split()), 1)
             self.assertTrue(c.split()[-1].endswith("-service=kdeconnect"), c)
             for bad in ("--add-port", "--set-default-zone", "--panic", "--reload", "--direct"):

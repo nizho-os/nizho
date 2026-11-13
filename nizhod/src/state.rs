@@ -26,7 +26,11 @@ impl NizhodState {
             "dns" => self.dns_status = DnsStatus::Error,
             "hostname" => self.hostname_privacy = false,
             "ipv6" => self.ipv6_privacy = false,
-            "firewall" => self.firewall = false,
+            "firewall" => {
+                self.firewall = false;
+                self.phone_link_at_home = false;
+                self.remote_login_at_home = false;
+            }
             "sandbox" => {
                 self.sandbox_status = SandboxStatus::Inactive;
                 self.browser_sandbox = BrowserSandbox::None;
@@ -47,6 +51,10 @@ pub struct NizhodState {
     pub ipv6_privacy: bool,
     /// Incoming connections rejected by the Nizho firewall zone.
     pub firewall: bool,
+    /// Phone linking is allowed on home networks (and the firewall is confirmed).
+    pub phone_link_at_home: bool,
+    /// Remote login (SSH) is allowed on home networks (and the firewall is confirmed).
+    pub remote_login_at_home: bool,
     pub sandbox_status: SandboxStatus,
     pub browser_sandbox: BrowserSandbox,
 }
@@ -61,6 +69,8 @@ impl Default for NizhodState {
             hostname_privacy: false,
             ipv6_privacy: false,
             firewall: false,
+            phone_link_at_home: false,
+            remote_login_at_home: false,
             sandbox_status: SandboxStatus::Unknown("Initializing".into()),
             browser_sandbox: BrowserSandbox::Unknown("Initializing".into()),
         }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nizho: away from home, this computer does not announce itself to phones.
+     KDE Connect sends a discovery packet to UDP port 1716 on every network it
+     joins. This policy drops those packets on networks in the nizho zone (every
+     network not marked as home), so a café's Wi-Fi never sees them. Networks
+     marked as home are in the nizho-home zone and are not affected. -->
+<policy target="CONTINUE" priority="-100">
+  <short>Nizho away: no phone discovery</short>
+  <description>Drops this computer's KDE Connect discovery packets (UDP 1716) on networks not marked as home.</description>
+  <ingress-zone name="HOST"/>
+  <egress-zone name="nizho"/>
+  <rule>
+    <port port="1716" protocol="udp"/>
+    <drop/>
+  </rule>
+</policy>

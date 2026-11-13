@@ -51,6 +51,20 @@ impl NizhodIface {
         self.state.read().await.firewall
     }
 
+    /// True while phones may find this computer on networks marked as home.
+    /// The firewall still counts as in place: the exception is scoped, and
+    /// the dashboard names it next to the count.
+    #[zbus(property)]
+    async fn phone_link_at_home(&self) -> bool {
+        self.state.read().await.phone_link_at_home
+    }
+
+    /// True while remote login (SSH) is allowed on networks marked as home.
+    #[zbus(property)]
+    async fn remote_login_at_home(&self) -> bool {
+        self.state.read().await.remote_login_at_home
+    }
+
     #[zbus(property)]
     async fn sandbox_status(&self) -> String {
         self.state.read().await.sandbox_status.as_str().to_owned()

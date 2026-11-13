@@ -14,6 +14,15 @@ pub struct Config {
     pub hostname: HostnameConfig,
     #[serde(default)]
     pub phone_link: PhoneLinkConfig,
+    #[serde(default)]
+    pub remote_login: RemoteLoginConfig,
+}
+
+#[derive(Deserialize)]
+pub struct RemoteLoginConfig {
+    /// Holds the word "on" when the user allowed remote login (SSH) on home networks.
+    #[serde(default = "default_remote_login_state")]
+    pub state_path: String,
 }
 
 #[derive(Deserialize)]
@@ -56,6 +65,7 @@ impl Default for Config {
             dns: DnsConfig::default(),
             hostname: HostnameConfig::default(),
             phone_link: PhoneLinkConfig::default(),
+            remote_login: RemoteLoginConfig::default(),
         }
     }
 }
@@ -77,6 +87,14 @@ impl Default for PhoneLinkConfig {
     }
 }
 
+impl Default for RemoteLoginConfig {
+    fn default() -> Self {
+        Self {
+            state_path: default_remote_login_state(),
+        }
+    }
+}
+
 impl Default for HostnameConfig {
     fn default() -> Self {
         Self {
@@ -90,6 +108,7 @@ fn default_dns_server() -> String { "9.9.9.9".into() }
 fn default_dns_name() -> String { "dns.quad9.net".into() }
 fn default_hostname() -> String { "nizho".into() }
 fn default_phone_link_state() -> String { "/etc/nizho/phone-link".into() }
+fn default_remote_login_state() -> String { "/etc/nizho/remote-login".into() }
 
 #[cfg(test)]
 mod tests {
@@ -102,5 +121,12 @@ mod tests {
         assert_eq!(c.phone_link.state_path, "/etc/nizho/phone-link");
         let c: Config = toml::from_str("[phone_link]\nstate_path = \"/tmp/x\"").unwrap();
         assert_eq!(c.phone_link.state_path, "/tmp/x");
+    }
+
+    #[test]
+    fn remote_login_state_path_defaults_and_can_be_set() {
+        assert_eq!(Config::default().remote_login.state_path, "/etc/nizho/remote-login");
+        let c: Config = toml::from_str("[remote_login]\nstate_path = \"/tmp/y\"").unwrap();
+        assert_eq!(c.remote_login.state_path, "/tmp/y");
     }
 }

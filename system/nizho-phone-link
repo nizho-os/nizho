@@ -1,11 +1,13 @@
 #!/bin/sh
-# nizho-phone-link on|off|status: let phones on the local network find this computer (KDE Connect).
+# nizho-phone-link on|off|status: let phones on your home networks find this computer (KDE Connect).
 # Runs as root only (through pkexec; see org.nizho.phone-link.policy). It touches the firewall and one state
 # file, nothing else: starting or stopping kdeconnectd is a user daemon and belongs to the Settings app.
 #
 # State: /etc/nizho/phone-link holding the word "on" means phone linking is allowed. Absent or anything else is off.
-# Firewall: the firewalld service "kdeconnect" in the zone "nizho" only, never another zone. firewalld defines it
-# as 1714-1764 tcp and udp (config/services/kdeconnect.xml), the range KDE documents.
+# Firewall: the firewalld service "kdeconnect" in the zone "nizho-home" only: the zone of networks the user marked
+# as home (nizho-home-network). Never the default zone "nizho", which every other network uses; nizhod removes it
+# from there (an older Nizho put it there). firewalld defines it as 1714-1764 tcp and udp
+# (config/services/kdeconnect.xml), the range KDE documents.
 #
 # Ordering. nizhod re-checks every minute: with the flag off it removes any kdeconnect rule it finds, with the
 # flag on it adds a missing one. So the thing that must never persist is "port open while the flag says off".
@@ -18,7 +20,7 @@
 # Tests: NIZHO_PHONE_LINK_TEST=1 allows running unprivileged and honours NIZHO_PHONE_LINK_STATE and
 # NIZHO_FIREWALL_CMD. Without that variable both are ignored.
 
-ZONE=nizho
+ZONE=nizho-home
 SERVICE=kdeconnect
 STATE=/etc/nizho/phone-link
 FW=firewall-cmd
