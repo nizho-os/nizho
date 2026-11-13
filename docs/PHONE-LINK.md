@@ -1,8 +1,7 @@
 # Phone link (KDE Connect)
 
-Status: written before the feature was tested. The helper and the Settings screens were tested only
-with stand-ins. Nothing has been tried with a real phone. `scripts/vm-test-phone-link.sh` and
-`docs/PHONE-LINK-TEST.md` are the tests that still have to be run.
+Status: tested in a VM on 2026-11-13 (see the end of this page). Nothing has been tried with a real
+phone yet; `docs/PHONE-LINK-TEST.md` is the checklist for that.
 
 ## What it is
 
@@ -99,9 +98,11 @@ connect or ask to pair. The attack in CVE-2025-66270 needs the attacker to send 
 computer, and those packets are rejected on such networks.
 
 The computer also stays quiet there: a firewalld policy, `nizho-away-quiet`, drops the discovery
-packets KDE Connect sends to UDP port 1716 on networks in the zone `nizho`. Not covered: if KDE
-Connect also announces itself by mDNS (port 5353), that is not blocked, because blocking it would
-also stop name lookups for printers and other local devices.
+packets KDE Connect sends to UDP port 1716 on networks in the zone `nizho`. Not covered: KDE
+Connect 26.08, the version in the image, also announces itself by mDNS (port 5353), and that is not
+blocked. KDE Connect has no setting to turn its mDNS off, and dropping port 5353 would also stop
+finding printers and other local devices on those networks. While the link is on, devices on any
+network can therefore see that this computer runs KDE Connect, though they cannot connect to it.
 
 On a home network everyone on it can reach the ports. Mark a network as home only if you trust
 everyone on it.
@@ -124,12 +125,19 @@ prints `on` or `off`, and also `mismatch` with exit code 3 if the file and the f
 
 ## What was tested
 
-Tested with stand-ins only: the helper against a fake firewall command, and the Settings screens
-against a fake helper.
+In a VM booted from a built image (2026-11-13, image `candidate-0500b2b`), one wired connection:
 
-Not tested: a real phone, either platform; a booted image with the helper installed; the drift
-handling in `nizhod` in both directions; connections to the opened ports from another machine; any
-network other than the test VM; the iOS app.
+- Marking it as home moved it to the zone `nizho-home` without dropping the connection; unmarking
+  moved it back to `nizho`.
+- Turning the link on in Settings showed the warning, asked for the administrator password, put
+  `kdeconnect` in `nizho-home` only and started KDE Connect.
+- nizhod moved a `kdeconnect` rule put into `nizho` by hand to `nizho-home`, and removed it from
+  `nizho-home` when the file `/etc/nizho/phone-link` was missing.
+- Captured on the network interface: on the home network KDE Connect's broadcast to UDP 1716 went out;
+  on the same connection unmarked, it did not. Its mDNS announcement went out in both cases.
+- The top-bar pill and quick-settings tile showed the new wording.
 
-To be run by the owner: `sudo bash scripts/vm-test-phone-link.sh` inside the VM, then the checklist in
-`docs/PHONE-LINK-TEST.md` with real phones.
+Not tested: a real phone, either platform; pairing; connections to the opened ports from another
+machine; Wi-Fi (the VM has none); the iOS app.
+
+To be run by the owner: the checklist in `docs/PHONE-LINK-TEST.md` with real phones.
