@@ -119,7 +119,7 @@ PlasmoidItem {
         if (phone !== "on" && phone !== "off") return
         // Turning on goes through Settings > Internet, which shows the warning and offers to mark this
         // network as home first. Turning off is the same helper and password prompt as there.
-        if (phone === "off") { launch("env NIZHO_SETTINGS_PAGE=Internet nizho-settings"); return }
+        if (phone === "off") { launch("env NIZHO_SETTINGS_PAGE=Internet nizho-settings-gtk"); return }
         busy = true
         run("pkexec /usr/libexec/nizho-phone-link off", function () { root.busy = false; refresh() })
     }
