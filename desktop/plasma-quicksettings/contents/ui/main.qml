@@ -117,9 +117,11 @@ PlasmoidItem {
     }
     function togglePhone() {
         if (phone !== "on" && phone !== "off") return
-        // The same helper and password prompt as Settings > Internet.
+        // Turning on goes through Settings > Internet, which shows the warning and offers to mark this
+        // network as home first. Turning off is the same helper and password prompt as there.
+        if (phone === "off") { launch("env NIZHO_SETTINGS_PAGE=Internet nizho-settings"); return }
         busy = true
-        run("pkexec /usr/libexec/nizho-phone-link " + (phone === "on" ? "off" : "on"), function () { root.busy = false; refresh() })
+        run("pkexec /usr/libexec/nizho-phone-link off", function () { root.busy = false; refresh() })
     }
     function launch(cmd) {
         root.expanded = false
@@ -239,7 +241,7 @@ PlasmoidItem {
                 on: root.phone === "on"
                 enabled: !root.busy && (root.phone === "on" || root.phone === "off")
                 state: root.busy ? i18n("Waiting for your password…") : root.phone === "unknown" ? i18n("Unavailable")
-                     : root.phone === "on" ? i18n("On") : i18n("Off · needs a password")
+                     : root.phone === "on" ? i18n("On at home") : i18n("Off · opens Settings")
                 onClicked: root.togglePhone()
             }
         }

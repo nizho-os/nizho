@@ -1,0 +1,86 @@
+#!/bin/sh
+# nizho-home-network list | set <uuid> on|off: mark a saved network as home.
+#
+# A home network uses the firewall zone "nizho-home" instead of the default "nizho". The two zones have the
+# same rules until the user turns on phone linking or remote login: those open their ports in "nizho-home"
+# only, so they never open on café Wi-Fi or any other network not marked home (see docs/HOME-NETWORKS-PLAN.md).
+#
+# list  any user. One line per saved Wi-Fi or wired connection, tab-separated: uuid, type (wifi|ethernet),
+#       home (yes|no), active (yes|no), name. The name is last because it may contain anything but a newline.
+# set   root only (through pkexec; see org.nizho.home-network.policy). Changes connection.zone with nmcli,
+#       then reapplies the connection if it is active so the change takes effect without reconnecting.
+#       Only NetworkManager connection UUIDs of Wi-Fi or wired connections are accepted. "off" only clears
+#       the zone if it is "nizho-home"; a zone the user set some other way is left alone.
+#
+# Tests: NIZHO_HOME_NETWORK_TEST=1 allows running set unprivileged and honours NIZHO_NMCLI. Without that
+# variable it is ignored.
+
+HOME_ZONE=nizho-home
+NMCLI=nmcli
+
+if [ "${NIZHO_HOME_NETWORK_TEST:-}" = 1 ]; then
+    NMCLI=${NIZHO_NMCLI:-$NMCLI}
+fi
+
+usage() { echo "usage: nizho-home-network list | set <uuid> on|off" >&2; exit 2; }
+die() { echo "nizho-home-network: $*" >&2; exit 1; }
+
+kind() {
+    case $1 in
+        802-11-wireless) echo wifi ;;
+        802-3-ethernet) echo ethernet ;;
+        *) return 1 ;;
+    esac
+}
+
+do_list() {
+    # -g prints fields separated by ':' with ':' and '\' inside values escaped. UUID, TYPE and ACTIVE never
+    # contain either, so the name is everything after the third separator.
+    all=$("$NMCLI" -g UUID,TYPE,ACTIVE,NAME connection show 2>/dev/null) \
+        || die "could not read the saved networks (is NetworkManager running?)"
+    [ -n "$all" ] || return 0
+    printf '%s\n' "$all" | while IFS= read -r line; do
+        uuid=${line%%:*}; rest=${line#*:}
+        type=${rest%%:*}; rest=${rest#*:}
+        active=${rest%%:*}; name=${rest#*:}
+        k=$(kind "$type") || continue
+        zone=$("$NMCLI" -g connection.zone connection show uuid "$uuid" 2>/dev/null) || continue
+        home=no; [ "$zone" = "$HOME_ZONE" ] && home=yes
+        name=$(printf '%s' "$name" | sed -e 's/\\:/:/g' -e 's/\\\\/\\/g')
+        printf '%s\t%s\t%s\t%s\t%s\n' "$uuid" "$k" "$home" "$active" "$name"
+    done
+}
+
+do_set() {
+    uuid=$1 want=$2
+    if [ "${NIZHO_HOME_NETWORK_TEST:-}" != 1 ] && [ "$(id -u)" != 0 ]; then
+        echo "nizho-home-network: set must run as root (use pkexec)" >&2
+        exit 77
+    fi
+    printf '%s' "$uuid" | grep -Eqx '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' \
+        || die "not a connection id: $uuid"
+    info=$("$NMCLI" -g connection.uuid,connection.type,connection.zone connection show uuid "$uuid" 2>/dev/null) \
+        || die "no saved network with id $uuid"
+    got=$(printf '%s\n' "$info" | sed -n 1p)
+    type=$(printf '%s\n' "$info" | sed -n 2p)
+    zone=$(printf '%s\n' "$info" | sed -n 3p)
+    [ "$got" = "$uuid" ] || die "no saved network with id $uuid"
+    kind "$type" >/dev/null || die "only Wi-Fi and wired networks can be marked as home"
+    case $want in
+        on)  [ "$zone" = "$HOME_ZONE" ] && return 0; new=$HOME_ZONE ;;
+        off) [ "$zone" = "$HOME_ZONE" ] || return 0; new= ;;
+    esac
+    "$NMCLI" connection modify uuid "$uuid" connection.zone "$new" >/dev/null 2>&1 \
+        || die "could not change the network; nothing was changed"
+    devices=$("$NMCLI" -g GENERAL.DEVICES connection show uuid "$uuid" 2>/dev/null)
+    for dev in $(printf '%s' "$devices" | tr ',' ' '); do
+        "$NMCLI" device reapply "$dev" >/dev/null 2>&1 \
+            || echo "nizho-home-network: saved; it takes effect the next time this network connects" >&2
+    done
+}
+
+case ${1:-} in
+    list) [ $# = 1 ] || usage; do_list ;;
+    set)  [ $# = 3 ] || usage; case $3 in on|off) ;; *) usage ;; esac; do_set "$2" "$3" ;;
+    *)    usage ;;
+esac

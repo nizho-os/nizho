@@ -11,8 +11,12 @@ const HELPER: &str = "/usr/libexec/nizho-phone-link";
 const STATE: &str = "/etc/nizho/phone-link";
 
 pub const OFF: &str = "Off. Phones on your network cannot find this computer.";
-pub const ON: &str = "On. Phones on the same network can find this computer, and the firewall allows \
-KDE Connect from the local network. You still pair each phone yourself in the KDE Connect app.";
+pub const ON: &str = "On, on home networks only. Phones on a network you marked as home can find this \
+computer; on any other network they cannot. You still pair each phone yourself in the KDE Connect app.";
+pub const ON_NO_HOME: &str = "On, but no network is marked as home, so phones cannot find this computer yet. \
+Mark your home network under Home networks.";
+/// Shown before turning on (docs/HOME-NETWORKS-PLAN.md, Warnings).
+pub const WARNING: &str = "Devices on your home network can see this computer and ask to pair. Pair only phones you own.";
 pub const STOPPED_RULE_OPEN: &str = "KDE Connect is stopped, but the firewall rule is still open because the \
 password prompt was cancelled. Turn this off again to close it.";
 pub const RUNNING_RULE_CLOSED: &str = "KDE Connect is running, but the firewall rule is closed, so phones on \
@@ -72,7 +76,13 @@ pub fn outcome_of(code: Option<i32>, stderr: &str) -> Outcome {
         Some(126) | Some(127) => Outcome::Cancelled,
         _ => {
             let msg = stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("The helper did not finish.");
-            Outcome::Failed(msg.trim().trim_start_matches("nizho-phone-link:").trim().to_string())
+            // Each helper starts its messages with its own name ("nizho-phone-link: ...").
+            let msg = msg.trim();
+            let msg = match msg.split_once(": ") {
+                Some((name, rest)) if name.starts_with("nizho-") && !name.contains(' ') => rest,
+                _ => msg,
+            };
+            Outcome::Failed(msg.trim().to_string())
         }
     }
 }
@@ -189,6 +199,8 @@ mod tests {
             Outcome::Failed("could not write the rule".into())
         );
         assert_eq!(outcome_of(Some(1), ""), Outcome::Failed("The helper did not finish.".into()));
+        assert_eq!(outcome_of(Some(1), "nizho-home-network: not a connection id: x"), Outcome::Failed("not a connection id: x".into()));
+        assert_eq!(outcome_of(Some(1), "Error: busy: try later"), Outcome::Failed("Error: busy: try later".into()));
         assert!(matches!(outcome_of(None, ""), Outcome::Failed(_)));
     }
 
@@ -210,7 +222,7 @@ mod tests {
         assert!(switch_on(false, true), "a rule left open keeps the switch on");
         assert!(switch_on(true, false));
         assert_eq!(subtitle(false, false), "Off. Phones on your network cannot find this computer.");
-        assert!(subtitle(true, true).starts_with("On. Phones on the same network can find this computer"));
+        assert!(subtitle(true, true).starts_with("On, on home networks only."));
         assert!(subtitle(true, true).ends_with("pair each phone yourself in the KDE Connect app."));
         assert_eq!(
             subtitle(false, true),

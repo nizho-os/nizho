@@ -92,12 +92,18 @@ COPY integrations/archon/source-revision /usr/share/nizho/archon-source-revision
 COPY integrations/archon/source-tag /usr/share/nizho/archon-source-tag
 COPY integrations/archon/flathub.flatpakrepo /usr/share/nizho/flathub.flatpakrepo
 COPY system/firewalld/nizho.xml /usr/lib/firewalld/zones/nizho.xml
+COPY system/firewalld/nizho-home.xml /usr/lib/firewalld/zones/nizho-home.xml
+COPY system/firewalld/policies/nizho-away-quiet.xml /usr/lib/firewalld/policies/nizho-away-quiet.xml
 COPY system/kernel/10-nizho-hardening.toml /usr/lib/bootc/kargs.d/10-nizho-hardening.toml
 COPY system/kernel/60-nizho-hardening.conf /usr/lib/sysctl.d/60-nizho-hardening.conf
 COPY system/kernel/20-nizho-recovery.toml /usr/lib/bootc/kargs.d/20-nizho-recovery.toml
 COPY system/nizho-arm-boot-counter /usr/libexec/nizho-arm-boot-counter
 COPY system/nizho-phone-link /usr/libexec/nizho-phone-link
 COPY system/polkit/org.nizho.phone-link.policy /usr/share/polkit-1/actions/org.nizho.phone-link.policy
+COPY system/nizho-home-network /usr/libexec/nizho-home-network
+COPY system/polkit/org.nizho.home-network.policy /usr/share/polkit-1/actions/org.nizho.home-network.policy
+COPY system/nizho-remote-login /usr/libexec/nizho-remote-login
+COPY system/polkit/org.nizho.remote-login.policy /usr/share/polkit-1/actions/org.nizho.remote-login.policy
 COPY system/nizho-stale-trigger-check /usr/libexec/nizho-stale-trigger-check
 COPY system/autostart/nizho-privacy-dots.desktop /etc/xdg/autostart/nizho-privacy-dots.desktop
 COPY desktop/crystal-dock/nizho-dock.desktop /etc/xdg/autostart/nizho-dock.desktop
@@ -736,7 +742,7 @@ RUN chmod 755 /usr/bin/nizho-backup /usr/bin/nizho-import /usr/bin/nizho-hwrepor
     systemctl --global enable nizho-backup.timer
 RUN sed -i 's/^DefaultZone=.*/DefaultZone=nizho/' /etc/firewalld/firewalld.conf && \
     grep -q '^DefaultZone=nizho' /etc/firewalld/firewalld.conf && \
-    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-phone-link /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/libexec/nizho-image-ref-check /usr/libexec/nizho-display-scale /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
+    chmod 755 /usr/libexec/nizho-apply-look /usr/libexec/nizho-arm-boot-counter /usr/libexec/nizho-phone-link /usr/libexec/nizho-home-network /usr/libexec/nizho-remote-login /usr/libexec/nizho-stale-trigger-check /usr/libexec/nizho-rtc-mode /usr/libexec/nizho-hide-system-image /usr/libexec/nizho-dns-after-clock /usr/libexec/nizho-image-ref-check /usr/libexec/nizho-display-scale /usr/bin/firefox-sandbox /usr/bin/nizho-convert /usr/bin/nizho && \
     mkdir -p /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d && \
     printf '[Service]\nExecStart=\nExecStart=/usr/bin/bootc upgrade --quiet\n' \
       > /usr/lib/systemd/system/bootc-fetch-apply-updates.service.d/10-nizho-no-auto-reboot.conf && \

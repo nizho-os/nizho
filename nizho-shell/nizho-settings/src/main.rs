@@ -6,6 +6,7 @@ use std::process::Command;
 
 mod backup;
 mod devices;
+mod home;
 mod phone;
 mod restore_browser;
 
@@ -101,12 +102,12 @@ fn build_ui(app: &adw::Application) {
     stack.add_named(&page_general(),         Some("General"));
     stack.add_named(&page_appearance(&window), Some("Appearance"));
     stack.add_named(&page_privacy(),    Some("Privacy"));
-    stack.add_named(&page_internet(),   Some("Internet"));
+    stack.add_named(&page_internet(&window), Some("Internet"));
     stack.add_named(&page_devices(),    Some("Devices"));
     stack.add_named(&page_updates(),    Some("Updates"));
     stack.add_named(&page_backup(&window), Some("Backup"));
     stack.add_named(&page_developer(),  Some("Developer tools"));
-    stack.add_named(&page_advanced(),   Some("Advanced"));
+    stack.add_named(&page_advanced(&window), Some("Advanced"));
 
     // Wire sidebar selection → stack
     let stack_ref = stack.clone();
@@ -118,8 +119,11 @@ fn build_ui(app: &adw::Application) {
         }
     });
 
-    // Select first item by default
-    sidebar_list.select_row(sidebar_list.row_at_index(0).as_ref());
+    // Open on the page named in NIZHO_SETTINGS_PAGE (the quick settings use it), else the first.
+    let start = std::env::var("NIZHO_SETTINGS_PAGE").ok()
+        .and_then(|want| pages.iter().position(|(n, _)| *n == want))
+        .unwrap_or(0);
+    sidebar_list.select_row(sidebar_list.row_at_index(start as i32).as_ref());
 
     let content_scroll = gtk4::ScrolledWindow::builder()
         .vexpand(true)
@@ -650,7 +654,7 @@ fn page_devices() -> gtk4::Widget {
     b.upcast()
 }
 
-fn page_internet() -> gtk4::Widget {
+fn page_internet(window: &adw::ApplicationWindow) -> gtk4::Widget {
     let b = page_box("Internet", "Wi-Fi and how website names are looked up.");
 
     let group = adw::PreferencesGroup::new();
@@ -678,40 +682,138 @@ fn page_internet() -> gtk4::Widget {
     dns_row.connect_activated(|_| { let _ = Command::new("nizho-dashboard").spawn(); });
     dns_group.add(&dns_row);
 
+    // Home networks: phone linking and remote login open their ports only on networks marked here.
+    let home_group = adw::PreferencesGroup::new();
+    home_group.set_title("Home networks");
+    home_group.set_description(Some("Phone linking and remote login work only on networks you mark as home, never on café or work Wi-Fi."));
+    let home_list = gtk4::ListBox::new();
+    home_list.add_css_class("boxed-list");
+    home_list.set_selection_mode(gtk4::SelectionMode::None);
+    home_group.add(&home_list);
+    fill_home_networks(&home_list);
+
     // Phone link: KDE Connect is off in a new Nizho account, because while it
     // runs it makes this computer visible to other devices on the network.
     let phone_group = adw::PreferencesGroup::new();
     phone_group.set_title("Phone and other devices");
     let phone_row = adw::SwitchRow::new();
     phone_row.set_title("Link with your phone (KDE Connect)");
-    let (d0, r0) = (kdeconnect_running(), phone::rule_open());
-    phone_row.set_subtitle(phone::subtitle(d0, r0));
-    phone_row.set_active(phone::switch_on(d0, r0));
-    phone_row.connect_active_notify(|row| {
+    show_phone(&phone_row, None);
+    let win = window.clone();
+    let list = home_list.clone();
+    phone_row.connect_active_notify(move |row| {
         let want = row.is_active();
         if want == phone::switch_on(kdeconnect_running(), phone::rule_open()) {
             return; // the result of a change made below, shown back to the switch
         }
-        let row = row.clone();
+        let (row, win, list) = (row.clone(), win.clone(), list.clone());
         row.set_sensitive(false);
         glib::spawn_future_local(async move {
+            let mut mark: Option<String> = None;
+            if want {
+                // The plan's warning, and the offer to mark the network this computer is on as home.
+                let nets = gtk4::gio::spawn_blocking(home::networks).await.ok().flatten().unwrap_or_default();
+                let current = (!home::any_home(&nets)).then(|| home::current_not_home(&nets).cloned()).flatten();
+                let body = match &current {
+                    Some(n) => format!("{} Phones can only find this computer on a network marked as home. Mark \u{201c}{}\u{201d} as home?", phone::WARNING, n.name),
+                    None => phone::WARNING.to_string(),
+                };
+                let d = adw::MessageDialog::new(Some(&win), Some("Link with your phone?"), Some(&body));
+                d.add_response("cancel", "Cancel");
+                if current.is_some() { d.add_response("on", "Turn on only"); }
+                d.add_response("go", if current.is_some() { "Turn on and mark as home" } else { "Turn on" });
+                d.set_response_appearance("go", adw::ResponseAppearance::Suggested);
+                d.set_default_response(Some("go"));
+                d.set_close_response("cancel");
+                match d.choose_future().await.as_str() {
+                    "go" => mark = current.map(|n| n.uuid),
+                    "on" => {}
+                    _ => { show_phone(&row, None); row.set_sensitive(true); return; }
+                }
+            }
             // Turning on asks for the administrator password first; turning off stops the daemon first.
-            let msg = gtk4::gio::spawn_blocking(move || phone::apply(want, phone::run_helper, set_kdeconnect))
+            let msg = gtk4::gio::spawn_blocking(move || {
+                let msg = phone::apply(want, phone::run_helper, set_kdeconnect);
+                match (mark, &msg) {
+                    (Some(uuid), None) => match home::set_home(&uuid, true) {
+                        phone::Outcome::Failed(e) => Some(format!("Phone linking is on, but the network could not be marked as home: {e}")),
+                        _ => None,
+                    },
+                    _ => msg,
+                }
+            })
                 .await
                 .unwrap_or_else(|_| Some("Couldn't change this. Open the KDE Connect app instead.".into()));
             // The switch shows what is running and what the state file says now, not what was asked.
-            let (d, r) = (kdeconnect_running(), phone::rule_open());
-            row.set_active(phone::switch_on(d, r));
+            show_phone(&row, msg);
             row.set_sensitive(true);
-            row.set_subtitle(&msg.unwrap_or_else(|| phone::subtitle(d, r).to_string()));
+            fill_home_networks(&list);
         });
     });
     phone_group.add(&phone_row);
 
     b.append(&group);
     b.append(&dns_group);
+    b.append(&home_group);
     b.append(&phone_group);
     b.upcast()
+}
+
+/// The phone switch and its words from what is running and what the state file says now.
+fn show_phone(row: &adw::SwitchRow, msg: Option<String>) {
+    let (d, r) = (kdeconnect_running(), phone::rule_open());
+    row.set_active(phone::switch_on(d, r));
+    let no_home = d && r && !home::networks().is_some_and(|n| home::any_home(&n));
+    row.set_subtitle(&msg.unwrap_or_else(|| if no_home { phone::ON_NO_HOME } else { phone::subtitle(d, r) }.to_string()));
+}
+
+/// One switch per saved Wi-Fi or wired network: on means home.
+fn fill_home_networks(list: &gtk4::ListBox) {
+    while let Some(child) = list.first_child() { list.remove(&child); }
+    let Some(nets) = home::networks() else {
+        let row = adw::ActionRow::new();
+        row.set_title("Couldn't read the saved networks");
+        row.set_subtitle("Is NetworkManager running? Open Wi-Fi networks to check.");
+        list.append(&row);
+        return;
+    };
+    if nets.is_empty() {
+        let row = adw::ActionRow::new();
+        row.set_title("No saved networks yet");
+        row.set_subtitle("Connect to your home Wi-Fi first, then mark it here.");
+        list.append(&row);
+        return;
+    }
+    for n in nets {
+        let row = adw::SwitchRow::new();
+        row.set_title(&glib::markup_escape_text(&n.name));
+        let sub = |home: bool| format!("{}{}", if n.active { "Connected now. " } else { "" }, if home { home::HOME_ON } else { home::HOME_OFF });
+        row.set_subtitle(&sub(n.home));
+        row.add_prefix(&gtk4::Image::from_icon_name(if n.kind == "wifi" { "network-wireless-symbolic" } else { "network-wired-symbolic" }));
+        row.set_active(n.home);
+        let uuid = n.uuid.clone();
+        let was = n.home;
+        let owner = list.clone();
+        row.connect_active_notify(move |row| {
+            let want = row.is_active();
+            if want == was { return; }
+            let (row, uuid, list) = (row.clone(), uuid.clone(), owner.clone());
+            row.set_sensitive(false);
+            glib::spawn_future_local(async move {
+                let out = gtk4::gio::spawn_blocking(move || home::set_home(&uuid, want)).await
+                    .unwrap_or(phone::Outcome::Failed("The helper did not finish.".into()));
+                // Rebuild from what is true now; the window is looked up first, while the row is still in it.
+                let win = row.root().and_downcast::<gtk4::Window>();
+                fill_home_networks(&list);
+                if let phone::Outcome::Failed(e) = out {
+                    let d = adw::MessageDialog::new(win.as_ref(), Some("Couldn't change this network"), Some(&e));
+                    d.add_response("ok", "OK");
+                    d.present();
+                }
+            });
+        });
+        list.append(&row);
+    }
 }
 
 fn kdeconnect_running() -> bool {
@@ -1231,8 +1333,9 @@ fn page_developer() -> gtk4::Widget {
     b.upcast()
 }
 
-fn page_advanced() -> gtk4::Widget {
-    let b = page_box("Advanced", "Details for troubleshooting. These open a terminal with read-only commands.");
+fn page_advanced(window: &adw::ApplicationWindow) -> gtk4::Widget {
+    let b = page_box("Advanced", "Remote login, and details for troubleshooting.");
+    b.append(&remote_login_group(window));
 
     let group = adw::PreferencesGroup::new();
     group.set_title("System");
@@ -1286,6 +1389,110 @@ fn page_advanced() -> gtk4::Widget {
     b.append(&group);
     b.append(&logs_group);
     b.upcast()
+}
+
+/// Remote login (SSH): off by default; on asks for the administrator password every time and works on
+/// home networks only. Keys are the way in; passwords are a second switch with its own warning.
+fn remote_login_group(window: &adw::ApplicationWindow) -> adw::PreferencesGroup {
+    let group = adw::PreferencesGroup::new();
+    group.set_title("Remote login");
+    group.set_description(Some("Lets another computer on your home network sign in to this one with SSH."));
+
+    let main = adw::SwitchRow::new();
+    main.set_title("Allow remote login");
+    let passwords = adw::SwitchRow::new();
+    passwords.set_title("Also allow passwords");
+    passwords.set_subtitle(home::PASSWORDS_WARNING);
+    let hour = adw::SwitchRow::new();
+    hour.set_title("Turn off after an hour");
+    hour.set_subtitle("For a one-off: remote login switches itself off within an hour.");
+
+    let keys = adw::ActionRow::new();
+    keys.set_title("Keys");
+    let key_entry = adw::EntryRow::new();
+    key_entry.set_title("Add a public key (ssh-ed25519 \u{2026})");
+    key_entry.set_show_apply_button(true);
+
+    group.add(&main);
+    group.add(&passwords);
+    group.add(&hour);
+    group.add(&keys);
+    group.add(&key_entry);
+
+    let refresh = {
+        let (main, passwords, hour, keys) = (main.clone(), passwords.clone(), hour.clone(), keys.clone());
+        move |msg: Option<String>| {
+            let r = home::remote_status();
+            let any_home = home::networks().is_some_and(|n| home::any_home(&n));
+            main.set_active(r.on);
+            main.set_subtitle(&msg.unwrap_or_else(|| home::remote_subtitle(r, any_home)));
+            passwords.set_active(r.passwords);
+            hour.set_active(r.timer);
+            // The choices apply when remote login is turned on; while it is on they change it.
+            let n = std::fs::read_to_string(home::authorized_keys()).map(|t| home::count_keys(&t)).unwrap_or(0);
+            keys.set_subtitle(&home::keys_subtitle(n));
+        }
+    };
+    refresh(None);
+
+    // One handler for all three switches: whatever changed, ask the helper for the state the switches show.
+    let busy = std::rc::Rc::new(std::cell::Cell::new(false));
+    let apply = {
+        let (win, main, passwords, hour, refresh, busy) = (window.clone(), main.clone(), passwords.clone(), hour.clone(), refresh.clone(), busy.clone());
+        move || {
+            if busy.get() { return; }
+            let now = home::remote_status();
+            let (on, pw, h) = (main.is_active(), passwords.is_active(), hour.is_active());
+            if !on && !now.on { return; } // choosing options while off: they apply when it is turned on
+            if on == now.on && pw == now.passwords && h == now.timer { return; }
+            busy.set(true);
+            let (win, refresh, busy, passwords) = (win.clone(), refresh.clone(), busy.clone(), passwords.clone());
+            glib::spawn_future_local(async move {
+                // The plan's warnings, before anything opens.
+                let mut warn = Vec::new();
+                if on && !now.on { warn.push(home::REMOTE_WARNING); }
+                if on && pw && !now.passwords { warn.push(home::PASSWORDS_WARNING); }
+                if !warn.is_empty() {
+                    let d = adw::MessageDialog::new(Some(&win), Some(if now.on { "Allow passwords?" } else { "Allow remote login?" }), Some(&warn.join(" ")));
+                    d.add_response("cancel", "Cancel");
+                    d.add_response("go", "Allow");
+                    d.set_response_appearance("go", adw::ResponseAppearance::Destructive);
+                    d.set_close_response("cancel");
+                    if d.choose_future().await != "go" {
+                        refresh(None);
+                        // Options chosen before turning on stay as chosen.
+                        if !now.on { passwords.set_active(pw); }
+                        busy.set(false);
+                        return;
+                    }
+                }
+                let out = gtk4::gio::spawn_blocking(move || home::set_remote(on, pw, h)).await
+                    .unwrap_or(phone::Outcome::Failed("The helper did not finish.".into()));
+                let msg = match out {
+                    phone::Outcome::Done => None,
+                    phone::Outcome::Cancelled => Some("The password prompt was cancelled, so nothing changed.".to_string()),
+                    phone::Outcome::Failed(e) => Some(format!("Couldn't change remote login: {e}")),
+                };
+                refresh(msg);
+                busy.set(false);
+            });
+        }
+    };
+    for row in [&main, &passwords, &hour] {
+        let apply = apply.clone();
+        row.connect_active_notify(move |_| apply());
+    }
+
+    let refresh_keys = refresh.clone();
+    key_entry.connect_apply(move |entry| {
+        let text = entry.text().to_string();
+        match home::add_key(&home::authorized_keys(), &text) {
+            Ok(()) => { entry.set_text(""); refresh_keys(None); }
+            Err(e) => entry.set_title(e),
+        }
+    });
+    key_entry.connect_changed(|entry| entry.set_title("Add a public key (ssh-ed25519 \u{2026})"));
+    group
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
