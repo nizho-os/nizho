@@ -1,0 +1,12 @@
+[Unit]
+Description=Keep the one-hour limit on remote login after a restart
+After=firewalld.service
+Before=sshd.service
+ConditionPathExists=/etc/nizho/remote-login-off-at
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/nizho-remote-login resume
+
+[Install]
+WantedBy=multi-user.target

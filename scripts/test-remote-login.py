@@ -55,6 +55,7 @@ class RemoteLogin(unittest.TestCase):
             f.chmod(f.stat().st_mode | stat.S_IXUSR)
         self.state = self.dir / "etc" / "remote-login"
         self.dropin = self.dir / "sshd_config.d" / "10-nizho-remote-login.conf"
+        self.offat = self.dir / "etc" / "remote-login-off-at"
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -63,6 +64,7 @@ class RemoteLogin(unittest.TestCase):
         d = self.dir
         e = {"PATH": os.environ["PATH"], "FAKE_DIR": str(d), "NIZHO_REMOTE_LOGIN_TEST": "1",
              "NIZHO_REMOTE_LOGIN_STATE": str(self.state), "NIZHO_REMOTE_LOGIN_DROPIN": str(self.dropin),
+             "NIZHO_REMOTE_LOGIN_OFFAT": str(self.offat), "NIZHO_REMOTE_LOGIN_NOW": "1000000",
              "NIZHO_FIREWALL_CMD": str(d / "firewall-cmd"), "NIZHO_SYSTEMCTL": str(d / "systemctl"),
              "NIZHO_SYSTEMD_RUN": str(d / "systemd-run"), "NIZHO_SSHD": str(d / "sshd"), **env}
         return subprocess.run(["sh", str(HELPER), *args], env=e, capture_output=True, text=True)
@@ -78,6 +80,7 @@ class RemoteLogin(unittest.TestCase):
         self.assertFalse((self.dir / "sshd-active").exists())
         self.assertFalse((self.dir / "sshd-enabled").exists())
         self.assertFalse(self.dropin.exists())
+        self.assertFalse(self.offat.exists())
 
     def test_on_opens_ssh_at_home_with_keys_only(self):
         r = self.run_helper("on")
@@ -100,10 +103,43 @@ class RemoteLogin(unittest.TestCase):
 
     def test_one_hour_timer(self):
         self.run_helper("on", "1h")
-        self.assertIn("--on-active=1h", (self.dir / "log").read_text())
+        self.assertIn("--on-active=3600s", (self.dir / "log").read_text())
+        self.assertEqual(self.offat.read_text(), "1003600")
         self.assertEqual(self.run_helper("status").stdout.split(), ["on", "keys", "1h"])
         self.run_helper("off")
         self.assertFalse((self.dir / "timer").exists(), "off cancels the timer")
+
+    def test_on_without_the_hour_forgets_an_old_limit(self):
+        self.run_helper("on", "1h")
+        self.run_helper("on")
+        self.assertFalse(self.offat.exists())
+
+    def test_resume_after_a_restart_restarts_the_timer_for_the_time_left(self):
+        self.run_helper("on", "1h")
+        (self.dir / "timer").unlink()  # a restart loses the transient timer
+        r = self.run_helper("resume", NIZHO_REMOTE_LOGIN_NOW="1001800")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("--on-active=1800s", (self.dir / "log").read_text())
+        self.assertEqual(self.run_helper("status").stdout.split(), ["on", "keys", "1h"])
+
+    def test_resume_past_the_limit_turns_everything_off(self):
+        self.run_helper("on", "passwords", "1h")
+        r = self.run_helper("resume", NIZHO_REMOTE_LOGIN_NOW="1003600")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assert_closed()
+
+    def test_resume_with_a_broken_limit_file_turns_everything_off(self):
+        self.run_helper("on", "1h")
+        self.offat.write_text("soon")
+        self.run_helper("resume")
+        self.assert_closed()
+
+    def test_resume_without_a_limit_changes_nothing(self):
+        self.run_helper("on")
+        before = (self.dir / "log").read_text()
+        self.assertEqual(self.run_helper("resume").returncode, 0)
+        self.assertEqual(self.state.read_text(), "on")
+        self.assertEqual((self.dir / "log").read_text(), before)
 
     def test_off_closes_everything(self):
         self.run_helper("on", "passwords", "1h")
@@ -140,7 +176,7 @@ class RemoteLogin(unittest.TestCase):
                     self.assertNotIn(bad, line)
 
     def test_bad_usage(self):
-        for args in ((), ("on", "everything"), ("on", "passwords", "1h", "x"), ("off", "now"), ("status", "x"), ("open",)):
+        for args in ((), ("on", "everything"), ("on", "passwords", "1h", "x"), ("off", "now"), ("status", "x"), ("resume", "x"), ("open",)):
             self.assertEqual(self.run_helper(*args).returncode, 2, args)
         self.assertFalse(self.state.exists())
 

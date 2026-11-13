@@ -1,5 +1,5 @@
 #!/bin/sh
-# nizho-remote-login on [passwords] [1h] | off | status: let other computers on your home networks sign in to this
+# nizho-remote-login on [passwords] [1h] | off | status | resume: let other computers on your home networks sign in to this
 # one over SSH. Runs as root only (through pkexec; see org.nizho.remote-login.policy).
 #
 # State: /etc/nizho/remote-login holding the word "on" means remote login is allowed. Absent or anything else is off.
@@ -10,13 +10,16 @@
 #   ~/.ssh/authorized_keys work. It is readable by everyone (it holds no secrets) so Settings can show the choice.
 #   It is named 10- because sshd keeps the first value it reads for each setting
 #   and Fedora's own file is 50-redhat.conf.
-# "1h" starts a transient timer (nizho-remote-login-off.timer) that runs "off" an hour later.
+# "1h" writes the time to turn off (seconds since 1970) to /etc/nizho/remote-login-off-at and starts a transient
+#   timer (nizho-remote-login-off.timer) that runs "off" then. A transient timer is lost on restart, so
+#   nizho-remote-login-resume.service runs "resume" at every boot before sshd starts: past the time it turns
+#   remote login off, otherwise it starts the timer again for the time that is left.
 #
 # Ordering, as in nizho-phone-link: the flag says "on" only after everything else is in place, and "off" clears
 # the flag first, so a crash in between never leaves something open that the flag vouches for.
 #
 # Tests: NIZHO_REMOTE_LOGIN_TEST=1 allows running unprivileged and honours NIZHO_REMOTE_LOGIN_STATE,
-# NIZHO_REMOTE_LOGIN_DROPIN, NIZHO_FIREWALL_CMD, NIZHO_SYSTEMCTL, NIZHO_SYSTEMD_RUN and NIZHO_SSHD.
+# NIZHO_REMOTE_LOGIN_DROPIN, NIZHO_REMOTE_LOGIN_OFFAT, NIZHO_REMOTE_LOGIN_NOW, NIZHO_FIREWALL_CMD, NIZHO_SYSTEMCTL, NIZHO_SYSTEMD_RUN and NIZHO_SSHD.
 # Without that variable all are ignored.
 
 ZONE=nizho-home
@@ -28,10 +31,14 @@ SYSTEMCTL=systemctl
 SYSTEMD_RUN=systemd-run
 SSHD=/usr/sbin/sshd
 TIMER=nizho-remote-login-off
+OFFAT=/etc/nizho/remote-login-off-at
+NOW=
 
 if [ "${NIZHO_REMOTE_LOGIN_TEST:-}" = 1 ]; then
     STATE=${NIZHO_REMOTE_LOGIN_STATE:-$STATE}
     DROPIN=${NIZHO_REMOTE_LOGIN_DROPIN:-$DROPIN}
+    OFFAT=${NIZHO_REMOTE_LOGIN_OFFAT:-$OFFAT}
+    NOW=${NIZHO_REMOTE_LOGIN_NOW:-}
     FW=${NIZHO_FIREWALL_CMD:-$FW}
     SYSTEMCTL=${NIZHO_SYSTEMCTL:-$SYSTEMCTL}
     SYSTEMD_RUN=${NIZHO_SYSTEMD_RUN:-$SYSTEMD_RUN}
@@ -41,7 +48,13 @@ elif [ "$(id -u)" != 0 ]; then
     exit 77
 fi
 
-usage() { echo "usage: nizho-remote-login on [passwords] [1h] | off | status" >&2; exit 2; }
+usage() { echo "usage: nizho-remote-login on [passwords] [1h] | off | status | resume" >&2; exit 2; }
+now() { if [ -n "$NOW" ]; then echo "$NOW"; else date +%s; fi; }
+
+start_timer() { # seconds
+    "$SYSTEMD_RUN" --unit="$TIMER" --on-active="${1}s" --timer-property=AccuracySec=1s \
+        /usr/libexec/nizho-remote-login off >/dev/null 2>&1
+}
 die() { echo "nizho-remote-login: $*" >&2; exit 1; }
 
 atomic_write() { # path content mode
@@ -58,7 +71,7 @@ close_everything() {
     fw --permanent --remove-service=$SERVICE
     fw --remove-service=$SERVICE
     "$SYSTEMCTL" disable --now sshd.service >/dev/null 2>&1
-    rm -f "$DROPIN"
+    rm -f "$DROPIN" "$OFFAT"
 }
 
 do_on() {
@@ -84,15 +97,18 @@ KbdInteractiveAuthentication no
     "$SYSTEMCTL" reload sshd.service >/dev/null 2>&1
     atomic_write "$STATE" on 644 || { close_everything; die "could not write $STATE; remote login stays off"; }
     if [ $timer = yes ]; then
-        "$SYSTEMD_RUN" --unit="$TIMER" --on-active=1h --timer-property=AccuracySec=1s \
-            /usr/libexec/nizho-remote-login off >/dev/null 2>&1 \
-            || echo "nizho-remote-login: remote login is on, but the one-hour timer could not be started" >&2
+        if ! atomic_write "$OFFAT" "$(( $(now) + 3600 ))" 644 || ! start_timer 3600; then
+            echo "nizho-remote-login: remote login is on, but the one-hour timer could not be started" >&2
+        fi
+    else
+        rm -f "$OFFAT"
     fi
 }
 
 do_off() {
     rm -f "$STATE" || die "could not remove $STATE; nothing was changed"
     "$SYSTEMCTL" stop "$TIMER.timer" >/dev/null 2>&1
+    rm -f "$OFFAT"
     bad=0
     fw --permanent --remove-service=$SERVICE || bad=1
     fw --remove-service=$SERVICE || bad=1
@@ -107,9 +123,21 @@ do_status() {
     if "$SYSTEMCTL" is-active --quiet "$TIMER.timer" 2>/dev/null; then echo 1h; fi
 }
 
+do_resume() {
+    [ -e "$OFFAT" ] || return 0
+    if [ "$(cat "$STATE" 2>/dev/null)" != on ]; then rm -f "$OFFAT"; return 0; fi
+    at=$(cat "$OFFAT" 2>/dev/null)
+    case $at in ''|*[!0-9]*) do_off; return ;; esac
+    left=$(( at - $(now) ))
+    if [ $left -le 0 ]; then do_off; return; fi
+    "$SYSTEMCTL" stop "$TIMER.timer" >/dev/null 2>&1
+    start_timer $left || { echo "nizho-remote-login: could not restart the turn-off timer; turning remote login off" >&2; do_off; }
+}
+
 case ${1:-} in
     on)     shift; [ $# -le 2 ] || usage; do_on "$@" ;;
     off)    [ $# = 1 ] || usage; do_off ;;
     status) [ $# = 1 ] || usage; do_status ;;
+    resume) [ $# = 1 ] || usage; do_resume ;;
     *)      usage ;;
 esac
