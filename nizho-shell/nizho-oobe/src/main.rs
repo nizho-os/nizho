@@ -36,8 +36,8 @@ mod tutorial;
 const APP_ID: &str = "org.nizho.oobe";
 
 const PHONE_TEXT: &str = "KDE Connect lets your phone and this computer share files, notifications and the clipboard \
-over your home network. If you say yes, phones on the same network can find this computer. \
-You can change this later in Settings, Internet.";
+over your home network. If you say yes, phones can find this computer only on networks you mark as home, \
+never on café or work Wi-Fi. You mark your home network, or change this, in Settings, Internet.";
 
 fn main() {
     let app = adw::Application::builder().application_id(APP_ID).build();
@@ -1096,7 +1096,7 @@ fn build_ui(app: &adw::Application) {
         b
     };
     let phone_no = phone_choice("No", "Phones on your network cannot find this computer.");
-    let phone_yes = phone_choice("Yes, link my phone", "Phones on the same network can find this computer.");
+    let phone_yes = phone_choice("Yes, link my phone", "Phones on networks you mark as home can find this computer.");
     phone_yes.set_group(Some(&phone_no));
     phone_no.set_active(true);
     for c in [&phone_no, &phone_yes] {
@@ -1780,6 +1780,7 @@ mod phone_tests {
     fn the_text_is_the_agreed_wording() {
         assert_eq!(super::PHONE_TEXT,
             "KDE Connect lets your phone and this computer share files, notifications and the clipboard over your home network. \
-If you say yes, phones on the same network can find this computer. You can change this later in Settings, Internet.");
+If you say yes, phones can find this computer only on networks you mark as home, never on café or work Wi-Fi. \
+You mark your home network, or change this, in Settings, Internet.");
     }
 }
