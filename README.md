@@ -12,8 +12,7 @@
 <p align="center">Version 0.1.0-dp1 · Developer Preview · GPL-3.0</p>
 
 > **Nizho is a separate project that began as a copy of [ArkaOS](https://github.com/thulasiramk-2310/Arka).** Both were
-> created by Thulasiram K ([thulasiramk-2310](https://github.com/thulasiramk-2310)); ArkaOS continues on its own and is not
-> related to other software called ArKaos or to Arka Linux. Every test result in this README and in
+> created by Thulasiram K ([thulasiramk-2310](https://github.com/thulasiramk-2310)); ArkaOS continues on its own. Every test result in this README and in
 > [docs/TEST-LOG.md](docs/TEST-LOG.md) dated before 2026-11-01 was recorded on ArkaOS builds. The first Nizho image
 > was built and booted in a VM on 2026-11-01 (splash, setup, login and desktop all came up). Nothing has been tested on real hardware under the Nizho name.
 
