@@ -15,6 +15,12 @@ COPY nizho-pulse/ /nizho-pulse/
 RUN cargo build --locked --release --target x86_64-unknown-linux-musl \
       --features dbus --manifest-path /nizho-pulse/Cargo.toml
 
+# nizho-install: the installer backend (disk probe, repart plan, bootc apply), static musl.
+# Its screens (nizho-install-ui) are built with the other GTK apps below.
+COPY nizho-install/ /nizho-install/
+RUN cargo build --locked --release --target x86_64-unknown-linux-musl \
+      --manifest-path /nizho-install/Cargo.toml
+
 # Stage 2: build the nizho-shell GTK4 apps (glibc required, not musl)
 FROM docker.io/library/fedora:${FEDORA_VERSION} AS shell-builder
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q gtk4-devel gtk4-layer-shell-devel libadwaita-devel rust cargo gcc pkgconf-pkg-config
@@ -210,6 +216,9 @@ COPY --from=shell-builder /build/target/release/nizho-bluetooth  /usr/bin/nizho-
 COPY --from=shell-builder /build/target/release/nizho-privacy-tray /usr/bin/nizho-privacy-tray
 COPY --from=shell-builder /build/target/release/nizho-oobe /usr/bin/nizho-oobe
 COPY --from=shell-builder /build/target/release/nizho-privacy-dots /usr/bin/nizho-privacy-dots
+COPY --from=builder /nizho-install/target/x86_64-unknown-linux-musl/release/nizho-install /usr/libexec/nizho-install
+COPY --from=shell-builder /build/target/release/nizho-install-ui /usr/bin/nizho-install-ui
+COPY nizho-install/org.nizho.install.policy /usr/share/polkit-1/actions/org.nizho.install.policy
 COPY --from=wheel-builder /build/out/nizho-wheel /usr/bin/nizho-wheel
 COPY --from=wheel-builder /build-edit/out/nizho-edit /usr/bin/nizho-edit
 COPY --from=vara-builder /out/vara /usr/bin/vara
@@ -405,6 +414,12 @@ RUN sed -i \
       /usr/lib/os-release && \
     echo "0.1.0-dp1" > /usr/lib/nizho-release
 
+# bootupd names the firmware boot entry after /etc/system-release and, before adding it,
+# deletes every entry with that name. With Fedora's file the entry was "Fedora", so
+# installing Nizho would have removed a real Fedora install's entry on the same computer.
+RUN rm -f /etc/system-release && \
+    printf 'Nizho release %s\n' "$(. /usr/lib/os-release && echo "$VERSION_ID")" > /etc/system-release
+
 # Nizho has its own welcome; KDE's Konqi tour would fight the identity.
 # kded6's kded_plasma_welcome module launches it whenever plasma-welcomerc
 # lacks [General] LastSeenVersion (verified via strings on the .so), so remove
@@ -486,6 +501,12 @@ RUN printf '[Mouse]\ncursorTheme=NizhoCursor\n' > /etc/skel/.config/kcminputrc
 # images get console=ttyS0 from bootc-image-builder, and plymouth falls back to
 # text ("details") whenever a serial console is present, so tell it to leave
 # serial consoles alone: splash on screen, boot log still on the serial port.
+# Disk unlock with the computer's TPM chip and a PIN (nizho-install sets it up). dracut's
+# tpm2-tss module needs tpm2-tools, and it goes into the initramfs only when asked for; the
+# rebuild below picks it up.
+RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y --setopt=retries=25 tpm2-tools tpm2-tss && \
+    printf 'add_dracutmodules+=" tpm2-tss "\n' > /usr/lib/dracut/dracut.conf.d/50-nizho-tpm2.conf
+
 RUN plymouth-set-default-theme nizho && \
     mkdir -p /var/roothome && \
     KVER=$(ls /usr/lib/modules | head -1) && \
@@ -797,5 +818,6 @@ RUN chmod 755 /usr/bin/nizhod /usr/bin/nizho-pulsed /usr/bin/nizho-oobe \
       /usr/bin/nizho-dashboard /usr/bin/nizho-wifi /usr/bin/nizho-update \
       /usr/bin/nizho-hotkeys /usr/bin/nizho-capsule /usr/bin/nizho-perms \
       /usr/bin/nizho-settings-gtk /usr/bin/nizho-welcome /usr/bin/nizho-sound \
-      /usr/bin/nizho-bluetooth /usr/bin/nizho-privacy-tray /usr/bin/nizho-privacy-dots && \
+      /usr/bin/nizho-bluetooth /usr/bin/nizho-privacy-tray /usr/bin/nizho-privacy-dots \
+      /usr/libexec/nizho-install /usr/bin/nizho-install-ui && \
     bootc container lint

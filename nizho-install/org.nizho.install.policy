@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Lets Nizho Install run its backend as root through pkexec. Every caller needs an
+     administrator password; it is kept for a few minutes so one install asks once. -->
+<policyconfig>
+  <vendor>Nizho</vendor>
+  <action id="org.nizho.install">
+    <description>Install Nizho on a disk</description>
+    <message>Installing Nizho reads and changes disks. Enter an administrator password to continue.</message>
+    <icon_name>drive-harddisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/nizho-install</annotate>
+  </action>
+</policyconfig>
