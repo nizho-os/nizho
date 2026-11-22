@@ -1,0 +1,192 @@
+name: Live ISO
+
+# Builds the Nizho live ISO: a USB stick that starts Nizho Install, which puts Nizho
+# on a disk (next to Windows, on an empty disk, or over a whole disk). The ISO carries
+# the image it installs, so installing needs no network.
+#
+# On test/* branches the image is the one the Image workflow built from the same commit
+# (handed over as an artifact, so it is built once, not twice; it is not published), and the
+# ISO is kept as a downloadable artifact for a few days. Not yet run on main.
+
+on:
+  push:
+    branches: ["test/**"]
+    paths-ignore:
+      - "docs/**"
+      - "assets/**"
+      - "**.md"
+  workflow_dispatch:
+
+concurrency:
+  group: live-iso-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  iso:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Make room (image ~11 GB, live image, ISO ~10 GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /usr/share/swift /usr/local/share/boost
+          sudo mkdir -p /mnt/containers /var/lib/containers /mnt/out "$HOME/iso-work"
+          sudo chown "$USER" /mnt/out
+          sudo mount --bind /mnt/containers /var/lib/containers
+          df -h / /mnt
+
+      - uses: actions/checkout@v4
+
+      # When only scripts/live-iso changed since an ISO this branch already built, test that
+      # ISO instead of building the same one again (about 12 minutes instead of 33).
+      - name: Look for an ISO already built from the same sources
+        id: reuse
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=nizho-live-iso&per_page=50" \
+            --jq ".artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$GITHUB_REF_NAME\") | \"\(.workflow_run.id) \(.workflow_run.head_sha)\"" \
+            | head -5 > "$RUNNER_TEMP/isos" || true
+          while read -r run sha; do
+            git fetch -q --depth=1 origin "$sha" || continue
+            if git diff --quiet "$sha" HEAD -- . ':(exclude)scripts/live-iso'; then
+              echo "Testing the ISO from run $run (built from $sha): only scripts/live-iso changed since."
+              echo "run=$run" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done < "$RUNNER_TEMP/isos"
+          echo "No ISO built from these sources yet: building one."
+
+      - name: Download that ISO
+        if: steps.reuse.outputs.run != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: nizho-live-iso
+          path: /mnt/out
+          run-id: ${{ steps.reuse.outputs.run }}
+          github-token: ${{ github.token }}
+
+      - name: Check the downloaded ISO
+        if: steps.reuse.outputs.run != ''
+        run: cd /mnt/out && sha256sum -c nizho-live.iso.sha256
+
+      # The Image workflow builds this commit at the same time and hands the image over; wait
+      # for it rather than building it again. A started-by-hand run with no Image run for this
+      # commit builds the image itself.
+      - name: Wait for the Image workflow's build of this commit
+        id: image
+        if: steps.reuse.outputs.run == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 20); do
+            run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/image.yml/runs?head_sha=$GITHUB_SHA&per_page=1" \
+                  --jq '.workflow_runs[0].id // empty')
+            [ -n "$run" ] && break
+            sleep 15
+          done
+          if [ -z "$run" ]; then
+            echo "No Image run for $GITHUB_SHA: building the image here."
+            exit 0
+          fi
+          echo "Waiting for the image from Image run $run."
+          while :; do
+            if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts" \
+                 --jq '.artifacts[].name' | grep -qx nizho-build-image; then
+              echo "run=$run" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            state=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .status)
+            if [ "$state" = completed ]; then
+              echo "::error::Image run $run ended without handing over the image (see that run)"
+              exit 1
+            fi
+            sleep 30
+          done
+
+      # /mnt belongs to root on the runner; the download step runs as the runner's user.
+      - name: Make a folder for the image
+        if: steps.reuse.outputs.run == '' && steps.image.outputs.run != ''
+        run: sudo install -d -o "$USER" /mnt/handoff
+
+      - name: Download the image
+        if: steps.reuse.outputs.run == '' && steps.image.outputs.run != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: nizho-build-image
+          path: /mnt/handoff
+          run-id: ${{ steps.image.outputs.run }}
+          github-token: ${{ github.token }}
+
+      - name: Load the image
+        if: steps.reuse.outputs.run == '' && steps.image.outputs.run != ''
+        run: |
+          sudo skopeo copy oci-archive:/mnt/handoff/nizho-build.tar containers-storage:localhost/nizho:build
+          sudo rm -rf /mnt/handoff
+
+      - name: Build the Nizho image from this branch
+        if: steps.reuse.outputs.run == '' && steps.image.outputs.run == ''
+        run: sudo podman build --pull=newer -t localhost/nizho:build .
+
+      - name: Save it as an OCI directory and read its release name
+        if: steps.reuse.outputs.run == ''
+        run: |
+          ctx=$HOME/live-ctx
+          mkdir -p "$ctx"
+          cp system/installer/live/Containerfile system/installer/live/dracut-live.conf \
+             system/installer/live/live-profile system/installer/live/49-nizho-install-live.rules "$ctx/"
+          sudo skopeo copy containers-storage:localhost/nizho:build "oci:$ctx/image"
+          sudo podman run --rm --net=none --entrypoint cat localhost/nizho:build /etc/system-release \
+            | sudo tee "$ctx/image.system-release"
+          sudo du -sh "$ctx/image"
+
+      - name: Build the live system
+        if: steps.reuse.outputs.run == ''
+        run: |
+          sudo podman build --build-arg BASE=localhost/nizho:build -t localhost/nizho:live "$HOME/live-ctx"
+          sudo rm -rf "$HOME/live-ctx"
+          df -h / /mnt
+
+      - name: Make the ISO
+        id: iso
+        if: steps.reuse.outputs.run == ''
+        run: |
+          sudo podman run --rm --privileged --security-opt label=disable \
+            --mount type=image,source=localhost/nizho:live,destination=/rootfs \
+            -v "$PWD/system/installer/live/build-iso.sh:/build-iso.sh:ro" \
+            -v /mnt/out:/output -v "$HOME/iso-work:/work" \
+            quay.io/fedora/fedora:44 bash /build-iso.sh
+
+      - name: Test the ISO in a VM (install next to a fake Windows, Secure Boot on)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          sudo apt-get update -q && sudo apt-get install -y -q qemu-system-x86 qemu-utils gdisk mtools dosfstools socat swtpm swtpm-tools
+          sudo modprobe vhost_vsock
+          mkdir -p "$HOME/ovmf"
+          sudo podman run --rm quay.io/fedora/fedora:44 bash -c \
+            'dnf install -y -q edk2-ovmf >/dev/null && tar -C /usr/share/edk2/ovmf -c OVMF_CODE_4M.secboot.qcow2 OVMF_VARS_4M.secboot.qcow2' \
+            | tar -x -C "$HOME/ovmf"
+          sudo OVMF_CODE="$HOME/ovmf/OVMF_CODE_4M.secboot.qcow2" OVMF_VARS="$HOME/ovmf/OVMF_VARS_4M.secboot.qcow2" \
+            bash scripts/live-iso/run.sh /mnt/out/nizho-live.iso /mnt/test-out
+
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-iso-test
+          path: /mnt/test-out/
+          retention-days: 7
+
+      # Kept even when the test fails, so a test-only fix can reuse it.
+      - name: Keep the ISO
+        if: always() && steps.iso.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nizho-live-iso
+          path: /mnt/out/
+          retention-days: 3
+          compression-level: 0

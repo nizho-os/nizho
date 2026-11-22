@@ -1,0 +1,33 @@
+# The Nizho live ISO's system: the Nizho image, plus what booting from a USB stick
+# needs, plus the image itself as an OCI directory for Nizho Install to put on the disk.
+# Built by .github/workflows/live-iso.yml; build-iso.sh turns it into the ISO.
+ARG BASE=ghcr.io/nizho-os/nizho:latest
+FROM ${BASE}
+
+# An initramfs that can start from the squashfs on the ISO (dracut's dmsquash-live).
+RUN dnf install -y --setopt=install_weak_deps=False dracut-live && dnf clean all
+COPY dracut-live.conf /usr/lib/dracut/dracut.conf.d/40-nizho-live.conf
+RUN kver=$(ls /usr/lib/modules) && \
+    DRACUT_NO_XATTR=1 dracut --force --no-hostonly --reproducible \
+      "/usr/lib/modules/$kver/initramfs.img" "$kver"
+
+# tty1 runs Nizho Install full screen, through the same autologin + cage path that runs
+# setup on first boot. Its backend gets root through pkexec; on the live system only,
+# the setup account may run it without a password (there is no password to give).
+COPY live-profile /usr/share/nizho/nizhosetup/.bash_profile
+RUN install -m 644 -o nizhosetup -g nizhosetup /usr/share/nizho/nizhosetup/.bash_profile \
+      /var/home/nizhosetup/.bash_profile
+COPY 49-nizho-install-live.rules /etc/polkit-1/rules.d/49-nizho-install-live.rules
+
+# Units that belong to an installed system. On a live stick they would act on this
+# computer's real disks (the bootloader updater writes the EFI partition) or fail.
+RUN systemctl mask bootloader-update.service bootc-fetch-apply-updates.timer \
+      nizho-grub-theme.service nizho-bootc-status.timer nizho-bootc-status.path \
+      nizho-firstboot.service \
+      $(rpm -ql greenboot | grep -E '^/usr/lib/systemd/system/[^/]+\.(service|timer)$' | xargs -n1 basename)
+
+# The image Nizho Install installs, as an OCI directory (the registry's layers as they
+# are, so an installed system's first update downloads only what is new), and its
+# /etc/system-release, which names the firmware boot entry.
+COPY image/ /usr/lib/nizho-install/image/
+COPY image.system-release /usr/lib/nizho-install/image.system-release
