@@ -86,6 +86,16 @@ RUN dnf install -y -q --setopt=retries=25 grub2-tools-extra rsms-inter-fonts Ima
 COPY desktop/grub-theme-nizho/ /src/
 RUN sh /src/make-theme.sh "" /out && ls /out/theme.txt /out/sans-18.pf2 /out/select_c.png
 
+# The boot splash ("Awakening"): make-assets.py cuts logo-src.png into its three parts and draws
+# the opening as frames, plus the letters and prompt pieces. Only its output goes into the image.
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS plymouth-builder
+RUN dnf install -y -q --setopt=retries=25 python3-pillow python3-numpy rsms-inter-fonts fontconfig
+COPY desktop/plymouth-theme-nizho/ /src/
+RUN python3 /src/make-assets.py /src /out && \
+    ls /out/nizho.script /out/nizho.plymouth /out/a0.png /out/halo.png /out/g0.png /out/l4.png \
+       /out/entry.png /out/dot.png /out/bar.png /out/barback.png && \
+    ! grep -q '@FRAMES@' /out/nizho.script
+
 FROM scratch AS files
 COPY --from=archon-builder /archon/target/release/archon /usr/bin/archon
 COPY --from=archon-builder /service/target/release/nizho-archon-service /usr/libexec/nizho-archon-service
@@ -446,8 +456,9 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
 
 # NizhoCursor: white pointer with green outline, generated at build; every
 # other shape inherits from breeze_cursors. NizhoSound: soft sine-based event
-# sounds. Plymouth splash images. All need ImageMagick/xcursorgen/sox once.
-COPY desktop/plymouth-theme-nizho/ /usr/share/plymouth/themes/nizho/
+# sounds. Both need ImageMagick/xcursorgen/sox once. The boot splash comes ready-made from the
+# plymouth-builder stage.
+COPY --from=plymouth-builder /out/ /usr/share/plymouth/themes/nizho/
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y -q ImageMagick xcursorgen sox liberation-sans-fonts && \
     # -- cursor ---------------------------------------------------------------
     mkdir -p /tmp/cur /usr/share/icons/NizhoCursor/cursors && \
@@ -486,10 +497,6 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
     cp message-new-instant.wav bell.wav && \
     printf '[Sound Theme]\nName=Nizho\nComment=Nizho sound theme\nInherits=freedesktop\nDirectories=stereo\n\n[stereo]\nOutputProfile=stereo\n' \
       > /usr/share/sounds/Nizho/index.theme && \
-    # -- plymouth splash images ------------------------------------------------
-    cd /usr/share/plymouth/themes/nizho && \
-    sh make-assets.sh && \
-    rm make-assets.sh && \
     rm -rf /tmp/cur && \
     dnf remove -y -q ImageMagick xcursorgen sox
 

@@ -119,8 +119,9 @@ Deep `#07080E` field, blue radial glow, faint triangle grid, layered ▲ marks,
 
 ## 13. Boot & Login
 
-- **Plymouth:** three staggered ▲ fade in, outer glow pulses, `NIZHO` wordmark
-  rises, thin accent progress line. ≤5s. Theme in `desktop/plymouth-theme-nizho/`.
+- **Plymouth ("Awakening"):** a point of light traces the outline of the mark, the light fills
+  it, `NIZHO` fades in letter by letter (3.4 s); the glow then breathes. No spinner; a progress
+  bar only for system updates. Theme in `desktop/plymouth-theme-nizho/`.
 - **SDDM:** `desktop/sddm-theme-nizho/` — wallpaper under scrim, clock top-right,
   centered wordmark + tagline, single password field, accent Unlock.
 
