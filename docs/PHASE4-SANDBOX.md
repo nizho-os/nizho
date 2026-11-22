@@ -1,5 +1,11 @@
 # Phase 4 — Default-on Browser Sandboxing
 
+> **History.** The isolation proof and regression checks below were run in a VM on 8 June 2026, on
+> ArkaOS (the project before it was renamed Nizho on 1 November 2026), built on CentOS Stream 10.
+> They have not been repeated on a Nizho image. The Model section was corrected for Nizho on
+> 10 November 2026. Where this file says the tested build and the shipped build match, that held for
+> ArkaOS in June, not for Nizho.
+
 ## Model
 
 Firefox is sandboxed via bubblewrap (bwrap) by default. The wrapper is

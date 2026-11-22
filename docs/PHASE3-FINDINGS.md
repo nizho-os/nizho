@@ -1,5 +1,9 @@
 # Phase 3 Findings — Integrity & Boot Hardening
 
+> **History.** Written on 8 June 2026 for ArkaOS, the project before it was renamed Nizho on
+> 1 November 2026, when the image was built on CentOS Stream 10. Nizho is built on Fedora 44 now.
+> Nothing below was checked again on Nizho, so the versions, paths and limits are that older base's.
+
 ## 1. What's live (verified)
 
 **composefs — read-only rootfs with a fixed layout**

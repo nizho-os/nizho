@@ -1,5 +1,9 @@
 # Nokia USB boot diagnosis — 2026-10-05
 
+> **History.** Written for ArkaOS, the project before it was renamed Nizho on 1 November 2026. The
+> laptop ran an ArkaOS image, and names in this file (paths, arkad as nizhod) were changed in the
+> rename. The USB steps it explains are still used by `scripts/flash-usb.sh` and `scripts/make-disk.sh`.
+
 Evidence: read-only extraction in `~/nizho-diag/out`, collected with
 `usb-diag.sh`. The collector used a read-only loop device and XFS `ro,norecovery`,
 then unmounted it. This review reads the exported files only. Raw journals and
