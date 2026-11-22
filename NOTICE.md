@@ -55,11 +55,11 @@ source or licence. These are open items for the owner.
 
 | Asset | Where | Open question |
 |---|---|---|
-| Tour video | `website/media/nizho-tour.mp4` | Origin not recorded in the repository. Who made it, and from which footage. |
-| Music and sound in the tour video | inside `website/media/nizho-tour.mp4` | Origin not recorded in the repository. Its source and licence. |
+| Tour video | `media/nizho-tour.mp4` in [nizho-os/nizhoweb](https://github.com/nizho-os/nizhoweb) | Origin not recorded in the repository. Who made it, and from which footage. |
+| Music and sound in the tour video | inside `media/nizho-tour.mp4` in [nizho-os/nizhoweb](https://github.com/nizho-os/nizhoweb) | Origin not recorded in the repository. Its source and licence. |
 | DP1 screenshots | `assets/screenshots/dp1/` | Origin not recorded in the repository beyond [docs/DP2.md](docs/DP2.md), which says they were captured live on 2026-07-11. They are ArkaOS-era captures. |
 | Wordmarks and marks | `assets/branding/nizho-wordmark*.svg`, `assets/branding/nizho-mark*.png` | Origin not recorded in the repository. The commit history says they were drawn for Nizho, and no file states the author or the tools. |
 | Logo images used by the boot splash and login screen | `desktop/plymouth-theme-nizho/logo-src.png`, `desktop/sddm-theme-nizho/logo-*.png` | Origin not recorded in the repository. |
-| Website and README images | `website/img/`, `assets/branding/*.svg`, `assets/bar.gif` | Origin not recorded in the repository. |
+| Website and README images | `img/` in [nizho-os/nizhoweb](https://github.com/nizho-os/nizhoweb), `assets/branding/*.svg`, `assets/bar.gif` | Origin not recorded in the repository. |
 
 No licence is claimed here for anything in this last table.

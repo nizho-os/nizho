@@ -1,7 +1,7 @@
 # Security policy
 
 Nizho is a **developer preview**. Don't rely on it to protect anything
-important yet; see [what we can and can't show](website/index.html#honest).
+important yet; see [what we can and can't show](https://nizho-os.github.io/nizhoweb/#honest).
 
 ## Reporting a vulnerability
 

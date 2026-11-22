@@ -95,7 +95,7 @@ class BuildContextTests(unittest.TestCase):
     def test_relative_markdown_links_lead_somewhere(self):
         broken = []
         for f in tracked():
-            if not f.endswith(".md") or "/target/" in f or f.startswith("website/"):
+            if not f.endswith(".md") or "/target/" in f:
                 continue
             base = (ROOT / f).parent
             for target in re.findall(r"\]\(([^)\s]+)\)", (ROOT / f).read_text(errors="ignore")):

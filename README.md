@@ -7,7 +7,7 @@
 
 <p align="center">A desktop Linux where privacy settings are on by default, and the system tells you plainly what it checked and what it didn't.</p>
 
-<p align="center"><strong><a href="https://nizho-os.github.io/nizho/">Website</a></strong> · <a href="https://nizho-os.github.io/nizho/#tour">Short tour recording</a> · <a href="https://nizho-os.github.io/nizho/docs/">Docs</a></p>
+<p align="center"><strong><a href="https://nizho-os.github.io/nizhoweb/">Website</a></strong> · <a href="https://nizho-os.github.io/nizhoweb/#tour">Short tour recording</a> · <a href="https://nizho-os.github.io/nizhoweb/docs/">Docs</a></p>
 
 <p align="center">Version 0.1.0-dp1 · Developer Preview · GPL-3.0</p>
 
@@ -235,7 +235,6 @@ system/                            what runs on the installed machine
 docs/                              architecture, building, testing, installation, release notes
 scripts/                           QA harnesses, make-disk.sh, make-iso.sh, flash-usb.sh
 assets/                            README diagrams
-website/                           the project site
 ```
 
 Research that is not part of the image lives in its own repositories:
