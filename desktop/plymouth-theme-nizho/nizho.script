@@ -1,32 +1,36 @@
 // Nizho boot splash, "Awakening". Design tokens: accent #4DB491. No sound.
 //
 // Starting: a point of light wakes at the top of the ribbon, pens of light trace the outline of the
-// ribbon and both stones, the light floods inward and becomes the mark, and NIZHO fades in letter
-// by letter (3.4 s). Then it rests: the glow breathes, and now and then a glint runs along the
+// ribbon and both stones, and the light floods inward and becomes the mark (3.05 s). Then a line of
+// light draws out under the mark like a horizon, the letters of NIZHO rise from it one by one, the
+// line opens in the middle and OPERATING SYSTEM settles into the gap, and a glint runs once across
+// the name (6.3 s). Then it rests: the glow breathes, and now and then a glint runs along the
 // ribbon, so a slow start still shows that something is happening.
-// Shutting down or restarting: the name goes, the mark drains back into its outline, the outline
-// draws back into the point of light, and the point breathes there until the power goes.
+// Shutting down or restarting: the beats play backwards (the tagline goes, the line closes, the
+// letters sink, the line draws back in), the mark drains back into its outline, the outline draws
+// back into the point of light, and the point breathes there until the power goes.
+// While a password prompt shows, the line and the tagline are hidden so the prompt stays clear.
 //
 // Normal boot shows no spinner and no progress bar: Plymouth's boot "progress" is an estimate from
 // the previous boot and can stall or jump, so we don't present it as a measurement. System updates
 // report real progress, so there we draw a real bar and say not to power off.
 //
 // make-assets.py draws the opening as frames (Plymouth can't trace or mask while it runs) at AF
-// pixels a unit, and the letters and prompt at A pixels a unit, where a unit is one pixel of a
-// 1080-line screen; everything here is laid out in units and scaled to the screen. Frames are loaded
-// one at a time as they are shown, so they never all sit in memory.
+// pixels a unit, and the letters, line, tagline and prompt at A pixels a unit, where a unit is one
+// pixel of a 1080-line screen; everything here is laid out in units and scaled to the screen. Frames
+// are loaded one at a time as they are shown, so they never all sit in memory. After the opening
+// everything moves by opacity, position and width only: Plymouth has no live blur or mask.
 
 Window.SetBackgroundTopColor(0.027, 0.031, 0.055);
 Window.SetBackgroundBottomColor(0.020, 0.024, 0.035);
 
 // @FRAMES@
-global.MARK_DY = -54;
-global.WORD_DY = 176;
 global.PROMPT_DY = 270;
 global.BOX_DY = 326;
 global.STATUS_DY = 270;
 global.MSG_DY = 420;
-global.STORY = 3.4;
+global.STORY = 6.3;                           // the last beat (the glint across the name) ends here
+global.OPENED = 3.05;                         // the opening frames end, the mark is formed
 global.LAST = (global.NA - 1) / global.FPS;   // story time of the last opening frame
 global.HOLD = 0.4;                            // shutdown ends on this moment: the point alone
 
@@ -49,6 +53,12 @@ fun geometry() {
 fun scaled(img, a) {
     k = global.f / a;
     return img.Scale(Math.Int(img.GetWidth() * k + 0.5), Math.Int(img.GetHeight() * k + 0.5));
+}
+
+// The same, drawn K times larger (the opening frames and the glow are shown at a size of their own).
+fun scaledk(img, a, k) {
+    local.s = global.f * k / a;
+    return img.Scale(Math.Int(img.GetWidth() * local.s + 0.5), Math.Int(img.GetHeight() * local.s + 0.5));
 }
 
 // Centre IMG's sprite on the point UX, UY units from the screen's centre.
@@ -99,7 +109,24 @@ fun prompt_words(text) {
     return "Enter the " + local.what + " to unlock the disk";
 }
 
+// CSS cubic-bezier(X1, Y1, X2, Y2) at X (0..1), by bisection.
+fun bez(x1, y1, x2, y2, x) {
+    local.lo = 0;
+    local.hi = 1;
+    for (local.k = 0; local.k < 14; local.k++) {
+        local.s = (local.lo + local.hi) / 2;
+        local.u = 1 - local.s;
+        local.bx = 3 * local.u * local.u * local.s * x1 + 3 * local.u * local.s * local.s * x2 + local.s * local.s * local.s;
+        if (local.bx < x) local.lo = local.s;
+        else local.hi = local.s;
+    }
+    local.s = (local.lo + local.hi) / 2;
+    local.u = 1 - local.s;
+    return 3 * local.u * local.u * local.s * y1 + 3 * local.u * local.s * local.s * y2 + local.s * local.s * local.s;
+}
 fun clamp01(v) { return Math.Clamp(v, 0, 1); }
+fun eout(x) { return bez(0.16, 1, 0.3, 1, Math.Clamp(x, 0, 1)); }   // the preview's OUT
+fun eio(x) { return bez(0.65, 0, 0.35, 1, Math.Clamp(x, 0, 1)); }   // the preview's IO
 fun seg(t, a, b) { return Math.Clamp((t - a) / (b - a), 0, 1); }
 fun ease(x) { x = clamp01(x); return x * x * (3 - 2 * x); }
 fun inout(x) { x = clamp01(x); return 0.5 - 0.5 * Math.Cos(Math.Pi * x); }
@@ -121,9 +148,20 @@ anim.sprite = sprite_at(3);
 glint.sprite = sprite_at(4);
 global.acur = -1;
 global.gcur = -1;
+global.wcur = -1;
 for (i = 0; i < 5; i++) {
     letter[i].src = Image("l" + i + ".png");
     letter[i].sprite = sprite_at(5);
+}
+wglint.sprite = sprite_at(6);                 // the glint across the name
+line[0].src = Image("lineL.png");             // the horizon line, its left and right halves
+line[1].src = Image("lineR.png");
+line[0].sprite = sprite_at(3);
+line[1].sprite = sprite_at(3);
+global.line_w = -1;
+for (i = 0; i < global.TAG_N; i++) {          // OPERATING SYSTEM, a picture per glyph (none for the space)
+    if (global.TAG_HAS[i]) tag[i].src = Image("o" + i + ".png");
+    tag[i].sprite = sprite_at(5);
 }
 
 // The opening frame for story time T, loaded only when it changes.
@@ -132,7 +170,7 @@ fun show_frame(T, op) {
     if (local.i < 0) local.i = 0;
     if (local.i > global.NA - 1) local.i = global.NA - 1;
     if (local.i != global.acur) {
-        global.anim.image = scaled(Image("a" + local.i + ".png"), global.AF);
+        global.anim.image = scaledk(Image("a" + local.i + ".png"), global.AF, global.MARK_K);
         anim.sprite.SetImage(global.anim.image);
         put(anim.sprite, global.anim.image, 0, global.MARK_DY);
         global.acur = local.i;
@@ -148,7 +186,7 @@ fun show_glint(g, op) {
         local.i = Math.Int(g * global.NG);
         if (local.i > global.NG - 1) local.i = global.NG - 1;
         if (local.i != global.gcur) {
-            global.glint.image = scaled(Image("g" + local.i + ".png"), global.AF);
+            global.glint.image = scaledk(Image("g" + local.i + ".png"), global.AF, global.MARK_K);
             glint.sprite.SetImage(global.glint.image);
             put(glint.sprite, global.glint.image, 0, global.MARK_DY);
             global.gcur = local.i;
@@ -157,9 +195,80 @@ fun show_glint(g, op) {
     }
 }
 
+// Letter I, P of the way up (0..1): it rises WORD_RISE units as it fades in.
 fun show_letter(i, p) {
     letter[i].sprite.SetOpacity(clamp01(p));
-    put(letter[i].sprite, global.letter[i].image, 0, global.WORD_DY + 6 * (1 - clamp01(p)));
+    put(letter[i].sprite, global.letter[i].image, 0, global.WORD_DY + global.WORD_RISE * (1 - clamp01(p)));
+}
+
+// The glint across the name, P of the way (outside 0..1: none).
+fun show_wglint(p) {
+    if (p <= 0 || p >= 1) {
+        wglint.sprite.SetOpacity(0);
+    } else {
+        local.i = Math.Int(p * (global.NW - 1) + 0.5);
+        if (local.i != global.wcur) {
+            global.wglint.image = scaled(Image("s" + local.i + ".png"), global.A);
+            wglint.sprite.SetImage(global.wglint.image);
+            put(wglint.sprite, global.wglint.image, 0, global.WORD_DY);
+            global.wcur = local.i;
+        }
+        wglint.sprite.SetOpacity(1);
+    }
+}
+
+// The horizon line. GROW (0..1) is how far it has drawn out from the middle, OPEN (0..1) how far it
+// has opened in the middle. Each half is one picture scaled by width, with room for its glow at both ends.
+fun show_line(grow, open) {
+    local.vis = 1;
+    if (global.prompting == 1) local.vis = 0;
+    local.gap = 190 * open;
+    local.seg = Math.Max(0, global.LINE_HALF * grow - local.gap) * (1 - 0.55 * open);
+    local.op = (0.85 - 0.35 * open) * local.vis;
+    if (local.seg < 0.5 || local.op <= 0) {
+        line[0].sprite.SetOpacity(0);
+        line[1].sprite.SetOpacity(0);
+    } else {
+        local.k = local.seg / global.LINE_HALF * global.f;
+        local.w = Math.Int((global.LINE_HALF + 2 * global.LINE_PAD) * local.k + 0.5);
+        local.h = Math.Int(line[0].src.GetHeight() * global.f / global.A + 0.5);
+        if (local.w != global.line_w) {
+            global.line[0].image = line[0].src.Scale(local.w, local.h);
+            global.line[1].image = line[1].src.Scale(local.w, local.h);
+            line[0].sprite.SetImage(global.line[0].image);
+            line[1].sprite.SetImage(global.line[1].image);
+            global.line_w = local.w;
+        }
+        local.padpx = global.LINE_PAD * local.k;
+        local.y = Math.Int(global.cy + global.LINE_DY * global.f - local.h / 2);
+        line[0].sprite.SetX(Math.Int(global.cx - local.gap * global.f + local.padpx - local.w));
+        line[1].sprite.SetX(Math.Int(global.cx + local.gap * global.f - local.padpx));
+        line[0].sprite.SetY(local.y);
+        line[1].sprite.SetY(local.y);
+        line[0].sprite.SetOpacity(local.op);
+        line[1].sprite.SetOpacity(local.op);
+    }
+}
+
+// OPERATING SYSTEM, P of the way settled (0..1): it fades in, rises 6 units, and its letters draw
+// together from 0.62 em to 0.42 em apart. The block stays centred on the screen.
+fun show_tag(p) {
+    local.vis = 1;
+    if (global.prompting == 1) local.vis = 0;
+    local.op = 0.78 * clamp01(p) * local.vis;
+    local.ls = (global.TAG_TRACK0 + (global.TAG_TRACK1 - global.TAG_TRACK0) * clamp01(p)) * global.TAG_SIZE;
+    local.x = -global.TAG_SUM / 2 - (global.TAG_N - 1) * local.ls / 2;
+    local.y = Math.Int(global.cy + (global.TAG_BASE_DY - global.TAG_BASE + 6 * (1 - clamp01(p))) * global.f);
+    for (local.k = 0; local.k < global.TAG_N; local.k++) {
+        if (global.TAG_HAS[local.k]) {
+            tag[local.k].sprite.SetOpacity(local.op);
+            if (local.op > 0) {
+                tag[local.k].sprite.SetX(Math.Int(global.cx + (local.x - global.TAG_PAD) * global.f));
+                tag[local.k].sprite.SetY(local.y);
+            }
+        }
+        local.x = local.x + global.TAG_ADV[local.k] + local.ls;
+    }
 }
 
 // --- status line (shutdown / restart / updates) and the real bar for updates ---------------------
@@ -205,13 +314,21 @@ fun layout() {
     geometry();
     global.acur = -1;     // reload the current frames at the new size
     global.gcur = -1;
-    global.halo.image = scaled(halo.src, global.AF);
+    global.halo.image = scaledk(halo.src, global.AF, 2 * global.MARK_K);
     halo.sprite.SetImage(global.halo.image);
     put(halo.sprite, global.halo.image, 0, global.MARK_DY);
+    global.wcur = -1;
+    global.line_w = -1;
     for (i = 0; i < 5; i++) {
         global.letter[i].image = scaled(letter[i].src, global.A);
         letter[i].sprite.SetImage(global.letter[i].image);
         put(letter[i].sprite, global.letter[i].image, 0, global.WORD_DY);
+    }
+    for (i = 0; i < global.TAG_N; i++) {
+        if (global.TAG_HAS[i]) {
+            global.tag[i].image = scaled(tag[i].src, global.A);
+            tag[i].sprite.SetImage(global.tag[i].image);
+        }
     }
     if (status.text != "") {
         global.status.image = label(status.text, 20, 0.85, 0.88, 0.92);
@@ -244,36 +361,51 @@ fun draw_bar() {
     fill_bar.sprite.SetImage(fill_bar.image.Scale(w, global.bar.h));
 }
 
-// --- starting: the opening, then the rest ------------------------------------------------------------
+// --- starting: the opening, the Horizon beats, then the rest ----------------------------------------
 fun story(t) {
     show_frame(t, 1);
-    halo.sprite.SetOpacity(0);
+    halo.sprite.SetOpacity(ease(seg(t, global.OPENED, global.OPENED + 0.55)) * (0.35 + 0.25 * (0.5 + 0.5 * Math.Sin(1.6 * (t - global.OPENED)))));
     show_glint(-1, 0);
-    for (i = 0; i < 5; i++) show_letter(i, ease(seg(t, 2.55 + 0.09 * i, 3.05 + 0.09 * i)));
+    show_line(eout(seg(t, global.T_LINE, global.T_LINE + 0.7)), eio(seg(t, global.T_OPEN, global.T_OPEN + 0.8)));
+    for (local.k = 0; local.k < 5; local.k++) {
+        show_letter(local.k, eout(seg(t, global.T_LETTERS + 0.09 * local.k, global.T_LETTERS + 0.75 + 0.09 * local.k)));
+    }
+    show_tag(eout(seg(t, global.T_TAG, global.T_TAG + 0.9)));
+    show_wglint(seg(t, global.T_GLINT, global.T_GLINT + 1.1));
 }
 
 fun rest(r) {
     show_frame(global.LAST, 1);
-    halo.sprite.SetOpacity(0.5 - 0.5 * Math.Cos(2 * Math.Pi * r / 4.0));
+    halo.sprite.SetOpacity(0.35 + 0.25 * (0.5 + 0.5 * Math.Sin(1.6 * (r + global.STORY - global.OPENED))));
     g = -1;
     if (r > 1.6) {
         rr = r - 1.6;
         g = (rr - 7.0 * Math.Int(rr / 7.0)) / 1.4;
     }
     show_glint(g, 0.8 * Math.Sin(Math.Pi * clamp01(g)));
-    for (i = 0; i < 5; i++) show_letter(i, 1);
+    show_line(1, 1);
+    for (local.k = 0; local.k < 5; local.k++) show_letter(local.k, 1);
+    show_tag(1);
+    show_wglint(-1);
 }
 
 // --- shutting down or restarting ------------------------------------------------------------------
+// The beats play backwards in the first 0.95 s (the tagline goes, the line closes, the letters sink,
+// the line draws back in); the mark drains from 0.8 s on, as before.
 fun leave(t) {
-    for (i = 0; i < 5; i++) show_letter(i, 1 - ease(seg(t, 0, 0.35)));
+    show_tag(1 - ease(seg(t, 0, 0.3)));
+    show_line(1 - eio(seg(t, 0.5, 0.95)), 1 - eio(seg(t, 0, 0.55)));
+    for (local.k = 0; local.k < 5; local.k++) {
+        show_letter(local.k, 1 - ease(seg(t, 0.1 + 0.04 * local.k, 0.45 + 0.04 * local.k)));
+    }
+    show_wglint(-1);
     halo.sprite.SetOpacity(0);
     show_glint(-1, 0);
-    T = global.LAST - (global.LAST - global.HOLD) * inout(seg(t, 0.25, 2.2));
+    T = global.LAST - (global.LAST - global.HOLD) * inout(seg(t, 0.8, 2.75));
     op = 1;
-    if (t > 2.2) op = 0.65 + 0.35 * Math.Cos(2 * Math.Pi * (t - 2.2) / 3.0);
+    if (t > 2.75) op = 0.65 + 0.35 * Math.Cos(2 * Math.Pi * (t - 2.75) / 3.0);
     show_frame(T, op);
-    status.sprite.SetOpacity(seg(t, 1.2, 1.6));
+    status.sprite.SetOpacity(seg(t, 1.75, 2.15));
 }
 
 // --- the refresh loop (50 times a second) --------------------------------------------------------------

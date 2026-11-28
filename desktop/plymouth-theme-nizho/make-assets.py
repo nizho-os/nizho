@@ -12,6 +12,12 @@ frames that nizho.script plays:
    stones), running in opposite directions and meeting;
 3. the light floods inward from the outlines and becomes the mark; the outlines fade.
 
+After 3.05 s the "Horizon" beats follow (timings T below, from the approved preview): a line of light
+draws out under the mark, the letters of NIZHO rise from it one by one, the line opens in the middle
+and OPERATING SYSTEM settles into the gap with its letters drawing together, and a glint runs once
+across the name. The line, the letters, the tagline glyphs and the glint frames are drawn here; where
+they stand and how they move is nizho.script (opacity, position and width only).
+
 Units: one unit is one pixel of a 1080-line screen. The frames are drawn at AF pixels a unit and
 everything else at A; nizho.script scales both to the screen.
 """
@@ -41,6 +47,22 @@ T_FILL = (1.75, 2.75)
 T_RIM = (2.35, 3.05)
 T_END = 3.05
 N_GLINT = 28
+N_WGLINT = 28       # frames of the glint that runs once across the name (1.1 s at 25 fps)
+
+# The Horizon beats, in seconds (the approved preview, ~/nizho-film/src/paint/Boot.tsx), and its
+# geometry in units, centre-relative: the preview's y minus 540.
+T = {"line": 3.0, "letters": 3.3, "open": 4.25, "tag": 4.75, "glint": 5.2}
+MARK_H = 300                    # the mark's frame, shown this tall (units)
+MARK_DY, WORD_DY, LINE_DY = 420 - 540, 668 - 540, 725 - 540   # LINE_DY: the line's middle; it is 2 units thick
+LINE_HALF = 280                 # each half of the line when fully drawn (units)
+LINE_PAD = 18                   # room round the line for its glow (units)
+WORD_SIZE, WORD_TRACK = 70, 80  # NIZHO: font size and letter gap (units)
+WORD_RISE = 34                  # how far each letter rises from (units); used by nizho.script
+TAG = "OPERATING SYSTEM"
+TAG_SIZE = 19                   # Inter 500, units
+TAG_BASE_DY = 729.4 - 540       # the tagline's baseline, centre-relative (units)
+TAG_TRACK = (0.62, 0.42)        # letter gap in ems: where it starts and where it settles
+INK = (236, 241, 239)           # #ECF1EF
 
 
 def clamp(v):
@@ -55,6 +77,19 @@ def ease(v):
 def ease_io(v):
     v = clamp(v)
     return 4 * v ** 3 if v < 0.5 else 1 - (-2 * v + 2) ** 3 / 2
+
+
+def bezier(x1, y1, x2, y2, x):
+    """CSS cubic-bezier(x1, y1, x2, y2) at x (0..1)."""
+    lo, hi = 0.0, 1.0
+    for _ in range(40):
+        s_ = (lo + hi) / 2
+        if 3 * (1 - s_) ** 2 * s_ * x1 + 3 * (1 - s_) * s_ ** 2 * x2 + s_ ** 3 < x:
+            lo = s_
+        else:
+            hi = s_
+    s_ = (lo + hi) / 2
+    return 3 * (1 - s_) ** 2 * s_ * y1 + 3 * (1 - s_) * s_ ** 2 * y2 + s_ ** 3
 
 
 def span(t, a, b):
@@ -324,19 +359,81 @@ def main():
     for i in range(N_GLINT):
         save_light(m.glint((i + 0.5) / N_GLINT), 0, os.path.join(out, f"g{i}.png"))
 
-    # ---- the name: one picture per letter, each on the whole word's canvas so they line up ----
-    f = inter_medium(px(35))
-    track = px(40)
+    # ---- the name: one picture per letter, each on the whole word's canvas so they line up. They are
+    # drawn 25 % brighter than the splash green (the approved preview's brightness), so the rise has
+    # no brightness step to play. ----
+    f = inter_medium(px(WORD_SIZE))
+    track = px(WORD_TRACK)
     word = "NIZHO"
     widths = [f.getlength(ch) for ch in word]
     total = sum(widths) + track * (len(word) - 1)
-    cw, chh = int(total + px(40)), px(70)
+    cw, chh = int(total + px(80)), px(140)
     x = (cw - total) / 2
+    bright = tuple(min(255, int(round(c * 1.25))) for c in G_HEX)
+    letters = []
     for i, (ch, w) in enumerate(zip(word, widths)):
         img = Image.new("RGBA", (cw, chh))
-        ImageDraw.Draw(img).text((x + w / 2, chh / 2), ch, font=f, fill=G_HEX + (255,), anchor="mm")
+        ImageDraw.Draw(img).text((x + w / 2, chh / 2), ch, font=f, fill=bright + (255,), anchor="mm")
         img.save(os.path.join(out, f"l{i}.png"), optimize=True)
+        letters.append(np.asarray(img)[..., 3].astype(np.float32) / 255)
         x += w + track
+    # The letters rise WORD_RISE units and stay above the line, except for the first moments, when
+    # they are nearly transparent; check how much of a glyph could dip below it.
+    bottom = max(np.nonzero(a > 0.15)[0].max() for a in letters) / A + (WORD_DY - chh / A / 2)
+    dip = bottom + WORD_RISE - (LINE_DY - 2)
+    print(f"make-assets: letters end {bottom:.1f} u under the screen centre; at the start of the rise {dip:.1f} u would "
+          f"cross the line (opacity there is under 0.1)")
+
+    # ---- the glint across the name: a soft band, 100 degrees, masked to the letters ----
+    union = np.maximum.reduce(letters)
+    yy, xx = np.mgrid[0:chh, 0:cw].astype(np.float32)
+    th = np.deg2rad(100)
+    glen = abs(cw * np.sin(th)) + abs(chh * np.cos(th))
+    pct = 0.5 + ((xx - cw / 2) * np.sin(th) - (yy - chh / 2) * np.cos(th)) / glen
+    spark = np.array([240, 255, 250]) / 255
+    base = np.array(bright) / 255
+    shine = 1 - (1 - base) * (1 - spark)         # the letters with the band at full strength, screened
+    for j in range(N_WGLINT):
+        gx = -0.25 + 1.5 * bezier(0.65, 0, 0.35, 1, j / (N_WGLINT - 1))
+        al = np.clip(1 - np.abs(pct - gx) / 0.14, 0, 1) * union
+        rgba = np.dstack([np.broadcast_to(shine, (chh, cw, 3)), al])
+        Image.fromarray((rgba * 255 + 0.5).astype(np.uint8), "RGBA").save(os.path.join(out, f"s{j}.png"), optimize=True)
+
+    # ---- OPERATING SYSTEM: one picture per glyph (Inter 500), so the letters drawing together is only
+    # glyph positions. Advances include kerning; nizho.script adds the letter gap. ----
+    tf = inter_medium(px(TAG_SIZE))
+    tpad, tbase, th_ = px(4), px(24), px(32)
+    adv = [(tf.getlength(TAG[:j + 1]) - tf.getlength(TAG[:j])) / A for j in range(len(TAG))]
+    has = []
+    for j, ch in enumerate(TAG):
+        has.append(0 if ch == " " else 1)
+        if ch == " ":
+            continue
+        gw = int(np.ceil(adv[j] * A)) + 2 * tpad
+        img = Image.new("RGBA", (gw, th_))
+        ImageDraw.Draw(img).text((tpad, tbase), ch, font=tf, fill=INK + (255,), anchor="ls")
+        img.save(os.path.join(out, f"o{j}.png"), optimize=True)
+
+    # ---- the horizon line: its two halves as gradient pictures, drawn at full length; nizho.script
+    # scales them by width. Outer end clear, brightest at the centre end, with a soft glow round it. ----
+    lw, lh = int(round((LINE_HALF + 2 * LINE_PAD) * A)), int(round((2 + 2 * LINE_PAD) * A))
+    body = np.zeros((lh, lw), np.float32)
+    r0, r1 = int(round(LINE_PAD * A)), int(round((LINE_PAD + 2) * A))
+    c0, c1 = int(round(LINE_PAD * A)), int(round((LINE_PAD + LINE_HALF) * A))
+    u = (np.arange(c0, c1) - c0 + 0.5) / (c1 - c0)           # 0 at the outer end, 1 at the centre end
+    body[r0:r1, c0:c1] = np.clip(u / 0.7, 0, 1)[None, :]
+    col = np.where((u < 0.7)[:, None], np.array([123, 224, 184]),
+                   np.array([123, 224, 184]) + (u[:, None] - 0.7) / 0.3 * (np.array([200, 255, 232]) - np.array([123, 224, 184]))) / 255
+    colour = np.zeros((lh, lw, 3), np.float32); colour[:] = np.array([123, 224, 184]) / 255
+    colour[r0:r1, c0:c1] = col[None]
+    rect = np.zeros((lh, lw), np.float32); rect[r0:r1, c0:c1] = 1
+    glow = blur(rect, 6 * A) * 0.5                           # box-shadow 0 0 12px at half strength
+    a_out = body + glow * (1 - body)
+    rgb_out = (colour * body[..., None] + (G_HEX[0] / 255, G_HEX[1] / 255, G_HEX[2] / 255) * (glow * (1 - body))[..., None]) \
+        / np.maximum(a_out, 1e-4)[..., None]
+    left = np.dstack([np.clip(rgb_out, 0, 1), a_out])
+    for name, arr in (("lineL.png", left), ("lineR.png", left[:, ::-1])):
+        Image.fromarray((arr * 255 + 0.5).astype(np.uint8), "RGBA").save(os.path.join(out, name), optimize=True)
 
     # ---- the passphrase box and its dots, and the bar for system updates (Nizho's look) ----
     bw, bh = px(380), px(48)
@@ -356,11 +453,24 @@ def main():
     marker = "// @FRAMES@"
     if script.count(marker) != 1:
         sys.exit("make-assets: nizho.script must hold exactly one '// @FRAMES@' line")
-    script = script.replace(marker, f"global.NA = {n};\nglobal.NG = {N_GLINT};\nglobal.FPS = {FPS};\n"
-                                     f"global.A = {A};\nglobal.AF = {AF};")
+    h = m.rh
+    lines = [f"global.NA = {n};", f"global.NG = {N_GLINT};", f"global.NW = {N_WGLINT};", f"global.FPS = {FPS};",
+             f"global.A = {A};", f"global.AF = {AF};",
+             f"global.MARK_K = {MARK_H / h:.6f};",
+             f"global.MARK_DY = {MARK_DY};", f"global.WORD_DY = {WORD_DY};", f"global.LINE_DY = {LINE_DY};",
+             f"global.LINE_HALF = {LINE_HALF};", f"global.LINE_PAD = {LINE_PAD};", f"global.WORD_RISE = {WORD_RISE};",
+             f"global.T_LINE = {T['line']};", f"global.T_LETTERS = {T['letters']};", f"global.T_OPEN = {T['open']};",
+             f"global.T_TAG = {T['tag']};", f"global.T_GLINT = {T['glint']};",
+             f"global.TAG_N = {len(TAG)};", f"global.TAG_SIZE = {TAG_SIZE};",
+             f"global.TAG_TRACK0 = {TAG_TRACK[0]};", f"global.TAG_TRACK1 = {TAG_TRACK[1]};",
+             f"global.TAG_PAD = {tpad / A:.4f};", f"global.TAG_BASE = {tbase / A:.4f};", f"global.TAG_BASE_DY = {TAG_BASE_DY:.4f};",
+             f"global.TAG_SUM = {sum(adv):.4f};"]
+    lines += [f"global.TAG_ADV[{j}] = {a:.4f};" for j, a in enumerate(adv)]
+    lines += [f"global.TAG_HAS[{j}] = {v};" for j, v in enumerate(has)]
+    script = script.replace(marker, "\n".join(lines))
     open(os.path.join(out, "nizho.script"), "w", encoding="utf-8").write(script)
     shutil.copy(os.path.join(src, "nizho.plymouth"), os.path.join(out, "nizho.plymouth"))
-    print(f"make-assets: {n} opening frames {m.rw}x{m.rh}, {N_GLINT} glint frames")
+    print(f"make-assets: {n} opening frames {m.rw}x{m.rh}, {N_GLINT} ribbon glint + {N_WGLINT} name glint frames")
 
 
 if __name__ == "__main__":

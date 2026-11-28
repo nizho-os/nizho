@@ -93,7 +93,8 @@ RUN dnf install -y -q --setopt=retries=25 python3-pillow python3-numpy rsms-inte
 COPY desktop/plymouth-theme-nizho/ /src/
 RUN python3 /src/make-assets.py /src /out && \
     ls /out/nizho.script /out/nizho.plymouth /out/a0.png /out/halo.png /out/g0.png /out/l4.png \
-       /out/entry.png /out/dot.png /out/bar.png /out/barback.png && \
+       /out/entry.png /out/dot.png /out/bar.png /out/barback.png \
+       /out/lineL.png /out/lineR.png /out/o0.png /out/s0.png /out/s27.png && \
     ! grep -q '@FRAMES@' /out/nizho.script
 
 FROM scratch AS files
