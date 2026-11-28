@@ -51,7 +51,7 @@ mod tests {
     #[test]
     fn an_allowed_plaintext_network_earns_no_dns_points() {
         let mut s = NizhodState::default();
-        for status in [DnsStatus::ForcedPlaintext, DnsStatus::Plaintext, DnsStatus::Degraded, DnsStatus::Error] {
+        for status in [DnsStatus::ForcedPlaintext, DnsStatus::PausedForSignIn, DnsStatus::Plaintext, DnsStatus::Degraded, DnsStatus::Error] {
             s.dns_status = status;
             assert_eq!(compute(&s), 0);
         }

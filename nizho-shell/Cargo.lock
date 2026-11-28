@@ -1109,6 +1109,7 @@ dependencies = [
 name = "nizho-privacy-tray"
 version = "0.1.0"
 dependencies = [
+ "futures-util",
  "ksni",
  "nizho-shell-common",
  "serde",
