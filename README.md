@@ -84,6 +84,7 @@ says exactly what was and was not tested. The full list is in [docs/FEATURES.md]
 - **Working with files:** the format wheel, the edit wheel, make smaller, ZIP, hide private details.
 - **Your files:** a Backup page in Settings and `nizho-import` (see the gaps below for what was tested).
 - **For developers:** VARA and Git in setup.
+- **Toolbx:** Toolbx gives you a Fedora container for command-line tools; it shares your home folder and is not a sandbox. Added to the image, not yet tested in a VM.
 
 Still a developer preview: the installer is new and VM-tested only, we have one
 hardware data point, and the known rough edges are in the release validation notes and the field notes.

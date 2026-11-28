@@ -351,3 +351,4 @@ exactly that: we haven't tried it.
   a web view of your repositories that only this computer can reach. The Hub is
   off until you switch it on. VARA is built from its v0.4.4 release. Tested in a
   VM (2026-10-20). Not yet on hardware.
+- **Toolbx.** Toolbx gives you a Fedora container for command-line tools; it shares your home folder and is not a sandbox. Added to the image, not yet tested in a VM.

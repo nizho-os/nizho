@@ -267,7 +267,7 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
     --setopt=max_parallel_downloads=10 --exclude=rootfiles \
     @kde-desktop-environment sddm \
     pipewire wireplumber pipewire-pulseaudio xorg-x11-server-Xwayland \
-    libadwaita flatpak flatpak-libs python3-gobject xdg-user-dirs brightnessctl \
+    libadwaita flatpak flatpak-libs toolbox python3-gobject xdg-user-dirs brightnessctl \
     bluez bluez-tools zram-generator-defaults
 
 # Enable SDDM (started once firstboot flips the default to graphical.target).

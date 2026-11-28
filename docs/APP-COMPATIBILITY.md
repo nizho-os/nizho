@@ -40,6 +40,7 @@ particular app works.
   laptop and has no list of tested machines yet. Try it from a USB stick before you install.
 - **Video and audio formats.** Fedora's media libraries leave out some patented formats. If a file
   does not play, tell us which format it was.
+- **Command-line tools.** Toolbx gives you a Fedora container for command-line tools; it shares your home folder and is not a sandbox. Added to the image, not yet tested in a VM.
 
 If an app you need is not on this page, assume it is untested.
 
