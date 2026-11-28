@@ -218,27 +218,60 @@ class RunTests(unittest.TestCase):
         self.assertEqual((record["action"], record["scale"], record["dpi"]), ("set", 1.75, 243))
 
     def test_second_run_changes_nothing(self):
-        self.m.screen("eDP-1", edid("BOE", 0x0A1B, 29, 17), 1920, 1080)
+        self.m.screen("eDP-1", edid("BOE", 0x0A1B, 30, 19), 2880, 1800)
         self.m.run()
-        self.assertEqual(self.m.set_calls(), ["output.eDP-1.scale.1.5"])
+        self.assertEqual(self.m.set_calls(), ["output.eDP-1.scale.1.75"])
         before = self.m.state()
-        self.m.set_scale("eDP-1", 1.5)
+        self.m.set_scale("eDP-1", 1.75)
         self.m.run()
         self.assertEqual(self.m.set_calls(), [])
         self.assertEqual(self.m.state(), before)
 
     def test_a_scale_the_user_changed_later_stays(self):
-        self.m.screen("eDP-1", edid("BOE", 0x0A1B, 29, 17), 1920, 1080)
+        self.m.screen("eDP-1", edid("BOE", 0x0A1B, 30, 19), 2880, 1800)
         self.m.run()
         self.m.set_scale("eDP-1", 1.0)   # the user went back to 100% in Display settings
         self.m.run()
         self.assertEqual(self.m.set_calls(), [])
 
     def test_a_scale_kwin_or_the_user_already_chose_is_kept(self):
-        self.m.screen("eDP-1", edid("BOE", 0x0A1B, 29, 17), 1920, 1080, scale=1.2)
+        self.m.screen("eDP-1", edid("BOE", 0x0A1B, 30, 19), 2880, 1800, scale=1.2)
         self.m.run()
         self.assertEqual(self.m.set_calls(), [])
         self.assertEqual(self.m.state()["outputs"]["eDP-1:BOE:0a1b"], {"action": "kept", "scale": 1.2})
+
+    def test_1080p_laptop_zoomed_by_kwin_goes_back_to_100_once(self):
+        # A 15.6 inch 1920x1080 panel (about 141 dots per inch) that KWin opened at 125%.
+        self.m.screen("eDP-1", edid("BOE", 0x0A1B, 34, 19), 1920, 1080, scale=1.25)
+        self.m.run()
+        self.assertEqual(self.m.set_calls(), ["output.eDP-1.scale.1"])
+        record = self.m.state()["outputs"]["eDP-1:BOE:0a1b"]
+        self.assertEqual((record["action"], record["scale"], record["was"]), ("set", 1.0, 1.25))
+        self.m.set_scale("eDP-1", 1.25)   # the user picks 125% again in Display settings
+        self.m.run()
+        self.assertEqual(self.m.set_calls(), [])
+
+    def test_1080p_and_1200p_laptops_at_100_are_left_at_100(self):
+        for label, (w, h), (wcm, hcm) in [("13.3 inch 1080p", (1920, 1080), (29, 17)),
+                                          ("14 inch 1080p", (1920, 1080), (31, 17)),
+                                          ("14 inch 1200p", (1920, 1200), (30, 19))]:
+            with self.subTest(label):
+                m = Machine(tempfile.mkdtemp(dir=self._tmp.name))
+                m.screen("eDP-1", edid("BOE", 0x0A1B, wcm, hcm), w, h)
+                m.run()
+                self.assertEqual(m.set_calls(), [])
+                self.assertEqual(m.state()["outputs"]["eDP-1:BOE:0a1b"]["action"], "kept")
+
+    def test_a_laptop_scale_outside_kwins_guess_is_kept(self):
+        self.m.screen("eDP-1", edid("BOE", 0x0A1B, 34, 19), 1920, 1080, scale=2.0)
+        self.m.run()
+        self.assertEqual(self.m.set_calls(), [])
+
+    def test_an_external_1080p_screen_is_not_treated_as_a_laptop_panel(self):
+        # 13.3 inch portable monitor on USB-C: the dots-per-inch table still applies.
+        self.m.screen("DP-1", edid("AOC", 0x1301, 29, 17), 1920, 1080)
+        self.m.run()
+        self.assertEqual(self.m.set_calls(), ["output.DP-1.scale.1.5"])
 
     def test_internal_and_external_screens_are_handled_apart(self):
         self.m.screen("eDP-1", edid("BOE", 0x0A1B, 30, 19), 2880, 1800)

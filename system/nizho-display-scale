@@ -6,8 +6,12 @@ connected screen is (from its EDID in /sys/class/drm) and how many pixels it sho
 `kscreen-doctor -j`), works out the dots per inch, and sets a scale from the table below with
 `kscreen-doctor output.NAME.scale.X`.
 
-KWin in Plasma 6 picks a scale of its own for a screen it has not seen before. This script
-only acts on a screen that is still at 100%. It acts once per screen. Each screen it has looked at is written to
+A built-in 1080p or 1200p laptop panel is the exception: it stays at 100% whatever its size, and
+if KWin already zoomed it (Plasma 6 gives such a panel about 125% on its own), that is put back
+to 100% once.
+
+KWin in Plasma 6 picks a scale of its own for a screen it has not seen before. Apart from that
+laptop panel case, this script only acts on a screen that is still at 100%. It acts once per screen. Each screen it has looked at is written to
 ~/.config/nizho/display-scale.json under its output name and EDID maker and product. A screen in
 that file is never touched again, so a scale the user picks later in Display settings stays. A
 screen that already has a scale other than 100% is left alone and recorded. A screen whose EDID is
@@ -37,6 +41,14 @@ POLICY = (
     (280, 1.75),
 )
 TOP_SCALE = 2.0
+# A built-in panel with at most this many lines (1920x1080, 1920x1200) stays at 100%, whatever its
+# size: the table above would zoom a 14 or 15.6 inch 1080p laptop to 125% or 150%.
+PANEL_FULL_SIZE_LINES = 1200
+# The range of scales KWin picks by itself for such a panel; only those are put back to 100%.
+KWIN_PANEL_GUESS = (1.15, 1.45)
+# kscreen-doctor's type number for a built-in screen, and connector names that are always built in.
+PANEL_TYPE = 7
+PANEL_NAMES = ("eDP", "LVDS", "DSI")
 
 EDID_HEADER = bytes([0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0])
 # A size outside these limits is treated as a wrong EDID, not as a real screen.
@@ -114,6 +126,10 @@ def read_edid(drm_dir, name):
     raise Skip("no EDID")
 
 
+def is_builtin(output):
+    return output.get("type") == PANEL_TYPE or str(output.get("name", "")).startswith(PANEL_NAMES)
+
+
 def mode_size(output):
     """(width, height) in pixels of the mode the output shows now, before any rotation."""
     current = str(output.get("currentModeId", ""))
@@ -187,10 +203,18 @@ def decide(output, drm_dir, seen):
     if key in seen:
         raise Skip("already handled")
     current = float(output.get("scale") or 1.0)
+    width_px, height_px = mode_size(output)
+    if is_builtin(output) and 0 < min(width_px, height_px) <= PANEL_FULL_SIZE_LINES:
+        # A 1080p or 1200p laptop panel shows Nizho at 100%, the size its interface is drawn for.
+        # KWin gives such a panel 125% on its own (it aims at about 125 dots per inch), which
+        # looks zoomed in, so that first choice is put back to 100% once.
+        dpi = dpi_from(width_px, height_px, width_cm, height_cm)
+        if KWIN_PANEL_GUESS[0] < current < KWIN_PANEL_GUESS[1]:
+            return key, {"dpi": round(dpi), "scale": 1.0, "action": "set", "was": current}, 1.0
+        return key, {"dpi": round(dpi), "scale": current, "action": "kept"}, None
     if abs(current - 1.0) > 0.01:
         # Somebody, or KWin itself, already chose a scale for this screen.
         return key, {"action": "kept", "scale": current}, None
-    width_px, height_px = mode_size(output)
     dpi = dpi_from(width_px, height_px, width_cm, height_cm)
     scale = scale_for_dpi(dpi)
     record = {"dpi": round(dpi), "scale": scale, "action": "set" if scale != 1.0 else "kept"}
