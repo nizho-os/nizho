@@ -253,7 +253,7 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --se
 RUN printf 'layout=uki\nuki_generator=ukify\n' > /etc/kernel/install.conf
 
 # Phase 4: bubblewrap-sandboxed Firefox
-RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y firefox bubblewrap
+RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked dnf install --setopt=keepcache=True -y firefox bubblewrap xdg-dbus-proxy
 
 # Graphical session: full KDE Plasma spin + SDDM login manager.
 # Plasma provides the panel, launcher, settings, file manager, window
@@ -742,16 +742,13 @@ RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
 #  - printing: CUPS and its filters.
 #  - fonts for the setup's language list: Tamil, Hindi, and Chinese, Japanese and Korean.
 #  - scanning (new): SANE drivers and Skanpage, a small KDE scanning app.
-#  - browser: dbus-daemon, so the Firefox sandbox can run its own private message bus and a second
-#    launch opens a window in the running Firefox (system/nizho-firefox). Fedora's own bus is dbus-broker.
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --setopt=keepcache=True -y -q \
       orca speech-dispatcher espeak-ng plasma-keyboard \
       fwupd bolt alsa-sof-firmware \
       cups cups-filters \
       default-fonts-ta default-fonts-hi default-fonts-cjk-sans \
-      sane-backends-drivers-scanners skanpage \
-      dbus-daemon
+      sane-backends-drivers-scanners skanpage
 # Remove two Fedora packages that only fail on Nizho:
 #  - PackageKit-command-not-found: PackageKit never runs on an image-based system, so every mistyped
 #    command in a terminal printed a "PackageKit unit failed" error.

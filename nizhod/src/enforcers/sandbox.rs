@@ -233,6 +233,40 @@ mod tests {
         assert_eq!(missing_markers(shipped), Vec::<String>::new());
     }
 
+    /// The browser's own argument list, between `BWRAP_ARGS=(` and its closing parenthesis.
+    fn browser_args(shipped: &str) -> &str {
+        let start = shipped.find("\nBWRAP_ARGS=(\n").expect("the wrapper has a BWRAP_ARGS list");
+        let rest = &shipped[start..];
+        &rest[..rest.find("\n)\n").expect("BWRAP_ARGS is closed")]
+    }
+
+    #[test]
+    fn the_shipped_browser_arguments_carry_the_markers_themselves() {
+        // The portal proxy's own bubblewrap call repeats several markers (--cap-drop ALL,
+        // --unshare-pid, --new-session). The browser's list must hold them without help.
+        let shipped = include_str!("../../../system/nizho-firefox");
+        assert_eq!(missing_markers(browser_args(shipped)), Vec::<String>::new());
+    }
+
+    #[test]
+    fn the_browser_never_gets_the_host_bus_or_the_portal_identity_file() {
+        let shipped = include_str!("../../../system/nizho-firefox");
+        let browser = browser_args(shipped);
+        // Only the filtered proxy socket (PORTAL_ARGS) can reach it, never the host socket,
+        // the system bus or /.flatpak-info, which belongs to the proxy's own bubblewrap.
+        assert!(browser.contains("\"${PORTAL_ARGS[@]}\""));
+        for forbidden in ["HOST_BUS", "/bus", "/run/dbus", "system_bus_socket", ".flatpak-info"] {
+            assert!(!browser.contains(forbidden), "the browser arguments mention {forbidden}");
+        }
+        // The portal rules refuse everything but the file chooser, settings reads and the
+        // wanted names: no wildcard talk or call rule for the whole portal.
+        assert!(shipped.contains("--filter"));
+        assert!(!shipped.contains("--talk="));
+        assert!(!shipped.contains("--sloppy-names"));
+        assert!(!shipped.contains("OpenURI"));
+        assert!(!shipped.contains("--call=org.freedesktop.portal.*"));
+    }
+
     #[test]
     fn markers_are_whole_words_outside_comments_and_tolerate_other_options() {
         assert!(missing_markers(WRAPPER).is_empty());

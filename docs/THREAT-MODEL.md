@@ -51,9 +51,18 @@ Direct audio-server access can include microphone recording; this is not a
 playback-only or portal-mediated grant. Downloads and the saved profile are
 readable and writable. Loopback services, such as the VARA Hub on
 127.0.0.1:8737, are reachable from the browser. The host session D-Bus is not
-bound; the saved profile may get a private bus with no services on it, used only
-to pass a second launch to the running Firefox. There is no seccomp filter and no
+bound. The browser gets a socket from xdg-dbus-proxy that allows the file
+chooser portal, a property read on the portal, and Firefox's own org.mozilla.firefox.*
+names (how a second launch reaches the running Firefox); other bus calls are
+refused. Because that proxy is the only thing between the browser and the host
+session bus, a flaw in its filter would expose the bus. There is no seccomp filter and no
 separate user namespace from the wrapper.
+
+Two limits of the portal path. (a) `--own=org.mozilla.firefox.*` lets the browser
+hand a URL to any other Firefox on the session bus, including a Flathub one; that
+Firefox is not sandboxed by this wrapper. (b) The browser chooses the title and
+button label of the file dialog, so a compromised browser can make the dialog look
+like something else. Files you have picked in the dialog stay granted until revoked.
 
 The sandbox only applies to launches through `/usr/bin/firefox`.
 `/usr/bin/firefox-unwrapped` stays executable by every user, so a program

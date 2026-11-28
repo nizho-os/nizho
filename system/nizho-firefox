@@ -11,21 +11,33 @@
 #   firefox --private-session --shell  — the same for the private-session sandbox
 #
 # Isolation model:
-#   - /home entirely hidden (tmpfs); ~/Downloads is re-exposed via bind
+#   - /home entirely hidden (tmpfs); ~/Downloads is re-exposed via bind, and
+#     files you have picked in the file dialog appear through the document portal
 #   - Saved profile: ~/.local/share/nizho/firefox-profile is bound read-write
 #     at ~/.mozilla. With --private-session it is not bound and ~/.mozilla
 #     lives on the tmpfs, so it is gone when Firefox exits.
-#   - The host session D-Bus stays hidden. When dbus-daemon is installed the
-#     saved profile gets a private bus (a socket inside the profile folder, no
-#     services on it, a one-line made-up /etc/passwd for dbus-daemon) so a second
-#     launch can hand its address to the Firefox that is already running.
-#     Firefox on Wayland has no other way to reach a running instance.
+#   - The host session D-Bus socket is never bound into the sandbox. When
+#     xdg-dbus-proxy and the session bus are present, the browser gets a socket
+#     from a filtering proxy instead. The proxy runs in its own small bubblewrap
+#     with a /.flatpak-info naming the app org.nizho.SandboxedFirefox, so the
+#     desktop portal treats the browser as a sandboxed app: the file dialog runs
+#     outside the sandbox and only the files you pick are handed back (through
+#     the document portal folder bound at /run/user/UID/doc). The proxy allows
+#     only the file chooser, one property read, the portal's reply signals
+#     and Firefox's own org.mozilla.firefox.* names (how a second launch reaches
+#     the running window). Everything else on the bus, notifications and screen
+#     sharing included, is refused. A private session runs as its own app,
+#     org.nizho.SandboxedFirefox.Private, so it never sees files picked in the
+#     saved session. Without the proxy, the bus or the document portal folder the
+#     browser starts with no D-Bus at all and uses its own file dialog.
+#     Firefox itself never sees /.flatpak-info.
 #   - Not restricted: the network (host namespace, so loopback services are
 #     reachable), the Wayland socket, and the audio sockets (microphone
 #     included). There is no seccomp filter.
 #   - /etc allowlisted: resolv.conf, ssl, pki, fonts, localtime, nsswitch — no
 #     NM profiles, no nizhod config, no machine-id
-#   - /run: tmpfs (the host session and system D-Bus sockets are not bound)
+#   - /run: tmpfs (the host session and system D-Bus sockets are not bound; the
+#     system bus is never reachable)
 #   - New PID, IPC, UTS namespaces; die-with-parent
 
 set -euo pipefail
@@ -52,7 +64,6 @@ fi
 PROFILE_PARENT="$HOME/.local/share/nizho"
 PROFILE="$PROFILE_PARENT/firefox-profile"
 PROFILE_ARGS=()
-BUS=
 if (( ! PRIVATE )); then
     # A link here could point the browser's writable folder at any other folder.
     [[ ! -L "$PROFILE" ]] || { echo 'The Firefox profile folder must be a real folder, not a link' >&2; exit 1; }
@@ -70,23 +81,129 @@ if (( ! PRIVATE )); then
         echo 'The Firefox profile folder belongs to another user' >&2; exit 1;
     }
     PROFILE_ARGS=(--bind "$PROFILE" "$HOME/.mozilla")
-    # Private bus for handing a second launch to the running Firefox. A D-Bus
-    # address cannot carry every character unescaped, so an unusual home path
-    # goes without it, as does a system without dbus-daemon. Without the bus a
-    # second launch gets Firefox's own "already running" message.
-    if [[ "$HOME" =~ ^[A-Za-z0-9_/.-]+$ && -x /usr/bin/dbus-daemon ]]; then
-        BUS="$HOME/.mozilla/nizho-bus"
-        PROFILE_ARGS+=(--setenv DBUS_SESSION_BUS_ADDRESS "unix:path=$BUS")
-        # dbus-daemon refuses to start unless it can look up its own user id.
-        # The host /etc/passwd stays hidden; this is one made-up line that
-        # holds only the user id, group id and home path.
-        exec 8<<<"user:x:$(id -u):$(id -g)::$HOME:/usr/sbin/nologin"
-        PROFILE_ARGS+=(--ro-bind-data 8 /etc/passwd)
-    fi
 fi
 WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 [[ "$WAYLAND_DISPLAY" =~ ^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*$ ]] || {
     echo 'Unsupported Wayland socket name' >&2; exit 1;
+}
+
+# Desktop portal access through a filtering D-Bus proxy (see the header).
+# Sets PORTAL_ARGS (extra sandbox arguments) and PROXY_PID. Any failure leaves
+# both empty, and the browser then starts without D-Bus, as it did before.
+APP_ID=org.nizho.SandboxedFirefox
+# Grants made in the file dialog last, so a private session has its own app id
+# and never sees what the saved session was given.
+if (( PRIVATE )); then APP_ID=org.nizho.SandboxedFirefox.Private; fi
+HOST_BUS="/run/user/${UID}/bus"
+PROXY_DIR="/run/user/${UID}/nizho-firefox"
+PORTAL_ARGS=()
+PROXY_PID=
+PROXY_SOCK=
+cleanup() {
+    [[ -z "$PROXY_PID" ]] || kill "$PROXY_PID" 2>/dev/null || true
+    [[ -z "$PROXY_SOCK" ]] || rm -f -- "$PROXY_SOCK"
+}
+start_portal_proxy() {
+    [[ -x /usr/bin/xdg-dbus-proxy && -S "$HOST_BUS" ]] || return 0
+    [[ ! -L "$PROXY_DIR" ]] || return 0
+    mkdir -p -m 0700 -- "$PROXY_DIR" 2>/dev/null || return 0
+    [[ -d "$PROXY_DIR" && -O "$PROXY_DIR" ]] || return 0
+    # Sockets left behind by launches that were killed.
+    local old pid
+    for old in "$PROXY_DIR"/proxy-*; do
+        [[ -S "$old" ]] || continue
+        pid="${old##*/proxy-}"
+        [[ "$pid" =~ ^[0-9]+$ ]] || continue
+        kill -0 "$pid" 2>/dev/null || rm -f -- "$old"
+    done
+    # The document portal folder for this app id must exist, or picked files
+    # would not reach the browser. Asking the portal for its mount point starts
+    # it if it is not running; the by-app folder is made when it is looked up.
+    timeout 5 busctl --user call org.freedesktop.portal.Documents /org/freedesktop/portal/documents \
+        org.freedesktop.portal.Documents GetMountPoint >/dev/null 2>&1 || true
+    if [[ ! -d "/run/user/${UID}/doc/by-app/$APP_ID" ]]; then
+        echo 'nizho-firefox: the document portal folder is missing; using the browser file dialog' >&2
+        return 0
+    fi
+    local sock="$PROXY_DIR/proxy-$$"
+    rm -f -- "$sock"
+    # --own is only for the saved profile: a private session must not answer to
+    # the saved window's name or hand its links to it.
+    local rules=(
+        --filter
+        '--call=org.freedesktop.portal.Desktop=org.freedesktop.portal.FileChooser.*@/org/freedesktop/portal/desktop'
+        '--call=org.freedesktop.portal.Desktop=org.freedesktop.DBus.Properties.Get@/org/freedesktop/portal/desktop'
+        '--broadcast=org.freedesktop.portal.Desktop=org.freedesktop.portal.Request.*@/org/freedesktop/portal/desktop/request/*'
+    )
+    (( PRIVATE )) || rules+=('--own=org.mozilla.firefox.*')
+    # The portal decides what an app is by reading /.flatpak-info in the
+    # process that holds the bus connection. Only the proxy has this file.
+    exec 6<<<"[Application]
+name=$APP_ID
+
+[Instance]
+instance-id=$$
+"
+    local proxy_bwrap=(
+        --clearenv
+        --ro-bind /usr /usr
+        --ro-bind /lib /lib
+        --ro-bind /lib64 /lib64
+        --ro-bind /bin /bin
+        --ro-bind /sbin /sbin
+        --tmpfs /run
+        --dir "/run/user/${UID}"
+        --ro-bind "$HOST_BUS" "$HOST_BUS"
+        --bind "$PROXY_DIR" "$PROXY_DIR"
+        --ro-bind-data 6 /.flatpak-info
+        --unshare-pid
+        --unshare-ipc
+        --unshare-uts
+        --unshare-net
+        --cap-drop ALL
+        --new-session
+        --die-with-parent
+    )
+    # The proxy writes one byte to stdout (--fd=1) when it is listening and
+    # stops when this end of the pipe closes, which happens when we exit.
+    exec 7< <(exec bwrap "${proxy_bwrap[@]}" /usr/bin/xdg-dbus-proxy --fd=1 \
+              "unix:path=$HOST_BUS" "$sock" "${rules[@]}")
+    PROXY_PID=$!
+    exec 6<&-
+    PROXY_SOCK="$sock"
+    if ! read -r -N1 -t 5 -u 7 _; then
+        echo 'nizho-firefox: the portal proxy did not start; using the browser file dialog' >&2
+        cleanup
+        PROXY_PID=
+        PROXY_SOCK=
+        exec 7<&-
+        return 0
+    fi
+    PORTAL_ARGS=(
+        --bind "$sock" "$HOST_BUS"
+        --setenv DBUS_SESSION_BUS_ADDRESS "unix:path=$HOST_BUS"
+        # Files picked in the dialog show up here and nowhere else.
+        --bind "/run/user/${UID}/doc/by-app/$APP_ID" "/run/user/${UID}/doc"
+    )
+}
+trap cleanup EXIT
+start_portal_proxy
+
+# Run the sandbox. With a proxy running this wrapper stays alive to clean up and
+# passes termination signals on; without one it replaces itself, as before.
+launch() {
+    if [[ -z "$PROXY_PID" ]]; then
+        exec bwrap "${BWRAP_ARGS[@]}" "$@"
+    fi
+    # Descriptor 7 is the proxy's lifeline and must not reach the browser.
+    bwrap "${BWRAP_ARGS[@]}" "$@" <&0 7<&- &
+    local child=$! rc=0
+    trap 'kill -TERM "$child" 2>/dev/null || true' TERM INT HUP
+    wait "$child" || rc=$?
+    while kill -0 "$child" 2>/dev/null; do
+        wait "$child" || rc=$?
+    done
+    return "$rc"
 }
 
 # Single source of truth for sandbox args.
@@ -123,7 +240,8 @@ BWRAP_ARGS=(
     # Writable scratch areas
     --tmpfs /tmp
     # /run: fresh tmpfs, then thread the Wayland socket back through so Firefox
-    # can connect to the compositor. D-Bus session bus stays hidden.
+    # can connect to the compositor. The host session bus stays hidden; only the
+    # filtered portal socket (PORTAL_ARGS) is added.
     --tmpfs /run
     --dir /run/user
     --dir /run/user/"${UID}"
@@ -141,6 +259,8 @@ BWRAP_ARGS=(
     # Select the mounted socket explicitly; do not inherit a launcher server
     # or rely on client configuration hidden by the isolated home and /etc.
     --setenv PULSE_SERVER unix:/run/user/"${UID}"/pulse/native
+    # Filtered portal bus socket and document-portal folder, when available.
+    "${PORTAL_ARGS[@]}"
     --setenv XDG_RUNTIME_DIR /run/user/"${UID}"
     --setenv WAYLAND_DISPLAY "${WAYLAND_DISPLAY:-wayland-0}"
     --setenv MOZ_ENABLE_WAYLAND 1
@@ -167,34 +287,8 @@ BWRAP_ARGS=(
 
 if [[ "${1:-}" == "--shell" ]]; then
     shift
-    exec bwrap "${BWRAP_ARGS[@]}" /bin/bash "${@:--i}"
+    launch /bin/bash "${@:--i}"
+    exit
 fi
 
-if [[ -n "$BUS" ]]; then
-    # One Firefox owns the saved profile at a time (Firefox locks it itself).
-    # This lock only decides who starts the private bus. It is held by the
-    # sandbox processes through fd 9 and is released when they are all gone.
-    # The lock file sits outside every folder the sandbox can write to.
-    # It is opened read-only because the browser inherits the descriptor.
-    : >>"$PROFILE_PARENT/firefox-profile.lock"
-    exec 9<"$PROFILE_PARENT/firefox-profile.lock"
-    if flock -n 9; then
-        rm -f -- "$PROFILE/nizho-bus"
-        # shellcheck disable=SC2016  # expanded by the shell inside the sandbox
-        START_BUS='conf=/tmp/nizho-bus.conf
-printf "%s\n" "<busconfig><type>session</type><listen>$DBUS_SESSION_BUS_ADDRESS</listen><auth>EXTERNAL</auth><policy context=\"default\"><allow send_destination=\"*\"/><allow receive_sender=\"*\"/><allow own=\"*\"/></policy></busconfig>" >"$conf" &&
-    /usr/bin/dbus-daemon --config-file="$conf" --fork --nopidfile >/dev/null 2>&1 || true
-exec "$@"'
-        exec bwrap "${BWRAP_ARGS[@]}" /bin/bash -c "$START_BUS" nizho-firefox "${BROWSER}" "$@"
-    fi
-    # Another sandbox holds the saved profile. Give its bus a moment to appear,
-    # then let Firefox pass the request on. If that fails, Firefox reports that
-    # the profile is in use and exits; the profile lock is never bypassed.
-    exec 9<&-
-    for _ in {1..50}; do
-        [[ -S "$PROFILE/nizho-bus" ]] && break
-        sleep 0.1
-    done
-fi
-
-exec bwrap "${BWRAP_ARGS[@]}" "${BROWSER}" "$@"
+launch "${BROWSER}" "$@"

@@ -1106,7 +1106,7 @@ def build_parser():
     f.add_argument("--dry-run", action="store_true", help="list what would be copied, copy nothing")
     b = sub.add_parser("bookmarks", help="write browser bookmarks to one HTML file")
     b.add_argument("source")
-    b.add_argument("--to", metavar="FILE", help="write here instead of ~/Downloads (the sandboxed Firefox sees only that folder)")
+    b.add_argument("--to", metavar="FILE", help="write here instead of ~/Downloads (the sandboxed Firefox sees only that folder, its own folder and files you have picked in its file dialog)")
     b.add_argument("--dry-run", action="store_true", help="read the bookmarks, write nothing")
     return p
 

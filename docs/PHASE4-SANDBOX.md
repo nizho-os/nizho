@@ -69,10 +69,7 @@ Hidden from /etc (confirmed absent inside sandbox):
   nizhod/              — privacy daemon config not visible
   machine-id          — unique host identifier not exposed
   shadow              — not needed by browser
-  passwd              — the host file is hidden. When the private bus is on
-                        (see below) the sandbox gets a one-line made-up
-                        /etc/passwd with your user id, group id and home path,
-                        because dbus-daemon will not start without it.
+  passwd              — the host file is hidden.
 
 Namespace isolation:
   --unshare-pid       — isolated PID namespace
@@ -113,16 +110,31 @@ private session, nothing saved". Nizho ships its own copy of Fedora's
 `org.mozilla.firefox.desktop` with that action added.
 
 Firefox allows one running copy per profile. On Wayland a second launch finds the
-first through the session D-Bus. The host session bus stays hidden, so when
-`/usr/bin/dbus-daemon` is installed the first saved-profile launch starts a
-private bus inside its sandbox, with its socket at `~/.mozilla/nizho-bus` and no
-services on it. Later launches use that socket to hand their request to the
-running Firefox. A lock file at `~/.local/share/nizho/firefox-profile.lock`
-decides which launch starts the bus. If the bus is missing (no dbus-daemon, or a
-home path with unusual characters), a second launch gets Firefox's own message
-that it is already running. Firefox's profile lock is never bypassed. The
-Containerfile does not install dbus-daemon itself. Whether another package pulls
-it in has not been checked on a built image.
+first through the session D-Bus. The host session bus socket is never bound into
+the sandbox. Instead the wrapper starts `xdg-dbus-proxy` in its own small
+bubblewrap, with a `/.flatpak-info` that names the app `org.nizho.SandboxedFirefox`
+(Firefox itself does not see that file), and binds the proxy's socket at
+`/run/user/UID/bus`. The proxy allows only:
+
+- calls to the file chooser portal and `Properties.Get` on
+  `/org/freedesktop/portal/desktop` (portal settings are not readable);
+- the portal's `Request` reply signals;
+- owning and talking to `org.mozilla.firefox.*` (saved profile only; a private
+  session does not get this).
+
+Everything else, including notifications, screen sharing and OpenURI, is refused.
+The portal sees an app with that name, so its file dialog opens outside the sandbox
+and the files you pick are handed over through the document portal folder, which
+the wrapper binds at `/run/user/UID/doc`. A private session runs under its own app
+name, `org.nizho.SandboxedFirefox.Private`, so the saved session's picks are not
+visible to it. Picked-file grants persist. To revoke them, try
+`flatpak documents --app=org.nizho.SandboxedFirefox` and `flatpak document-unexport`
+(unverified until the VM test). Before starting the proxy the wrapper asks the
+document portal for its mount point and requires the `by-app` folder for its app
+name; if that is missing it does not start the proxy. If the proxy program or the
+session bus is missing, or the proxy does not start, the browser starts with no D-Bus and uses
+its own file dialog. The proxy's socket lives in `/run/user/UID/nizho-firefox/`.
+This wrapper replaced an earlier private `dbus-daemon` inside the sandbox.
 
 ## Test mode
 

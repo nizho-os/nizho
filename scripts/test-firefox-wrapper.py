@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import subprocess
@@ -13,8 +14,25 @@ REPO = Path(__file__).resolve().parents[1]
 PROFILE = '.local/share/nizho/firefox-profile'
 
 
-HAS_DBUS_DAEMON = os.access('/usr/bin/dbus-daemon', os.X_OK)
-needs_dbus_daemon = unittest.skipUnless(HAS_DBUS_DAEMON, '/usr/bin/dbus-daemon is not installed')
+APP_ID = 'org.nizho.SandboxedFirefox'
+HOST_BUS = f'/run/user/{os.getuid()}/bus'
+
+
+def host_has_portal_inputs():
+    """The wrapper starts the portal proxy only where the proxy program and the session bus exist."""
+    try:
+        return os.access('/usr/bin/xdg-dbus-proxy', os.X_OK) and stat.S_ISSOCK(os.stat(HOST_BUS).st_mode)
+    except OSError:
+        return False
+
+
+PORTAL = host_has_portal_inputs()
+needs_portal = unittest.skipUnless(PORTAL, 'xdg-dbus-proxy or the session bus is not available here')
+
+
+def same_launch(args):
+    """The proxy socket name carries the wrapper's process id; drop it to compare two launches."""
+    return [re.sub(r'proxy-\d+$', 'proxy-PID', a) for a in args]
 
 
 class WrapperTests(unittest.TestCase):
@@ -27,12 +45,27 @@ class WrapperTests(unittest.TestCase):
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         fake = self.bin / 'bwrap'
-        fake.write_text('#!/usr/bin/python3\nimport json,sys\nprint(json.dumps(sys.argv[1:]))\n')
+        # Stands in for bubblewrap: prints the arguments (the proxy's call goes to the pipe the
+        # wrapper reads its ready byte from), logs every call, and saves /.flatpak-info.
+        fake.write_text("""#!/usr/bin/python3
+import json, os, sys
+args = sys.argv[1:]
+with open(os.environ['FAKE_LOG'], 'a') as log:
+    log.write(json.dumps(args) + '\\n')
+if '/.flatpak-info' in args:
+    fd = int(args[args.index('/.flatpak-info') - 1])
+    with open(os.environ['FAKE_INFO'], 'wb') as info:
+        info.write(os.read(fd, 4096))
+if 'xdg-dbus-proxy' in ' '.join(args) and os.environ.get('FAKE_PROXY_FAILS'):
+    sys.exit(1)
+print(json.dumps(args))
+""")
         fake.chmod(0o755)
         self.wrapper = Path(os.environ.get('NIZHO_BROWSER_WRAPPER_SOURCE',
             Path(__file__).resolve().parents[1] / 'system' / 'nizho-firefox'))
         self.env = dict(os.environ, HOME=str(self.home), WAYLAND_DISPLAY='wayland-0',
-                        PATH=str(self.bin) + ':/usr/bin:/bin', NIZHO_TEST_SECRET='synthetic-secret')
+                        PATH=str(self.bin) + ':/usr/bin:/bin', NIZHO_TEST_SECRET='synthetic-secret',
+                        FAKE_LOG=str(self.root / 'calls.jsonl'), FAKE_INFO=str(self.root / 'flatpak-info'))
 
     def run_wrapper(self, *args):
         return subprocess.run(['bash', str(self.wrapper), *args], env=self.env,
@@ -49,6 +82,14 @@ class WrapperTests(unittest.TestCase):
     def pairs(args, flag):
         return [(args[i + 1], args[i + 2]) for i, arg in enumerate(args) if arg == flag]
 
+    def binds(self, args):
+        """The writable binds other than the filtered portal socket and the document folder."""
+        return [(src, dst) for src, dst in self.pairs(args, '--bind') if dst not in (HOST_BUS, f"/run/user/{os.getuid()}/doc")]
+
+    def calls(self):
+        """Every bubblewrap call the wrapper made: the proxy's first (if any), then the browser's."""
+        return [json.loads(line) for line in (self.root / 'calls.jsonl').read_text().splitlines()]
+
     def test_environment_is_allowlisted_and_capabilities_are_dropped(self):
         result = self.run_wrapper('https://example.invalid/')
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -56,9 +97,11 @@ class WrapperTests(unittest.TestCase):
         self.assertIn('--clearenv', args)
         self.assertEqual(args[args.index('--cap-drop') + 1], 'ALL')
         names = {args[i + 1] for i, value in enumerate(args) if value == '--setenv'}
-        self.assertEqual(names, {'PATH', 'HOME', 'LANG', 'LC_ALL', 'XDG_RUNTIME_DIR',
-                                 'WAYLAND_DISPLAY', 'MOZ_ENABLE_WAYLAND', 'MOZ_LEGACY_HOME',
-                                 'PULSE_SERVER'})
+        expected = {'PATH', 'HOME', 'LANG', 'LC_ALL', 'XDG_RUNTIME_DIR',
+                    'WAYLAND_DISPLAY', 'MOZ_ENABLE_WAYLAND', 'MOZ_LEGACY_HOME', 'PULSE_SERVER'}
+        if PORTAL:
+            expected.add('DBUS_SESSION_BUS_ADDRESS')
+        self.assertEqual(names, expected)
         self.assertNotIn('synthetic-secret', args)
         self.assertIn('--new-session', args)
 
@@ -98,18 +141,17 @@ class WrapperTests(unittest.TestCase):
     def test_shell_and_browser_use_the_same_boundary(self):
         normal = json.loads(self.run_wrapper().stdout)
         shell = json.loads(self.run_wrapper('--shell', '-c', 'true').stdout)
-        self.assertEqual(normal[:-1], shell[:-3])
+        self.assertEqual(same_launch(normal[:-1]), same_launch(shell[:-3]))
         self.assertEqual(shell[-3:], ['/bin/bash', '-c', 'true'])
         private = json.loads(self.run_wrapper('--private-session').stdout)
         shell = json.loads(self.run_wrapper('--private-session', '--shell', '-c', 'true').stdout)
-        self.assertEqual(private[:-1], shell[:-3])
+        self.assertEqual(same_launch(private[:-1]), same_launch(shell[:-3]))
 
     def test_browser_arguments_are_preserved_without_shell_evaluation(self):
         url = 'https://example.invalid/;touch /tmp/never-run'
         args = json.loads(self.run_wrapper(url).stdout)
         self.assertEqual(args[-1], url)
-        self.assertEqual(args[args.index('--bind') + 1:args.index('--bind') + 3],
-                         [str(self.home / 'Downloads')] * 2)
+        self.assertEqual(self.binds(args)[0], (str(self.home / 'Downloads'),) * 2)
         private = json.loads(self.run_wrapper('--private-session', url).stdout)
         self.assertEqual(private[-2:], ['/usr/bin/firefox-unwrapped', url])
         self.assertNotIn('--private-session', private)
@@ -119,7 +161,7 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         args = json.loads(result.stdout)
         profile = self.home / PROFILE
-        self.assertEqual(self.pairs(args, '--bind'),
+        self.assertEqual(self.binds(args),
                          [(str(self.home / 'Downloads'),) * 2, (str(profile), str(self.home / '.mozilla'))])
         self.assertEqual(stat.S_IMODE(profile.stat().st_mode), 0o700)
         self.assertEqual(profile.stat().st_uid, os.getuid())
@@ -157,21 +199,19 @@ class WrapperTests(unittest.TestCase):
         result = self.run_wrapper('--private-session')
         self.assertEqual(result.returncode, 0, result.stderr)
         args = json.loads(result.stdout)
-        self.assertEqual(self.pairs(args, '--bind'), [(str(self.home / 'Downloads'),) * 2])
+        self.assertEqual(self.binds(args), [(str(self.home / 'Downloads'),) * 2])
         self.assertFalse((self.home / '.local').exists())
         self.assertNotIn('.mozilla', ' '.join(args))
-        self.assertNotIn('DBUS_SESSION_BUS_ADDRESS', args)
         self.assertNotIn('/etc/passwd', args)
         self.assertEqual(args[-1], '/usr/bin/firefox-unwrapped')
 
-    @needs_dbus_daemon
     def test_private_session_differs_from_the_saved_one_only_by_the_profile(self):
         self.plain_home()
-        saved = json.loads(self.run_wrapper('--shell', '-c', 'true').stdout)
-        private = json.loads(self.run_wrapper('--private-session', '--shell', '-c', 'true').stdout)
-        extra = ['--bind', str(self.home / PROFILE), str(self.home / '.mozilla'),
-                 '--setenv', 'DBUS_SESSION_BUS_ADDRESS', f'unix:path={self.home}/.mozilla/nizho-bus',
-                 '--ro-bind-data', '8', '/etc/passwd']
+        saved = same_launch(json.loads(self.run_wrapper('--shell', '-c', 'true').stdout))
+        private = same_launch(json.loads(self.run_wrapper('--private-session', '--shell', '-c', 'true').stdout))
+        # Only the app id differs, so the document folder is a different one.
+        private = [a.replace('.SandboxedFirefox.Private', '.SandboxedFirefox') for a in private]
+        extra = ['--bind', str(self.home / PROFILE), str(self.home / '.mozilla')]
         cut = saved.index('--chdir')
         self.assertEqual(saved[cut - len(extra):cut], extra)
         self.assertEqual(saved[:cut - len(extra)] + saved[cut:], private)
@@ -225,13 +265,15 @@ class WrapperTests(unittest.TestCase):
         runtime = f'/run/user/{os.getuid()}'
         for mode in [(), ('--private-session',)]:
             args = json.loads(self.run_wrapper(*mode).stdout)
-            # The host buses are never bound, and the private one lives in the profile.
+            # No host bus socket is ever a bind source; the browser's bus is the proxy's socket.
             joined = '\n'.join(args)
-            self.assertNotIn(f'{runtime}/bus', joined)
             self.assertNotIn('/run/dbus', joined)
             self.assertNotIn('/var/run', joined)
-            self.assertEqual(sorted(dst for _, dst in self.pairs(args, '--bind-try')),
-                             sorted([f'{runtime}/wayland-0', f'{runtime}/pipewire-0', f'{runtime}/pulse/native']))
+            self.assertNotIn('/.flatpak-info', joined)
+            for flag in ['--bind', '--bind-try', '--ro-bind', '--ro-bind-try']:
+                self.assertNotIn(HOST_BUS, [src for src, _ in self.pairs(args, flag)])
+            expected = [f'{runtime}/wayland-0', f'{runtime}/pipewire-0', f'{runtime}/pulse/native']
+            self.assertEqual(sorted(dst for _, dst in self.pairs(args, '--bind-try')), sorted(expected))
             # The network namespace was shared before and still is; the other namespaces stay.
             unshare = sorted(a for a in args if a.startswith('--unshare') or a == '--share-net')
             self.assertEqual(unshare, ['--unshare-ipc', '--unshare-pid', '--unshare-uts'])
@@ -244,42 +286,92 @@ class WrapperTests(unittest.TestCase):
             self.assertEqual(self.pairs(args, '--ro-bind'),
                              [(d, d) for d in ['/usr', '/lib', '/lib64', '/bin', '/sbin']])
 
-    @needs_dbus_daemon
-    def test_first_saved_launch_starts_the_private_bus_and_a_second_does_not(self):
+    @needs_portal
+    def test_the_browser_gets_only_the_filtered_socket_and_the_document_folder(self):
         self.plain_home()
-        first = json.loads(self.run_wrapper('https://example.invalid/').stdout)
-        self.assertEqual(first[-6:-4], ['/bin/bash', '-c'])
-        self.assertIn('dbus-daemon', first[-4])
-        self.assertIn('<listen>', first[-4])
-        self.assertNotIn('eavesdrop', first[-4])
-        self.assertEqual(first[-3:], ['nizho-firefox', '/usr/bin/firefox-unwrapped', 'https://example.invalid/'])
-        # Hold the launch lock the way a running sandbox does.
-        lock = self.home / '.local/share/nizho/firefox-profile.lock'
-        holder = subprocess.Popen(['flock', str(lock), 'sleep', '30'])
-        self.addCleanup(holder.wait)
-        self.addCleanup(holder.kill)
-        for _ in range(50):
-            if subprocess.run(['flock', '-n', str(lock), 'true']).returncode:
-                break
-            subprocess.run(['sleep', '0.1'])
-        # A stand-in for the first sandbox's bus socket, so the wrapper does not wait for one.
-        import socket
-        bus = socket.socket(socket.AF_UNIX)
-        self.addCleanup(bus.close)
-        bus.bind(str(self.home / PROFILE / 'nizho-bus'))
-        second = json.loads(self.run_wrapper('https://example.invalid/2').stdout)
-        self.assertEqual(second[-2:], ['/usr/bin/firefox-unwrapped', 'https://example.invalid/2'])
-        self.assertEqual(second[:-2], first[:-6])
-        self.assertTrue((self.home / PROFILE / 'nizho-bus').exists())
+        args = json.loads(self.run_wrapper().stdout)
+        runtime = f'/run/user/{os.getuid()}'
+        socks = [src for src, dst in self.pairs(args, '--bind') if dst == HOST_BUS]
+        self.assertEqual(len(socks), 1)
+        self.assertRegex(socks[0], rf'^{runtime}/nizho-firefox/proxy-\d+$')
+        self.assertEqual(args[args.index('DBUS_SESSION_BUS_ADDRESS') + 1], f'unix:path={HOST_BUS}')
+        self.assertIn((f'{runtime}/doc/by-app/{APP_ID}', f'{runtime}/doc'), self.pairs(args, '--bind'))
+        # The identity file belongs to the proxy alone.
+        self.assertNotIn('/.flatpak-info', args)
+        self.assertNotIn('--ro-bind-data', args)
 
-    @needs_dbus_daemon
-    def test_made_up_passwd_line_holds_only_ids_and_home(self):
+    @needs_portal
+    def test_the_proxy_runs_in_its_own_bubblewrap_as_the_named_app_with_a_narrow_filter(self):
         self.plain_home()
-        fake = self.bin / 'bwrap'
-        fake.write_text('#!/usr/bin/python3\nimport os\nprint(os.read(8, 4096).decode(), end="")\n')
-        result = self.run_wrapper('--shell')
-        self.assertEqual(result.stdout,
-                         f'user:x:{os.getuid()}:{os.getgid()}::{self.home}:/usr/sbin/nologin\n')
+        self.run_wrapper()
+        proxy, browser = self.calls()
+        self.assertEqual(browser[-1], '/usr/bin/firefox-unwrapped')
+        self.assertEqual(self.pairs(proxy, '--ro-bind-data')[0][1], '/.flatpak-info')
+        self.assertEqual((self.root / 'flatpak-info').read_text().splitlines()[:2],
+                         ['[Application]', f'name={APP_ID}'])
+        self.assertIn('--die-with-parent', proxy)
+        self.assertEqual(proxy[proxy.index('--cap-drop') + 1], 'ALL')
+        self.assertIn(('/usr', '/usr'), self.pairs(proxy, '--ro-bind'))
+        # Nothing of the user's home, profile or Downloads is in the proxy's view.
+        self.assertNotIn(str(self.home), ' '.join(proxy))
+        rest = proxy[proxy.index('/usr/bin/xdg-dbus-proxy'):]
+        self.assertEqual(rest[1], '--fd=1')
+        self.assertEqual(rest[2], f'unix:path={HOST_BUS}')
+        self.assertRegex(rest[3], r'/nizho-firefox/proxy-\d+$')
+        rules = rest[4:]
+        portal = 'org.freedesktop.portal.Desktop'
+        path = '@/org/freedesktop/portal/desktop'
+        self.assertEqual(sorted(rules), sorted([
+            '--filter',
+            f'--call={portal}=org.freedesktop.portal.FileChooser.*{path}',
+            f'--call={portal}=org.freedesktop.DBus.Properties.Get{path}',
+            f'--broadcast={portal}=org.freedesktop.portal.Request.*@/org/freedesktop/portal/desktop/request/*',
+            '--own=org.mozilla.firefox.*']))
+
+    @needs_portal
+    def test_a_private_session_does_not_own_firefox_names(self):
+        self.plain_home()
+        self.run_wrapper('--private-session')
+        proxy = self.calls()[0]
+        rules = proxy[proxy.index('/usr/bin/xdg-dbus-proxy'):]
+        self.assertFalse([r for r in rules if r.startswith(('--own', '--talk', '--see'))])
+        self.assertIn('--filter', rules)
+        # Its own app id, so picks made in the saved session are not shared with it.
+        self.assertEqual((self.root / 'flatpak-info').read_text().splitlines()[1], f'name={APP_ID}.Private')
+        args = self.calls()[1]
+        runtime = f'/run/user/{os.getuid()}'
+        self.assertIn((f'{runtime}/doc/by-app/{APP_ID}.Private', f'{runtime}/doc'), self.pairs(args, '--bind'))
+
+    def test_the_proxy_rules_in_the_script_are_exactly_the_known_list(self):
+        text = self.wrapper.read_text()
+        block = text[text.index('local rules=(') + len('local rules=('):]
+        block = block[:block.index('\n    )\n')]
+        lines = [line.strip().strip("'") for line in block.splitlines() if line.strip()]
+        portal = 'org.freedesktop.portal.Desktop'
+        path = '@/org/freedesktop/portal/desktop'
+        self.assertEqual(lines, [
+            '--filter',
+            f'--call={portal}=org.freedesktop.portal.FileChooser.*{path}',
+            f'--call={portal}=org.freedesktop.DBus.Properties.Get{path}',
+            f'--broadcast={portal}=org.freedesktop.portal.Request.*@/org/freedesktop/portal/desktop/request/*'])
+        self.assertNotIn('--see', text)
+        self.assertNotIn('--talk', text)
+        self.assertEqual(re.findall(r"--own=\S+", text), ["--own=org.mozilla.firefox.*')"])
+
+    @needs_portal
+    def test_without_a_working_proxy_the_browser_starts_with_no_bus(self):
+        self.plain_home()
+        self.env['FAKE_PROXY_FAILS'] = '1'
+        result = self.run_wrapper('https://example.invalid/')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('using the browser file dialog', result.stderr)
+        args = json.loads(result.stdout)
+        self.assertNotIn('DBUS_SESSION_BUS_ADDRESS', args)
+        self.assertNotIn(HOST_BUS, args)
+        self.assertEqual(args[-2:], ['/usr/bin/firefox-unwrapped', 'https://example.invalid/'])
+        self.assertEqual([dst for _, dst in self.pairs(args, '--bind-try')],
+                         [f'/run/user/{os.getuid()}/{n}' for n in ['wayland-0', 'pipewire-0', 'pulse/native']])
+        self.assertEqual(list((Path(HOST_BUS).parent / 'nizho-firefox').glob('proxy-*')), [])
 
     @unittest.skipUnless(shutil.which('bwrap'), 'bubblewrap is not installed')
     def test_real_bubblewrap_shows_the_profile_and_downloads_and_nothing_else(self):
@@ -293,7 +385,7 @@ class WrapperTests(unittest.TestCase):
         self.plain_home()
         (self.home / 'secret.txt').write_text('secret')
         self.env['PATH'] = '/usr/bin:/bin'
-        probe = 'cd "$HOME" && ls -A && echo kept > .mozilla/kept && test ! -e /run/user/*/bus'
+        probe = 'cd "$HOME" && ls -A && echo kept > .mozilla/kept && test ! -e /.flatpak-info && test ! -e /etc/passwd'
         result = subprocess.run(['bash', str(self.wrapper), '--shell', '-c', probe], env=self.env,
                                 capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -315,6 +407,11 @@ class PolicyTests(unittest.TestCase):
         self.assertIs(policies['DisableFirefoxStudies'], True)
         self.assertEqual(policies['DNSOverHTTPS'], {'Enabled': False, 'Locked': True})
         self.assertIs(policies['EnableTrackingProtection']['Value'], True)
+
+    def test_policies_send_the_file_dialog_through_the_portal(self):
+        policies = json.loads((REPO / 'system' / 'firefox-policies.json').read_text())['policies']
+        self.assertEqual(policies['Preferences']['widget.use-xdg-desktop-portal.file-picker'],
+                         {'Value': 1, 'Status': 'default'})
 
 
 class DesktopFileTests(unittest.TestCase):

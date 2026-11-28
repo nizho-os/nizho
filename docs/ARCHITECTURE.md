@@ -88,8 +88,10 @@ auditable and boring on purpose. Config: `/etc/nizhod/nizhod.toml`
 
 `/usr/bin/firefox` → wrapper → bubblewrap → `/usr/bin/firefox-unwrapped`.
 Home is a tmpfs (real home invisible), /etc is an allowlist (no NetworkManager
-creds, no nizhod config, no machine-id), /run is a tmpfs (no D-Bus), only
-~/Downloads is re-exposed rw. Wayland and audio sockets are passed through;
+creds, no nizhod config, no machine-id), /run is a tmpfs (the host session and
+system buses are not bound; a filtering proxy gives the browser only the file
+chooser), ~/Downloads is re-exposed rw, and files you have picked in
+the file dialog arrive through the document portal. Wayland and audio sockets are passed through;
 direct audio-server access includes recording capability. The wrapper ships
 in the system image, but administrators and other browser installations can
 bypass it. Test its boundary with a sentinel file in the real home:
